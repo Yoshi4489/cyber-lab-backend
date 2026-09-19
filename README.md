@@ -20,10 +20,14 @@ features and Docker lifecycle workers are added in the phases in `PLAN.md`.
 ```powershell
 npm install
 Copy-Item .env.example .env
+# Replace BACKEND_SERVICE_TOKEN_SECRET with a generated value (32+ characters).
 npm run dev
 ```
 
-The API listens on `http://localhost:4000` by default.
+The API listens on `http://127.0.0.1:4000` by default. Run `npm run build`,
+`npm run typecheck`, and `npm test` to verify the scaffold. Database and queue
+connections are added in later phases; lifecycle routes currently return 501
+after authentication and request validation.
 
 ## Documentation
 
