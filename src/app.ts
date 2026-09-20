@@ -3,14 +3,19 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import type { Config } from './config.js';
+import { generateRequestId, registerCorrelation } from './plugins/correlation.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 import { registerMetaRoutes } from './routes/meta.js';
 import { registerInstanceRoutes } from './routes/instances.js';
 
 export async function buildApp(config: Config) {
-  const app = Fastify({ logger: config.NODE_ENV !== 'test' });
+  const app = Fastify({
+    logger: config.NODE_ENV !== 'test',
+    genReqId: generateRequestId,
+  });
 
   registerErrorHandler(app);
+  registerCorrelation(app);
 
   await app.register(helmet);
   await app.register(cors, { origin: config.FRONTEND_ORIGIN });
