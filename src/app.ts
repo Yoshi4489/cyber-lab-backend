@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import type { Config } from './config.js';
+import { buildLoggerOptions } from './lib/logger.js';
 import { generateRequestId, registerCorrelation } from './plugins/correlation.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 import { registerMetaRoutes } from './routes/meta.js';
@@ -10,7 +11,7 @@ import { registerInstanceRoutes } from './routes/instances.js';
 
 export async function buildApp(config: Config) {
   const app = Fastify({
-    logger: config.NODE_ENV !== 'test',
+    logger: buildLoggerOptions(config),
     genReqId: generateRequestId,
   });
 
