@@ -36,11 +36,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate local service configuration
+        run: DEV_POSTGRES_PASSWORD="$(openssl rand -hex 32)" docker compose --env-file .env.example config --quiet
+
       - name: Lint
         run: npm run lint
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Build
+        run: npm run build
 
       - name: Test
         run: npm test
