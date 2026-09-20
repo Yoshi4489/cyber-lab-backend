@@ -1,7 +1,8 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Config } from '../config.js';
-import { verifyServiceToken } from '../auth/service-token.js';
+import { requireScope } from '../auth/require-scope.js';
+import { invalidRequest, notImplemented } from '../lib/errors.js';
 
 const instanceParams = z.object({ id: z.uuid() });
 const createBody = z.object({ challengeId: z.uuid() }).strict();
@@ -10,41 +11,23 @@ export async function registerInstanceRoutes(
   app: FastifyInstance,
   options: { config: Config },
 ) {
-  async function authenticate(header: string | undefined, scope: string) {
-    if (!header?.startsWith('Bearer ')) return false;
-    try {
-      await verifyServiceToken(header.slice(7), options.config, scope);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  app.post('/instances', async (request, reply) => {
-    if (!(await authenticate(request.headers.authorization, 'instances:write'))) {
-      return reply.code(401).send({ code: 'UNAUTHORIZED' });
-    }
+  app.post('/instances', async (request) => {
+    await requireScope(request.headers.authorization, options.config, 'instances:write');
     if (!createBody.safeParse(request.body).success) {
-      return reply.code(400).send({ code: 'INVALID_REQUEST' });
+      throw invalidRequest('Body must be { challengeId: uuid }');
     }
-    return reply.code(501).send({ code: 'NOT_IMPLEMENTED' });
+    throw notImplemented('Instance provisioning ships in Phase 3');
   });
 
-  async function instanceOperation(
-    request: FastifyRequest,
-    reply: FastifyReply,
-    scope: string,
-  ) {
-    if (!(await authenticate(request.headers.authorization, scope))) {
-      return reply.code(401).send({ code: 'UNAUTHORIZED' });
-    }
+  async function instanceOperation(request: FastifyRequest, scope: string): Promise<never> {
+    await requireScope(request.headers.authorization, options.config, scope);
     if (!instanceParams.safeParse(request.params).success) {
-      return reply.code(400).send({ code: 'INVALID_REQUEST' });
+      throw invalidRequest('Instance id must be a uuid');
     }
-    return reply.code(501).send({ code: 'NOT_IMPLEMENTED' });
+    throw notImplemented('Instance lifecycle ships in Phase 3');
   }
 
-  app.get('/instances/:id', (request, reply) => instanceOperation(request, reply, 'instances:read'));
-  app.post('/instances/:id/extend', (request, reply) => instanceOperation(request, reply, 'instances:write'));
-  app.delete('/instances/:id', (request, reply) => instanceOperation(request, reply, 'instances:write'));
+  app.get('/instances/:id', (request) => instanceOperation(request, 'instances:read'));
+  app.post('/instances/:id/extend', (request) => instanceOperation(request, 'instances:write'));
+  app.delete('/instances/:id', (request) => instanceOperation(request, 'instances:write'));
 }
