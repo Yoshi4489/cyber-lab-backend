@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "vitest run",
+    "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.typecheck.json"
   },
   "dependencies": {
@@ -22,9 +23,12 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
+    "eslint": "^10.11.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^3.0.0"
   }
 }
