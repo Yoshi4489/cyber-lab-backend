@@ -47,6 +47,7 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
 
 Phase 1 will add backend-owned authentication behind the frontend BFF. The
 backend does not currently expose auth endpoints or issue opaque sessions.
+See the planned [authentication contract](AUTHENTICATION.md).
 
 ## Compatibility and checks
 

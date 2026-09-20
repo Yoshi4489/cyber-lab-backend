@@ -1,183 +1,175 @@
 # Cyber Range Backend
 
-Control-plane API for a beginner-friendly, hands-on security lab platform. Owns
-accounts, the lab catalog, scoring, and the disposable lab-instance lifecycle.
+Control-plane API for a beginner-friendly security lab platform. The backend
+owns accounts, authorization, catalog data, scoring, and disposable lab
+instances. Only the backend worker may hold Docker Engine credentials.
 
-This service is the only component permitted to hold Docker Engine credentials.
-See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`SECURITY.md`](SECURITY.md), and
-[`AGENTS.md`](AGENTS.md) before changing anything.
+Read [AGENTS.md](AGENTS.md), [PLAN.md](PLAN.md),
+[ARCHITECTURE.md](ARCHITECTURE.md), and [SECURITY.md](SECURITY.md) before changing
+the backend.
 
-The frontend lives in a separate repository:
-
-| Repo | Path |
-|---|---|
-| Frontend | `C:\Users\win\Downloads\Projects\WebApps\cyber-range` |
-| Backend | `C:\Users\win\Downloads\Projects\WebApps\cyber-range-backend` |
+The separate frontend repository is
+`C:\Users\win\Downloads\Projects\WebApps\cyber-range`.
+This repository is
+`C:\Users\win\Downloads\Projects\WebApps\cyber-range-backend`.
 
 ## Project status
 
-**Now:** Phase 1 — Database and backend-owned authentication
-**Done:** Phase 0 complete — error envelope, correlation ids, redacted logging, readiness, mock catalog and mock flag submission, lint, CI, all covered by tests
-**Next:** Local Postgres and the `users` / `sessions` / `email_tokens` schema
-**Blocked / waiting:** Nothing. A domain is still needed for `*.labs` per-instance routing, but not until Phase 3
-**Last updated:** 2026-09-20
+**Now:** Phase 0 implementation complete, including repository alignment.
+**Next:** Phase 1 database and backend-owned authentication foundation.
+**Last updated:** 2026-09-21.
 
-### Local development decisions
+Working today: Fastify/TypeScript, service-token verification, error envelopes,
+correlation IDs, redacted request logging, health/readiness, mock catalog and
+submissions, generated OpenAPI, local dependency configuration, lint, build,
+type checks, and contract tests.
 
-There is no domain yet and nothing is deployed, so Phase 1 runs entirely on
-localhost. Each row below is a deliberate stub, not a shortcut: the full logic
-gets built and tested either way, and only the outbound step is swapped later.
+Not implemented yet: database schema/migrations, account or session endpoints,
+email delivery, persisted scores, queue workers, real targets, or deployment.
+The existing database factory is an unused Neon HTTP scaffold. Local Compose
+does not connect the API to PostgreSQL or Redis.
 
-| Area | Now | Later | Cost to switch |
-|---|---|---|---|
-| Database | Local Postgres in Docker, `pg` driver | Neon serverless | One client file; schema code is identical |
-| Email | Verification and reset links printed to the dev console | Resend, once a domain is verified | One mailer module |
-| Signup | Endpoint returns `403` while `SIGNUPS_OPEN=false`; accounts created by a seed script | Invite codes, then open after Phase 4 | Additive — a table and one check |
+Verification: 39 tests, lint, type checking, and build pass on Node 22.23.2.
+Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
+and CI. Compose and CI YAML parse successfully, but Docker is unavailable on
+the implementation machine, so container startup has not been verified there.
+CI includes Compose configuration validation; it does not yet run dependency
+integration tests. Remote CI results have not been independently confirmed.
 
-### Phase 0 steps
-
-Each row is one commit, in order, so the history can be read and bisected one
-change at a time.
-
-| # | Commit | State |
-|---|---|---|
-| 1 | `feat(api): add structured error envelope with stable codes` | Done |
-| 2 | `refactor(auth): extract a shared token scope guard` | Done |
-| 3 | `feat(api): add request correlation ids` | Done |
-| 4 | `security(api): redact secrets and scrub query strings from logs` | Done |
-| 5 | `feat(api): add readiness endpoint with pluggable probes` | Done |
-| 6 | `test(api): cover error envelope, correlation ids and readiness` | Done |
-| 7 | `feat(catalog): add flag hashing and mock lab fixtures` | Done |
-| 8 | `feat(catalog): serve the mock catalog and mock flag submission` | Done |
-| 9 | `test(catalog): cover mock catalog, submissions and flag hashing` | Done |
-| 10 | `docs: add project status tracker to README` | Done |
-| 11 | `chore(lint): add ESLint flat config with type-aware promise rules` | Done |
-| 12 | `ci: run lint, typecheck and tests on every push` | Done |
-| 13 | `security(deps): upgrade drizzle-orm past the SQL injection advisory` | Done |
-| 14 | `security(deps): upgrade vitest past the path traversal advisory` | Done |
-| 15 | `docs: mark Phase 0 complete` | Done |
-
-Linting is type-aware but deliberately narrow. The full `recommendedTypeChecked`
-preset was tried and rejected: `require-await` flags every Fastify handler,
-which is `async` so that Fastify can read the return value as the body rather
-than because it awaits anything, and the `no-unsafe-*` family flags every
-`JSON.parse` of a response body in the tests. Both would have to be suppressed,
-and a linter that is mostly suppressions stops being read. The three type-aware
-rules that are enabled — `no-floating-promises`, `no-misused-promises`,
-`await-thenable` — all catch the same class of bug: a promise that is never
-awaited, so its rejection is swallowed and the route answers `200`.
-
-## Mock lab data
-
-No real lab runs yet. The catalog and flag checking are served from fixtures in
-`src/mocks/challenges.ts` so the frontend can build against real-shaped data
-before the database (Phase 1) and the Docker lifecycle (Phase 3) exist.
-
-- Challenges are placeholders. **No real challenge content is designed here.**
-- No flag is stored, not even a mock one. `mockFlag(slug)` derives it, so the
-  mock phase follows the same rule as production: flags are never stored in
-  plaintext.
-- The mock flag for a challenge is `CTF{mock_<slug with dashes as underscores>}`
-  — so `sample-web-a` accepts `CTF{mock_sample_web_a}`.
-- A correct submission returns `{ correct: true, recorded: false }`. Nothing is
-  persisted until Phase 2 adds `submissions` and `solves`.
-
-Replacing the fixtures with database queries in Phase 2 does not change any
-request or response shape.
-
-> Public signup stays closed until every control in [`SECURITY.md`](SECURITY.md)
-> is implemented and reviewed (end of Phase 4). A health endpoint and scaffolded
-> `501` routes do not mean the platform is ready to host hostile targets.
+The earlier Phase 0 finishing script is absent from the current repository.
+Use reviewed commands and focused commits; no automatic commit/push cleanup
+script is retained.
 
 ## Roadmap
 
-| Phase | Scope | State |
+| Phase | Deliverable | State |
 |---|---|---|
-| 0 | Error envelope, correlation ids, redacted logging, readiness, lint, CI | In progress |
-| 1 | Drizzle schema, registration, login, email verification, password reset, roles | Not started |
-| 2 | Challenge catalog, progress, flag submission, leaderboard | Not started |
-| 3 | Instance lifecycle: queue, Docker adapter, Traefik routing, in-browser terminal | Not started |
-| 4 | Isolation hardening — **gate for public signup** | Not started |
-| 5 | Admin tools, monitoring, backups | Not started |
-| 6 | Third-party auth, XP and badges, multi-node scheduling | Not started |
+| 0 | API foundation, Node 22 alignment, local services, generated OpenAPI, agreed docs | Implemented |
+| 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF integration | Next |
+| 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Planned |
+| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Planned |
+| 4 | Isolation hardening and security review; required gate for public signup | Planned |
+| 5 | Admin tools, monitoring, backup/restore, operational deployment | Planned |
+| 6 | Browser terminal, TCP/VPN access, multi-node scheduling, advanced progression/auth | Deferred |
+
+See [PLAN.md](PLAN.md) for ordered tasks, dependencies, effort, and exit criteria.
+There is no fixed delivery deadline. The immediate milestone is Phase 1 auth
+foundation; catalog persistence and real labs remain later milestones.
+
+Public signup stays closed until every required control in
+[SECURITY.md](SECURITY.md) is implemented and reviewed.
+
+## Agreed development choices
+
+| Area | Decision |
+|---|---|
+| Runtime | Node 22, npm, Fastify 5, strict TypeScript, Zod |
+| Identity | Backend owns credentials and opaque PostgreSQL sessions; frontend BFF mediates browser access |
+| Authentication | Argon2id; player/admin roles; seeded or operator-created accounts |
+| Database | Local PostgreSQL, Drizzle migrations; managed Neon in production |
+| Email | Explicit development-only delivery locally; Resend after domain setup |
+| Catalog | Reviewed repository manifests and seeded read-only catalog |
+| Scoring | Per-instance dynamic flags; points awarded once per user/challenge |
+| Labs | HTTP first; one active instance/player; 60-minute default, 2-hour maximum |
+| Operations | API and worker on a VM with Compose; managed data services; separate target hosts |
+
+These are implementation decisions, not claims that later phases already work.
+The [authentication contract](docs/AUTHENTICATION.md) defines the planned trust
+boundary and frontend checkpoints.
 
 ## Quick start
 
-```bash
-npm install
+Use Node 22, then:
+
+```sh
+npm ci
 cp .env.example .env
-# generate a secret, then set it in .env:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-npm run dev
 ```
 
-The server listens on `http://127.0.0.1:4000` by default.
+Copy the generated value into `BACKEND_SERVICE_TOKEN_SECRET` in `.env`, then
+run `npm run dev`. In PowerShell, use `Copy-Item .env.example .env`. If you
+already have a local `.env`, update it without replacing existing values.
 
-## Scripts
+The API listens on `http://127.0.0.1:4000`. Read
+[local development](docs/LOCAL_DEVELOPMENT.md) to start PostgreSQL and Redis,
+generate their local password, change ports, or retain data when stopping them.
+Never commit credentials, `.env`, certificates, TLS material, or real flags.
 
-| Script | Purpose |
+## Scripts and checks
+
+| Command | Purpose |
 |---|---|
-| `npm run dev` | Watch mode via tsx |
-| `npm run build` | Compile TypeScript to `dist/` |
+| `npm run dev` | Watch mode through tsx |
+| `npm run build` | Compile TypeScript to dist |
 | `npm start` | Run the compiled server |
-| `npm test` | Vitest unit and contract tests |
-| `npm run lint` | ESLint across `src` and `tests` |
-| `npm run typecheck` | Type-check `src` and `tests` without emitting |
+| `npm test` | Unit and API contract tests, without external services |
+| `npm run lint` | ESLint and focused promise-safety rules |
+| `npm run typecheck` | Strict type checking for source and tests |
+
+CI validates Compose configuration and runs lint, type checking, build, and
+tests on pushes and pull requests targeting `main` or `develop`. A local pass
+does not establish a remote CI result.
+
+Lint deliberately enables `no-floating-promises`, `no-misused-promises`,
+and `await-thenable` without the entire type-checked recommended preset.
 
 ## Configuration
 
-All environment variables are validated by Zod at startup (`src/config.ts`); the
-process refuses to boot on invalid config. See [`.env.example`](.env.example).
+`src/config.ts` validates API settings at startup. The example file also
+contains Compose and future worker settings which the API does not yet consume.
 
-| Variable | Required | Notes |
+| Variable | Current consumer | Requirement |
 |---|---|---|
-| `NODE_ENV` | No | `development` \| `test` \| `production` |
-| `HOST` / `PORT` | No | Defaults to `127.0.0.1:4000` |
-| `FRONTEND_ORIGIN` | Yes | Exact CORS origin |
-| `BACKEND_SERVICE_TOKEN_SECRET` | Yes | ≥32 chars; never expose to the browser |
-| `SERVICE_TOKEN_ISSUER` / `SERVICE_TOKEN_AUDIENCE` | Yes | Verified on every token |
-| `DATABASE_URL` | No (until Phase 1) | Neon Postgres connection string |
+| `NODE_ENV` | API | development/test/production; defaults to development |
+| `HOST`, `PORT` | API | Defaults to 127.0.0.1:4000 |
+| `FRONTEND_ORIGIN` | API | Required exact CORS origin; not an authorization mechanism |
+| `BACKEND_SERVICE_TOKEN_SECRET` | API and frontend server | Required, at least 32 characters; never browser-visible |
+| `SERVICE_TOKEN_ISSUER`, `SERVICE_TOKEN_AUDIENCE` | API | Required JWT checks |
+| `DATABASE_URL` | Reserved | Optional today; leave empty until Phase 1 integration |
+| `DEV_POSTGRES_PASSWORD` | Local Compose | Required to initialize local PostgreSQL |
+| `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
+| `REDIS_URL` | Future worker | Not consumed until Phase 3 |
 
-Never commit `.env`, secrets, TLS material, plaintext flags, or certificates.
+BFF bootstrap credentials, signup controls, and session settings will be added
+with Phase 1 validation; they are not active environment settings today.
 
-## API
+## Current API
 
-| Method | Endpoint | Auth | State |
+The full generated contract is available at `GET /v1/openapi.json`.
+See [API guidance](docs/API.md) for schema conventions and compatibility rules.
+
+| Method | Endpoint | Auth | Behavior |
 |---|---|---|---|
-| GET | `/healthz` | None | Live |
-| GET | `/readyz` | None | Live, no probes registered yet |
-| GET | `/v1/meta` | None | Live |
-| GET | `/v1/categories` | None | Live, mock data |
-| GET | `/v1/challenges` | None | Live, mock data |
-| GET | `/v1/challenges/:slug` | None | Live, mock data |
-| POST | `/v1/submissions` | Service token | Live, mock flags, nothing recorded |
-| POST | `/v1/instances` | Service token | `501` until Phase 3 |
-| GET | `/v1/instances/:id` | Service token | `501` until Phase 3 |
-| POST | `/v1/instances/:id/extend` | Service token | `501` until Phase 3 |
-| DELETE | `/v1/instances/:id` | Service token | `501` until Phase 3 |
+| GET | /healthz | None | Liveness |
+| GET | /readyz | None | Readiness, no dependency probes yet |
+| GET | /v1/meta | None | API metadata |
+| GET | /v1/openapi.json | None | Generated OpenAPI 3.0.3 |
+| GET | /v1/categories | None | Mock categories |
+| GET | /v1/challenges | None | Mock catalog |
+| GET | /v1/challenges/:slug | None | Mock challenge |
+| POST | /v1/submissions | submissions:write | Mock checking; no persisted solve |
+| POST | /v1/instances | instances:write | 501 until Phase 3 |
+| GET | /v1/instances/:id | instances:read | 501 until Phase 3 |
+| POST | /v1/instances/:id/extend | instances:write | 501 until Phase 3 |
+| DELETE | /v1/instances/:id | instances:write | 501 until Phase 3 |
 
-Every error response is `{ code, message, correlationId }`. The correlation id
-is also returned in the `x-request-id` header.
+Errors use `{ code, message, correlationId }`. All responses echo
+`x-request-id`. The existing readiness exception returns its check results
+with HTTP 503, not the ordinary error envelope.
 
-## Testing
-
-```bash
-npm test          # contract tests via app.inject(), no network required
-npm run typecheck # strict: NodeNext, verbatimModuleSyntax, exactOptionalPropertyTypes
-```
+Mock challenges are placeholders, not real challenge content. Mock flags are
+derived by `mockFlag(slug)`; no real flag material is stored. Correct mock
+submissions return `recorded: false`. Phase 2 keeps field names but changes
+`source` and `recorded` to reflect persistence, with a frontend checkpoint.
 
 ## Frontend connection
 
-The frontend calls this service through `NEXT_PUBLIC_BACKEND_URL`, for example
-`http://localhost:4000`. Browser requests are accepted only from the configured
-`FRONTEND_ORIGIN`. The frontend never receives Docker credentials and never
-connects directly to Redis, Postgres, or a lab node.
+Authenticated browser actions go through the frontend BFF. The BFF holds the
+backend URL in server-only configuration and signs short-lived service tokens.
+Public catalog requests may remain browser-accessible under the configured
+CORS origin. Neither a public backend URL nor CORS proves user identity.
 
-## Documentation
-
-| Document | Contents |
-|---|---|
-| [`AGENTS.md`](AGENTS.md) | Backend rules, code boundaries, commit discipline |
-| [`PLAN.md`](PLAN.md) | Implementation order and frontend integration contract |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Service topology and request flows |
-| [`SECURITY.md`](SECURITY.md) | Threat model and the controls that gate launch |
+Docker, database, Redis, and lab-node credentials never cross into the frontend.
+Players will access targets through isolated lab ingress in Phase 3; they never
+access the Docker Engine or administrative node interfaces.
