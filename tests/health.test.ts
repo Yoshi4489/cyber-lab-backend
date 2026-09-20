@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import { serializerCompiler } from 'fastify-type-provider-zod';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { registerHealthRoutes } from '../src/routes/health.js';
@@ -29,6 +30,7 @@ describe('health endpoints', () => {
 
   it('reports 503 and names the failing dependency when a probe throws', async () => {
     const app = Fastify({ logger: false });
+    app.setSerializerCompiler(serializerCompiler);
     await app.register(registerHealthRoutes, {
       probes: [
         { name: 'postgres', check: () => Promise.reject(new Error('connection refused')) },

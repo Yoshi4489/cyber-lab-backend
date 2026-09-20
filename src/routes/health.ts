@@ -1,4 +1,12 @@
 import type { FastifyInstance } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
+import { errorResponses } from './schemas.js';
+
+const readinessBody = z.object({
+  status: z.enum(['ready', 'unready']),
+  checks: z.array(z.object({ name: z.string(), status: z.enum(['ok', 'error']) })),
+});
 
 export type ReadinessCheck = { name: string; status: 'ok' | 'error' };
 
@@ -18,10 +26,24 @@ export async function registerHealthRoutes(
   options: { probes?: readonly ReadinessProbe[] } = {},
 ) {
   const probes = options.probes ?? [];
+  const routes = app.withTypeProvider<ZodTypeProvider>();
 
-  app.get('/healthz', async () => ({ status: 'ok' }));
+  routes.get('/healthz', {
+    schema: {
+      operationId: 'getLiveness',
+      tags: ['System'],
+      response: { ...errorResponses, 200: z.object({ status: z.literal('ok') }) },
+    },
+  }, async () => ({ status: 'ok' as const }));
 
-  app.get('/readyz', async (_request, reply) => {
+  routes.get('/readyz', {
+    schema: {
+      operationId: 'getReadiness',
+      tags: ['System'],
+      description: '503 uses the readiness body with failed check names, not the API error envelope.',
+      response: { ...errorResponses, 200: readinessBody, 503: readinessBody },
+    },
+  }, async (_request, reply) => {
     const checks = await Promise.all(
       probes.map(async (probe): Promise<ReadinessCheck> => {
         try {

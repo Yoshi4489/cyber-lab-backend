@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { invalidRequest, notFound } from '../lib/errors.js';
+import { notFound } from '../lib/errors.js';
+import { errorResponses } from './schemas.js';
 import {
   MOCK_CATEGORIES,
   MOCK_CHALLENGES,
@@ -8,6 +10,17 @@ import {
 } from '../mocks/challenges.js';
 
 const slugParams = z.object({ slug: z.string().min(1).max(64) });
+const challenge = z.object({
+  id: z.uuid(),
+  slug: z.string(),
+  title: z.string(),
+  summary: z.string(),
+  category: z.string(),
+  difficulty: z.enum(['easy', 'medium', 'hard']),
+  points: z.number().int().nonnegative(),
+  kind: z.enum(['web', 'shell']),
+  tags: z.array(z.string()).readonly(),
+});
 
 /**
  * Read-only catalog served from the mock fixtures.
@@ -17,20 +30,43 @@ const slugParams = z.object({ slug: z.string().min(1).max(64) });
  * import for database queries; the response shape does not change.
  */
 export async function registerChallengeRoutes(app: FastifyInstance) {
-  app.get('/categories', async () => ({ categories: MOCK_CATEGORIES }));
+  const routes = app.withTypeProvider<ZodTypeProvider>();
+  routes.get('/categories', {
+    schema: {
+      operationId: 'listCategories',
+      tags: ['Catalog'],
+      response: {
+        ...errorResponses,
+        200: z.object({ categories: z.array(z.string()).readonly() }),
+      },
+    },
+  }, async () => ({ categories: MOCK_CATEGORIES }));
 
-  app.get('/challenges', async () => ({
+  routes.get('/challenges', {
+    schema: {
+      operationId: 'listChallenges',
+      tags: ['Catalog'],
+      response: {
+        ...errorResponses,
+        200: z.object({ challenges: z.array(challenge).readonly(), source: z.literal('mock') }),
+      },
+    },
+  }, async () => ({
     challenges: MOCK_CHALLENGES,
     source: 'mock' as const,
   }));
 
-  app.get('/challenges/:slug', async (request) => {
-    const params = slugParams.safeParse(request.params);
-    if (!params.success) throw invalidRequest('Slug must be 1-64 characters');
+  routes.get('/challenges/:slug', {
+    schema: {
+      operationId: 'getChallenge',
+      tags: ['Catalog'],
+      params: slugParams,
+      response: { ...errorResponses, 200: challenge },
+    },
+  }, async (request) => {
+    const found = findMockChallengeBySlug(request.params.slug);
+    if (found === undefined) throw notFound('Challenge not found');
 
-    const challenge = findMockChallengeBySlug(params.data.slug);
-    if (challenge === undefined) throw notFound('Challenge not found');
-
-    return challenge;
+    return found;
   });
 }

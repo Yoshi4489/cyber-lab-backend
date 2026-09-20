@@ -1,9 +1,11 @@
 import type { FastifyInstance } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { Config } from '../config.js';
 import { requireScope } from '../auth/require-scope.js';
 import { flagMatches } from '../lib/flags.js';
-import { invalidRequest, notFound } from '../lib/errors.js';
+import { notFound } from '../lib/errors.js';
+import { errorResponses, serviceTokenSecurity } from './schemas.js';
 import { findMockChallengeById, mockFlagHash } from '../mocks/challenges.js';
 
 const submissionBody = z
@@ -24,23 +26,37 @@ export async function registerSubmissionRoutes(
   app: FastifyInstance,
   options: { config: Config },
 ) {
-  app.post('/submissions', async (request) => {
-    await requireScope(request.headers.authorization, options.config, 'submissions:write');
-
-    const parsed = submissionBody.safeParse(request.body);
-    if (!parsed.success) {
-      throw invalidRequest('Body must be { challengeId: uuid, flag: string }');
-    }
-
-    const challenge = findMockChallengeById(parsed.data.challengeId);
+  app.withTypeProvider<ZodTypeProvider>().post('/submissions', {
+    // Authenticate before schema validation, preserving the existing rejection order.
+    preValidation: async (request) => {
+      await requireScope(request.headers.authorization, options.config, 'submissions:write');
+    },
+    schema: {
+      operationId: 'submitFlag',
+      tags: ['Submissions'],
+      description: 'Requires submissions:write. Mock verification only; no solve is recorded.',
+      security: serviceTokenSecurity,
+      body: submissionBody,
+      response: {
+        ...errorResponses,
+        200: z.object({
+          correct: z.boolean(),
+          points: z.number().int().nonnegative(),
+          recorded: z.literal(false),
+          source: z.literal('mock'),
+        }),
+      },
+    },
+  }, async (request) => {
+    const challenge = findMockChallengeById(request.body.challengeId);
     if (challenge === undefined) throw notFound('Challenge not found');
 
-    const correct = flagMatches(parsed.data.flag, mockFlagHash(challenge.slug));
+    const correct = flagMatches(request.body.flag, mockFlagHash(challenge.slug));
 
     return {
       correct,
       points: correct ? challenge.points : 0,
-      recorded: false,
+      recorded: false as const,
       source: 'mock' as const,
     };
   });

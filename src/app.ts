@@ -6,6 +6,7 @@ import type { Config } from './config.js';
 import { buildLoggerOptions } from './lib/logger.js';
 import { generateRequestId, registerCorrelation } from './plugins/correlation.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
+import { registerOpenApi } from './plugins/openapi.js';
 import { registerChallengeRoutes } from './routes/challenges.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerMetaRoutes } from './routes/meta.js';
@@ -24,6 +25,7 @@ export async function buildApp(config: Config) {
   await app.register(helmet);
   await app.register(cors, { origin: config.FRONTEND_ORIGIN });
   await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+  await registerOpenApi(app);
 
   // Unprefixed: orchestrators and uptime monitors expect fixed paths.
   await app.register(registerHealthRoutes, {});
