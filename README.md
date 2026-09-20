@@ -16,9 +16,9 @@ The frontend lives in a separate repository:
 
 ## Project status
 
-**Now:** Phase 0 — Foundations. Code and tests are in; linting and CI are the last two items.
-**Done:** Planning; API scaffold; error envelope, correlation ids, redacted logging, readiness, mock catalog and mock flag submission, all covered by tests
-**Next:** Phase 1 — Database and backend-owned authentication
+**Now:** Phase 1 — Database and backend-owned authentication
+**Done:** Phase 0 complete — error envelope, correlation ids, redacted logging, readiness, mock catalog and mock flag submission, lint, CI, all covered by tests
+**Next:** Local Postgres and the `users` / `sessions` / `email_tokens` schema
 **Blocked / waiting:** Nothing. A domain is still needed for `*.labs` per-instance routing, but not until Phase 3
 **Last updated:** 2026-09-20
 
@@ -51,11 +51,21 @@ change at a time.
 | 8 | `feat(catalog): serve the mock catalog and mock flag submission` | Done |
 | 9 | `test(catalog): cover mock catalog, submissions and flag hashing` | Done |
 | 10 | `docs: add project status tracker to README` | Done |
-| 11 | ESLint flat config and a `lint` script | To do |
-| 12 | GitHub Actions CI — typecheck, lint, test on every push | To do |
+| 11 | `chore(lint): add ESLint flat config with type-aware promise rules` | Done |
+| 12 | `ci: run lint, typecheck and tests on every push` | Done |
+| 13 | `security(deps): upgrade drizzle-orm past the SQL injection advisory` | Done |
+| 14 | `security(deps): upgrade vitest past the path traversal advisory` | Done |
+| 15 | `docs: mark Phase 0 complete` | Done |
 
-Steps 11 and 12 need `npm install` to add the ESLint packages, so they land
-once the dependency change can be run and verified.
+Linting is type-aware but deliberately narrow. The full `recommendedTypeChecked`
+preset was tried and rejected: `require-await` flags every Fastify handler,
+which is `async` so that Fastify can read the return value as the body rather
+than because it awaits anything, and the `no-unsafe-*` family flags every
+`JSON.parse` of a response body in the tests. Both would have to be suppressed,
+and a linter that is mostly suppressions stops being read. The three type-aware
+rules that are enabled — `no-floating-promises`, `no-misused-promises`,
+`await-thenable` — all catch the same class of bug: a promise that is never
+awaited, so its rejection is swallowed and the route answers `200`.
 
 ## Mock lab data
 
@@ -111,6 +121,7 @@ The server listens on `http://127.0.0.1:4000` by default.
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm start` | Run the compiled server |
 | `npm test` | Vitest unit and contract tests |
+| `npm run lint` | ESLint across `src` and `tests` |
 | `npm run typecheck` | Type-check `src` and `tests` without emitting |
 
 ## Configuration
