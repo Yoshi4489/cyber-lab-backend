@@ -37,6 +37,7 @@ async function seedAccount(input: {
     passwordHash: await passwordHasher.hash(input.password),
     displayName: input.displayName,
     role: input.role,
+    verifiedAt: new Date(),
   });
   if (result.role !== input.role) throw new Error('Seed account role does not match');
 }

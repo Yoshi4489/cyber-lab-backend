@@ -25,6 +25,7 @@ export type SeedAccountInput = {
   passwordHash: string;
   displayName: string;
   role: AccountRole;
+  verifiedAt: Date | null;
 };
 
 export type SeedAccountResult = {

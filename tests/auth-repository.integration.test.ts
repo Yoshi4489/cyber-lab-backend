@@ -39,6 +39,7 @@ describeDatabase('authentication repository', () => {
       passwordHash: 'original-test-hash',
       displayName: 'Repository Player',
       role: 'player',
+      verifiedAt: new Date('2026-09-21T00:00:00.000Z'),
     });
     createdUserIds.push(result.id);
     return { ...result, email };
@@ -51,6 +52,7 @@ describeDatabase('authentication repository', () => {
       passwordHash: 'replacement-hash-must-not-be-written',
       displayName: 'Replacement Name',
       role: 'admin',
+      verifiedAt: new Date('2026-09-22T00:00:00.000Z'),
     });
 
     expect(account.created).toBe(true);

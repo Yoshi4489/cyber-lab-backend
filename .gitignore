@@ -4,5 +4,6 @@ dist/
 .env.*
 !.env.example
 coverage/
+.local-mail/
 *.log
 .DS_Store

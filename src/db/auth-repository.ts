@@ -55,6 +55,7 @@ export class DrizzleAuthRepository implements AuthRepository {
           email: input.email,
           passwordHash: input.passwordHash,
           role: input.role,
+          emailVerifiedAt: input.verifiedAt,
         })
         .onConflictDoNothing({ target: users.email })
         .returning({ id: users.id, role: users.role });
