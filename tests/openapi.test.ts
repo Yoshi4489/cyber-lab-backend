@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { MOCK_CHALLENGES } from '../src/mocks/challenges.js';
+import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
 import { signToken, testAppDependencies, testConfig } from './helpers.js';
 
-const SAMPLE = MOCK_CHALLENGES[0];
-if (SAMPLE === undefined) throw new Error('MOCK_CHALLENGES must not be empty');
+const SAMPLE = CHALLENGE_DEFINITIONS[0];
+if (SAMPLE === undefined) throw new Error('CHALLENGE_DEFINITIONS must not be empty');
 
 describe('generated OpenAPI contract', () => {
   it('documents current operations, schemas and auth without publishing secrets', async () => {
@@ -29,8 +29,11 @@ describe('generated OpenAPI contract', () => {
         .toMatchObject({
           type: 'object',
           additionalProperties: false,
-          required: ['challengeId', 'flag'],
-          properties: { flag: { type: 'string', minLength: 1, maxLength: 256 } },
+          required: ['challengeId', 'instanceId', 'flag'],
+          properties: {
+            instanceId: { type: 'string', format: 'uuid' },
+            flag: { type: 'string', minLength: 1, maxLength: 256 },
+          },
         });
       expect(document.paths['/v1/instances'].post.responses).toHaveProperty('501');
       expect(document.paths['/v1/instances'].post.responses).not.toHaveProperty('200');
@@ -50,7 +53,11 @@ describe('generated OpenAPI contract', () => {
       for (const flag of ['', 'x'.repeat(257), 123]) {
         const response = await app.inject({
           method: 'POST', url: '/v1/submissions', headers,
-          payload: { challengeId: SAMPLE.id, flag },
+          payload: {
+            challengeId: SAMPLE.id,
+            instanceId: '00000000-0000-4000-8000-000000000003',
+            flag,
+          },
         });
         expect(response.statusCode).toBe(400);
         expect(response.json()).toMatchObject({ code: 'INVALID_REQUEST' });
@@ -61,6 +68,31 @@ describe('generated OpenAPI contract', () => {
         method: 'POST', url: '/v1/submissions', payload: { flag: 123 },
       });
       expect(unauthenticated.statusCode).toBe(401);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('rate-limits submissions by the verified user identity', async () => {
+    const app = await buildApp(
+      { ...testConfig, SUBMISSION_RATE_LIMIT_MAX: 1 },
+      testAppDependencies,
+    );
+    try {
+      const request = {
+        method: 'POST' as const,
+        url: '/v1/submissions',
+        headers: { authorization: `Bearer ${await signToken('submissions:write')}` },
+        payload: {
+          challengeId: SAMPLE.id,
+          instanceId: '00000000-0000-4000-8000-000000000003',
+          flag: 'CTF{fixture}',
+        },
+      };
+      expect((await app.inject(request)).statusCode).toBe(501);
+      const limited = await app.inject(request);
+      expect(limited.statusCode).toBe(429);
+      expect(limited.json()).toMatchObject({ code: 'RATE_LIMITED' });
     } finally {
       await app.close();
     }

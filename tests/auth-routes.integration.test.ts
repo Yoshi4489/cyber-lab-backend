@@ -7,7 +7,7 @@ import { buildApp } from '../src/app.js';
 import { DrizzleAuthRepository } from '../src/db/auth-repository.js';
 import { createDatabase, type DatabaseClient } from '../src/db/client.js';
 import { users } from '../src/db/schema.js';
-import { MOCK_CHALLENGES } from '../src/mocks/challenges.js';
+import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
 import { AuthenticationService } from '../src/services/authentication.js';
 import type { AuthMail, AuthMailer } from '../src/services/mailer.js';
 import { signToken, testConfig } from './helpers.js';
@@ -151,11 +151,12 @@ describeDatabase('BFF authentication routes', () => {
       url: '/v1/submissions',
       headers: { authorization: `Bearer ${serviceToken}` },
       payload: {
-        challengeId: MOCK_CHALLENGES[0]?.id,
+        challengeId: CHALLENGE_DEFINITIONS[0]?.id,
+        instanceId: randomUUID(),
         flag: 'not-a-real-flag',
       },
     });
-    expect(submission.statusCode).toBe(200);
+    expect(submission.statusCode).toBe(501);
 
     const foreignSubjectToken = await signToken('submissions:write', {
       subject: randomUUID(),
@@ -166,7 +167,8 @@ describeDatabase('BFF authentication routes', () => {
       url: '/v1/submissions',
       headers: { authorization: `Bearer ${foreignSubjectToken}` },
       payload: {
-        challengeId: MOCK_CHALLENGES[0]?.id,
+        challengeId: CHALLENGE_DEFINITIONS[0]?.id,
+        instanceId: randomUUID(),
         flag: 'not-a-real-flag',
       },
     });
@@ -195,7 +197,8 @@ describeDatabase('BFF authentication routes', () => {
       url: '/v1/submissions',
       headers: { authorization: `Bearer ${serviceToken}` },
       payload: {
-        challengeId: MOCK_CHALLENGES[0]?.id,
+        challengeId: CHALLENGE_DEFINITIONS[0]?.id,
+        instanceId: randomUUID(),
         flag: 'not-a-real-flag',
       },
     });

@@ -17,12 +17,15 @@ import type { AuthenticationService } from './services/authentication.js';
 import { registerAuthenticationRoutes } from './routes/authentication.js';
 import type { ServiceSessionAuthorizer } from './auth/require-scope.js';
 import type { CatalogRepository } from './services/catalog-repository.js';
+import type { SubmissionService } from './services/submissions.js';
+import { FixedWindowUserRateLimiter } from './services/user-rate-limiter.js';
 
 export type AppDependencies = {
   database?: DatabaseClient;
   authentication?: AuthenticationService;
   sessionAuthorizer?: ServiceSessionAuthorizer;
   catalog?: CatalogRepository;
+  submissions?: SubmissionService;
 };
 
 const unavailableCatalog: CatalogRepository = {
@@ -69,12 +72,22 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
     dependencies.authentication ?? {
       validateServiceSession: () => Promise.reject(new Error('Session authorizer unavailable')),
     };
+  const submissionRateLimiter = new FixedWindowUserRateLimiter(
+    config.SUBMISSION_RATE_LIMIT_MAX,
+    config.SUBMISSION_RATE_LIMIT_WINDOW_MS,
+  );
   await app.register(registerMetaRoutes, { prefix: '/v1' });
   await app.register(registerChallengeRoutes, {
     prefix: '/v1',
     catalog: dependencies.catalog ?? unavailableCatalog,
   });
-  await app.register(registerSubmissionRoutes, { prefix: '/v1', config, sessionAuthorizer });
+  await app.register(registerSubmissionRoutes, {
+    prefix: '/v1',
+    config,
+    sessionAuthorizer,
+    rateLimiter: submissionRateLimiter,
+    ...(dependencies.submissions ? { submissions: dependencies.submissions } : {}),
+  });
   await app.register(registerInstanceRoutes, { prefix: '/v1', config, sessionAuthorizer });
   return app;
 }

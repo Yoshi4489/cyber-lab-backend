@@ -2,45 +2,51 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { Config } from '../config.js';
-import { requireScope } from '../auth/require-scope.js';
-import { flagMatches } from '../lib/flags.js';
-import { notFound } from '../lib/errors.js';
+import { requireScope, type ServiceSessionAuthorizer } from '../auth/require-scope.js';
+import type { ServiceIdentity } from '../auth/service-token.js';
+import { notImplemented, rateLimited, unauthorized } from '../lib/errors.js';
+import type { SubmissionService } from '../services/submissions.js';
+import type { UserRateLimiter } from '../services/user-rate-limiter.js';
 import { errorResponses, serviceTokenSecurity } from './schemas.js';
-import { findMockChallengeById, mockFlagHash } from '../mocks/challenges.js';
-import type { ServiceSessionAuthorizer } from '../auth/require-scope.js';
 
 const submissionBody = z
-  .object({ challengeId: z.uuid(), flag: z.string().min(1).max(256) })
+  .object({
+    challengeId: z.uuid(),
+    instanceId: z.uuid(),
+    flag: z.string().min(1).max(256),
+  })
   .strict();
 
 /**
- * Flag verification against the mock fixtures.
- *
- * Nothing is persisted yet — there is no database until Phase 1 — so the
- * response says so explicitly rather than implying a solve was recorded.
- * Phase 2 adds the `submissions`/`solves` rows, a per-user rate limit, and an
- * audit record; the request and response shapes stay the same.
- *
- * The submitted flag is never echoed back and never logged.
+ * Instance-bound flag verification and transaction-safe scoring.
+ * The submitted flag is never persisted, echoed, audited, or logged.
  */
 export async function registerSubmissionRoutes(
   app: FastifyInstance,
-  options: { config: Config; sessionAuthorizer: ServiceSessionAuthorizer },
+  options: {
+    config: Config;
+    sessionAuthorizer: ServiceSessionAuthorizer;
+    submissions?: SubmissionService;
+    rateLimiter: UserRateLimiter;
+  },
 ) {
+  const identities = new WeakMap<object, ServiceIdentity>();
   app.withTypeProvider<ZodTypeProvider>().post('/submissions', {
     // Authenticate before schema validation, preserving the existing rejection order.
     preValidation: async (request) => {
-      await requireScope(
+      const identity = await requireScope(
         request.headers.authorization,
         options.config,
         'submissions:write',
         options.sessionAuthorizer,
       );
+      if (!options.rateLimiter.consume(identity.userId)) throw rateLimited();
+      identities.set(request, identity);
     },
     schema: {
       operationId: 'submitFlag',
       tags: ['Submissions'],
-      description: 'Requires submissions:write. Mock verification only; no solve is recorded.',
+      description: 'Requires submissions:write and an owned running challenge instance.',
       security: serviceTokenSecurity,
       body: submissionBody,
       response: {
@@ -48,22 +54,24 @@ export async function registerSubmissionRoutes(
         200: z.object({
           correct: z.boolean(),
           points: z.number().int().nonnegative(),
-          recorded: z.literal(false),
-          source: z.literal('mock'),
+          recorded: z.literal(true),
+          source: z.literal('database'),
         }),
       },
     },
   }, async (request) => {
-    const challenge = findMockChallengeById(request.body.challengeId);
-    if (challenge === undefined) throw notFound('Challenge not found');
+    const identity = identities.get(request);
+    if (!identity) throw unauthorized();
+    if (!options.submissions) {
+      throw notImplemented('Dynamic submissions require the instance lifecycle');
+    }
 
-    const correct = flagMatches(request.body.flag, mockFlagHash(challenge.slug));
-
-    return {
-      correct,
-      points: correct ? challenge.points : 0,
-      recorded: false as const,
-      source: 'mock' as const,
-    };
+    return options.submissions.submit({
+      userId: identity.userId,
+      challengeId: request.body.challengeId,
+      instanceId: request.body.instanceId,
+      flag: request.body.flag,
+      correlationId: request.id,
+    });
   });
 }

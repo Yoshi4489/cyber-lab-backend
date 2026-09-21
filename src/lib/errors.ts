@@ -54,6 +54,9 @@ export const notFound = (message = 'Resource not found'): AppError =>
 export const invalidRequest = (message = 'Request validation failed'): AppError =>
   new AppError(ErrorCodes.INVALID_REQUEST, 400, message);
 
+export const rateLimited = (message = 'Too many requests'): AppError =>
+  new AppError(ErrorCodes.RATE_LIMITED, 429, message);
+
 export const notImplemented = (message = 'Not implemented'): AppError =>
   new AppError(ErrorCodes.NOT_IMPLEMENTED, 501, message);
 

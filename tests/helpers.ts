@@ -10,11 +10,14 @@ export const testConfig: Config = {
   FRONTEND_ORIGIN: 'http://localhost:3000',
   BFF_AUTH_SECRET: 'test-bff-secret-at-least-thirty-two-characters',
   BACKEND_SERVICE_TOKEN_SECRET: 'test-secret-at-least-thirty-two-characters',
+  INSTANCE_FLAG_SECRET: 'test-instance-flag-secret-at-least-thirty-two-characters',
   SERVICE_TOKEN_ISSUER: 'cyber-range-frontend',
   SERVICE_TOKEN_AUDIENCE: 'cyber-range-backend',
   SIGNUPS_OPEN: false,
   AUTH_RATE_LIMIT_MAX: 10,
   AUTH_RATE_LIMIT_WINDOW: '1 minute',
+  SUBMISSION_RATE_LIMIT_MAX: 20,
+  SUBMISSION_RATE_LIMIT_WINDOW_MS: 60_000,
   LOCAL_MAIL_DIRECTORY: '.local-mail',
 };
 

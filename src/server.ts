@@ -7,6 +7,10 @@ import { createPasswordHasher } from './auth/password.js';
 import { AuthenticationService } from './services/authentication.js';
 import { LocalDevelopmentMailer } from './services/local-development-mailer.js';
 import { DrizzleCatalogRepository } from './db/catalog-repository.js';
+import { DrizzleScoringRepository } from './db/scoring-repository.js';
+import { HmacInstanceFlagService } from './services/instance-flags.js';
+import { SubmissionService } from './services/submissions.js';
+import { notImplemented } from './lib/errors.js';
 
 const config = loadConfig();
 if (!config.DATABASE_URL) throw new Error('DATABASE_URL is required');
@@ -21,10 +25,19 @@ const authentication = await AuthenticationService.create({
     config.NODE_ENV,
   ),
 });
+const submissionService = new SubmissionService(
+  new DrizzleScoringRepository(database.db),
+  {
+    findOwnedInstance: () =>
+      Promise.reject(notImplemented('Dynamic submissions require the instance lifecycle')),
+  },
+  new HmacInstanceFlagService(config.INSTANCE_FLAG_SECRET),
+);
 const app = await buildApp(config, {
   database,
   authentication,
   catalog: new DrizzleCatalogRepository(database.db),
+  submissions: submissionService,
 });
 
 async function shutdown(signal: string) {

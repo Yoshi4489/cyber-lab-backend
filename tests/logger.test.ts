@@ -60,6 +60,7 @@ describe('scrubQuery', () => {
           newPassword: 'reset-password-secret',
           sessionToken: 'opaque-session-secret',
           token: 'email-token-secret',
+          flag: 'CTF{submitted-flag-secret}',
         },
       });
     } finally {
@@ -73,6 +74,7 @@ describe('scrubQuery', () => {
       'reset-password-secret',
       'opaque-session-secret',
       'email-token-secret',
+      'submitted-flag-secret',
     ]) {
       expect(output).not.toContain(secret);
     }
