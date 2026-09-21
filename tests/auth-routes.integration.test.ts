@@ -38,8 +38,11 @@ describeDatabase('BFF authentication routes', () => {
   let app: Awaited<ReturnType<typeof buildApp>>;
   let database: DatabaseClient;
   let userId: string;
+  let adminId: string;
   let email: string;
+  let adminEmail: string;
   const password = 'route-test-password-long-enough';
+  const adminPassword = 'route-admin-password-long-enough';
   const bffHeaders = {
     authorization: `Bearer ${testConfig.BFF_AUTH_SECRET}`,
   };
@@ -58,6 +61,15 @@ describeDatabase('BFF authentication routes', () => {
       verifiedAt: new Date(),
     });
     userId = seeded.id;
+    adminEmail = `routes-admin-${randomUUID()}@example.test`;
+    const seededAdmin = await repository.seedAccount({
+      email: adminEmail,
+      passwordHash: await passwordHasher.hash(adminPassword),
+      displayName: 'Route Admin',
+      role: 'admin',
+      verifiedAt: new Date(),
+    });
+    adminId = seededAdmin.id;
     const authentication = await AuthenticationService.create({
       repository,
       passwordHasher,
@@ -69,6 +81,9 @@ describeDatabase('BFF authentication routes', () => {
   afterAll(async () => {
     if (database && userId) {
       await database.db.delete(users).where(eq(users.id, userId));
+    }
+    if (database && adminId) {
+      await database.db.delete(users).where(eq(users.id, adminId));
     }
     await app?.close();
   });
@@ -216,6 +231,21 @@ describeDatabase('BFF authentication routes', () => {
     });
     expect(signup.statusCode).toBe(403);
     expect(signup.json()).toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('authenticates a seeded admin with current admin scopes', async () => {
+    const login = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      headers: bffHeaders,
+      payload: { email: adminEmail, password: adminPassword },
+    });
+
+    expect(login.statusCode).toBe(200);
+    expect(login.json()).toMatchObject({
+      user: { id: adminId, role: 'admin' },
+      allowedScopes: expect.arrayContaining(['admin:write']),
+    });
   });
 
   it('publishes the auth contract without publishing either server secret', async () => {

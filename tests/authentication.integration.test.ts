@@ -127,6 +127,16 @@ describeDatabase('authentication service', () => {
 
     await database.db
       .update(users)
+      .set({ role: 'player' })
+      .where(eq(users.id, account.id));
+    await expect(
+      service.validateServiceSession(account.id, login.sessionId),
+    ).resolves.toMatchObject({
+      allowedScopes: ['submissions:write', 'instances:read', 'instances:write'],
+    });
+
+    await database.db
+      .update(users)
       .set({ status: 'disabled' })
       .where(eq(users.id, account.id));
     await expect(
@@ -205,6 +215,28 @@ describeDatabase('authentication service', () => {
     ).resolves.toMatchObject({ user: { id: account.id } });
     await expect(
       service.confirmPasswordReset(token, 'another-new-test-password'),
+    ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+  });
+
+  it('rejects verification and reset tokens at their exact expiry boundaries', async () => {
+    await resetService();
+    const account = await seedAccount({ verified: false });
+
+    await service.requestEmailVerification(account.email);
+    const verificationToken = mailer.verifications[0]?.token;
+    if (!verificationToken) throw new Error('Expected a verification token');
+    now = new Date('2026-09-22T00:00:00.000Z');
+    await expect(service.confirmEmailVerification(verificationToken)).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+    });
+
+    now = new Date('2026-09-21T00:00:00.000Z');
+    await service.requestPasswordReset(account.email);
+    const resetToken = mailer.passwordResets[0]?.token;
+    if (!resetToken) throw new Error('Expected a password reset token');
+    now = new Date('2026-09-21T01:00:00.000Z');
+    await expect(
+      service.confirmPasswordReset(resetToken, 'expired-reset-password'),
     ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
   });
 });
