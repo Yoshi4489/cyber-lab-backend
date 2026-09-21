@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -18,6 +20,8 @@ export const emailTokenPurpose = pgEnum('email_token_purpose', [
   'email_verification',
   'password_reset',
 ]);
+export const challengeDifficulty = pgEnum('challenge_difficulty', ['easy', 'medium', 'hard']);
+export const challengeKind = pgEnum('challenge_kind', ['web', 'shell']);
 
 export const users = pgTable(
   'users',
@@ -46,6 +50,33 @@ export const userProfiles = pgTable('user_profiles', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const challenges = pgTable(
+  'challenges',
+  {
+    id: uuid('id').primaryKey(),
+    slug: varchar('slug', { length: 64 }).notNull(),
+    title: varchar('title', { length: 128 }).notNull(),
+    summary: varchar('summary', { length: 500 }).notNull(),
+    category: varchar('category', { length: 64 }).notNull(),
+    difficulty: challengeDifficulty('difficulty').notNull(),
+    points: integer('points').notNull(),
+    kind: challengeKind('kind').notNull(),
+    tags: jsonb('tags').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    definitionVersion: integer('definition_version').default(1).notNull(),
+    published: boolean('published').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('challenges_slug_unique').on(table.slug),
+    index('challenges_published_category_idx').on(table.published, table.category),
+    check('challenges_slug_normalized', sql`${table.slug} = lower(${table.slug})`),
+    check('challenges_category_normalized', sql`${table.category} = lower(${table.category})`),
+    check('challenges_points_positive', sql`${table.points} > 0`),
+    check('challenges_definition_version_positive', sql`${table.definitionVersion} > 0`),
+  ],
+);
 
 export const sessions = pgTable(
   'sessions',
@@ -94,6 +125,61 @@ export const emailTokens = pgTable(
       'email_tokens_consumed_after_creation',
       sql`${table.consumedAt} is null or ${table.consumedAt} >= ${table.createdAt}`,
     ),
+  ],
+);
+
+export const submissions = pgTable(
+  'submissions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => challenges.id, { onDelete: 'restrict' }),
+    instanceId: uuid('instance_id').notNull(),
+    correct: boolean('correct').notNull(),
+    pointsAwarded: integer('points_awarded').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('submissions_user_challenge_created_idx').on(
+      table.userId,
+      table.challengeId,
+      table.createdAt,
+    ),
+    index('submissions_instance_idx').on(table.instanceId),
+    check('submissions_points_nonnegative', sql`${table.pointsAwarded} >= 0`),
+    check(
+      'submissions_incorrect_awards_no_points',
+      sql`${table.correct} or ${table.pointsAwarded} = 0`,
+    ),
+  ],
+);
+
+export const solves = pgTable(
+  'solves',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => challenges.id, { onDelete: 'restrict' }),
+    firstSubmissionId: uuid('first_submission_id')
+      .notNull()
+      .references(() => submissions.id, { onDelete: 'restrict' }),
+    points: integer('points').notNull(),
+    solvedAt: timestamp('solved_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('solves_user_challenge_unique').on(table.userId, table.challengeId),
+    uniqueIndex('solves_first_submission_unique').on(table.firstSubmissionId),
+    index('solves_user_solved_at_idx').on(table.userId, table.solvedAt),
+    index('solves_leaderboard_idx').on(table.points, table.solvedAt),
+    check('solves_points_positive', sql`${table.points} > 0`),
   ],
 );
 

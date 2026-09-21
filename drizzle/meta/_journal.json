@@ -8,6 +8,13 @@
       "when": 1789963288443,
       "tag": "0000_supreme_madame_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789968785212,
+      "tag": "0001_black_hercules",
+      "breakpoints": true
     }
   ]
 }

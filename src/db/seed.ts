@@ -4,6 +4,7 @@ import { createPasswordHasher } from '../auth/password.js';
 import type { AccountRole } from '../services/auth-repository.js';
 import { DrizzleAuthRepository } from './auth-repository.js';
 import { createDatabase } from './client.js';
+import { seedCatalog } from './catalog-seed.js';
 
 const seedConfigSchema = z.object({
   DATABASE_URL: z.url(),
@@ -43,6 +44,7 @@ async function seedAccount(input: {
 }
 
 try {
+  await seedCatalog(database.db);
   await seedAccount({
     email: config.SEED_ADMIN_EMAIL,
     password: config.SEED_ADMIN_PASSWORD,
