@@ -15,10 +15,12 @@ import { registerInstanceRoutes } from './routes/instances.js';
 import type { DatabaseClient } from './db/client.js';
 import type { AuthenticationService } from './services/authentication.js';
 import { registerAuthenticationRoutes } from './routes/authentication.js';
+import type { ServiceSessionAuthorizer } from './auth/require-scope.js';
 
 export type AppDependencies = {
   database?: DatabaseClient;
   authentication?: AuthenticationService;
+  sessionAuthorizer?: ServiceSessionAuthorizer;
 };
 
 export async function buildApp(config: Config, dependencies: AppDependencies = {}) {
@@ -54,9 +56,14 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
       authentication: dependencies.authentication,
     });
   }
+  const sessionAuthorizer =
+    dependencies.sessionAuthorizer ??
+    dependencies.authentication ?? {
+      validateServiceSession: () => Promise.reject(new Error('Session authorizer unavailable')),
+    };
   await app.register(registerMetaRoutes, { prefix: '/v1' });
   await app.register(registerChallengeRoutes, { prefix: '/v1' });
-  await app.register(registerSubmissionRoutes, { prefix: '/v1', config });
-  await app.register(registerInstanceRoutes, { prefix: '/v1', config });
+  await app.register(registerSubmissionRoutes, { prefix: '/v1', config, sessionAuthorizer });
+  await app.register(registerInstanceRoutes, { prefix: '/v1', config, sessionAuthorizer });
   return app;
 }

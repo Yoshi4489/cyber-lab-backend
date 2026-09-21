@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { MOCK_CHALLENGES } from '../src/mocks/challenges.js';
-import { signToken, testConfig } from './helpers.js';
+import { signToken, testAppDependencies, testConfig } from './helpers.js';
 
 const SAMPLE = MOCK_CHALLENGES[0];
 if (SAMPLE === undefined) throw new Error('MOCK_CHALLENGES must not be empty');
 
 describe('generated OpenAPI contract', () => {
   it('documents current operations, schemas and auth without publishing secrets', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject('/v1/openapi.json');
       const document = response.json();
@@ -44,7 +44,7 @@ describe('generated OpenAPI contract', () => {
   });
 
   it('validates submission bounds without coercion and preserves authentication order', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const headers = { authorization: `Bearer ${await signToken('submissions:write')}` };
       for (const flag of ['', 'x'.repeat(257), 123]) {
@@ -72,7 +72,7 @@ describe('generated OpenAPI contract', () => {
     { method: 'POST' as const, url: '/v1/instances/00000000-0000-4000-8000-000000000001/extend', scope: 'instances:write' },
     { method: 'DELETE' as const, url: '/v1/instances/00000000-0000-4000-8000-000000000001', scope: 'instances:write' },
   ])('preserves authenticated lifecycle stubs: $method $url', async ({ method, url, scope }) => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const request = {
         method,

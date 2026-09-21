@@ -7,6 +7,7 @@ import { flagMatches } from '../lib/flags.js';
 import { notFound } from '../lib/errors.js';
 import { errorResponses, serviceTokenSecurity } from './schemas.js';
 import { findMockChallengeById, mockFlagHash } from '../mocks/challenges.js';
+import type { ServiceSessionAuthorizer } from '../auth/require-scope.js';
 
 const submissionBody = z
   .object({ challengeId: z.uuid(), flag: z.string().min(1).max(256) })
@@ -24,12 +25,17 @@ const submissionBody = z
  */
 export async function registerSubmissionRoutes(
   app: FastifyInstance,
-  options: { config: Config },
+  options: { config: Config; sessionAuthorizer: ServiceSessionAuthorizer },
 ) {
   app.withTypeProvider<ZodTypeProvider>().post('/submissions', {
     // Authenticate before schema validation, preserving the existing rejection order.
     preValidation: async (request) => {
-      await requireScope(request.headers.authorization, options.config, 'submissions:write');
+      await requireScope(
+        request.headers.authorization,
+        options.config,
+        'submissions:write',
+        options.sessionAuthorizer,
+      );
     },
     schema: {
       operationId: 'submitFlag',

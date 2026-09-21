@@ -17,7 +17,7 @@ const config: Config = {
 };
 
 async function token(scope: string) {
-  return new SignJWT({ scope })
+  return new SignJWT({ scope, sid: '00000000-0000-4000-8000-000000000002' })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject('player-1')
     .setIssuer(config.SERVICE_TOKEN_ISSUER)
@@ -27,9 +27,17 @@ async function token(scope: string) {
     .sign(new TextEncoder().encode(config.BACKEND_SERVICE_TOKEN_SECRET));
 }
 
+const dependencies = {
+  sessionAuthorizer: {
+    validateServiceSession: async () => ({
+      allowedScopes: ['instances:read', 'instances:write'],
+    }),
+  },
+};
+
 describe('API scaffold', () => {
   it('serves health and version metadata', async () => {
-    const app = await buildApp(config);
+    const app = await buildApp(config, dependencies);
     try {
       expect((await app.inject('/healthz')).json()).toEqual({ status: 'ok' });
       expect((await app.inject('/v1/meta')).json()).toEqual({ name: 'cyber-range-backend', version: 'v1' });
@@ -37,7 +45,7 @@ describe('API scaffold', () => {
   });
 
   it('gates unfinished lifecycle routes behind a verified token', async () => {
-    const app = await buildApp(config);
+    const app = await buildApp(config, dependencies);
     try {
       const path = '/v1/instances/00000000-0000-4000-8000-000000000001';
       expect((await app.inject(path)).statusCode).toBe(401);

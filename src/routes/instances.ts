@@ -5,20 +5,26 @@ import type { Config } from '../config.js';
 import { requireScope } from '../auth/require-scope.js';
 import { notImplemented } from '../lib/errors.js';
 import { errorBody, errorResponses, serviceTokenSecurity } from './schemas.js';
+import type { ServiceSessionAuthorizer } from '../auth/require-scope.js';
 
 const instanceParams = z.object({ id: z.uuid() });
 const createBody = z.object({ challengeId: z.uuid() }).strict();
 
 export async function registerInstanceRoutes(
   app: FastifyInstance,
-  options: { config: Config },
+  options: { config: Config; sessionAuthorizer: ServiceSessionAuthorizer },
 ) {
   const routes = app.withTypeProvider<ZodTypeProvider>();
   const response = { ...errorResponses, 501: errorBody };
 
   function authorize(scope: string) {
     return async (request: FastifyRequest): Promise<void> => {
-      await requireScope(request.headers.authorization, options.config, scope);
+      await requireScope(
+        request.headers.authorization,
+        options.config,
+        scope,
+        options.sessionAuthorizer,
+      );
     };
   }
 

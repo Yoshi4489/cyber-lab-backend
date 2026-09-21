@@ -17,10 +17,33 @@ export const testConfig: Config = {
   LOCAL_MAIL_DIRECTORY: '.local-mail',
 };
 
-export function signToken(scope: string): Promise<string> {
-  return new SignJWT({ scope })
+export const TEST_SESSION_ID = '00000000-0000-4000-8000-000000000002';
+
+export const testAppDependencies = {
+  sessionAuthorizer: {
+    validateServiceSession: async (userId: string, sessionId: string) => {
+      if (userId !== 'player-1' || sessionId !== TEST_SESSION_ID) {
+        throw new Error('Unknown test session');
+      }
+      return {
+        allowedScopes: [
+          'submissions:write',
+          'instances:read',
+          'instances:write',
+          'admin:write',
+        ],
+      };
+    },
+  },
+};
+
+export function signToken(
+  scope: string,
+  options: { subject?: string; sessionId?: string } = {},
+): Promise<string> {
+  return new SignJWT({ scope, sid: options.sessionId ?? TEST_SESSION_ID })
     .setProtectedHeader({ alg: 'HS256' })
-    .setSubject('player-1')
+    .setSubject(options.subject ?? 'player-1')
     .setIssuer(testConfig.SERVICE_TOKEN_ISSUER)
     .setAudience(testConfig.SERVICE_TOKEN_AUDIENCE)
     .setIssuedAt()

@@ -7,6 +7,7 @@ import { buildApp } from '../src/app.js';
 import { DrizzleAuthRepository } from '../src/db/auth-repository.js';
 import { createDatabase, type DatabaseClient } from '../src/db/client.js';
 import { users } from '../src/db/schema.js';
+import { MOCK_CHALLENGES } from '../src/mocks/challenges.js';
 import { AuthenticationService } from '../src/services/authentication.js';
 import type { AuthMail, AuthMailer } from '../src/services/mailer.js';
 import { signToken, testConfig } from './helpers.js';
@@ -126,6 +127,36 @@ describeDatabase('BFF authentication routes', () => {
       user: { id: userId },
     });
 
+    const serviceToken = await signToken('submissions:write', {
+      subject: userId,
+      sessionId: loginBody.sessionId,
+    });
+    const submission = await app.inject({
+      method: 'POST',
+      url: '/v1/submissions',
+      headers: { authorization: `Bearer ${serviceToken}` },
+      payload: {
+        challengeId: MOCK_CHALLENGES[0]?.id,
+        flag: 'not-a-real-flag',
+      },
+    });
+    expect(submission.statusCode).toBe(200);
+
+    const foreignSubjectToken = await signToken('submissions:write', {
+      subject: randomUUID(),
+      sessionId: loginBody.sessionId,
+    });
+    const foreignSubject = await app.inject({
+      method: 'POST',
+      url: '/v1/submissions',
+      headers: { authorization: `Bearer ${foreignSubjectToken}` },
+      payload: {
+        challengeId: MOCK_CHALLENGES[0]?.id,
+        flag: 'not-a-real-flag',
+      },
+    });
+    expect(foreignSubject.statusCode).toBe(401);
+
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const logout = await app.inject({
         method: 'POST',
@@ -143,6 +174,17 @@ describeDatabase('BFF authentication routes', () => {
       payload: { sessionToken: loginBody.sessionToken },
     });
     expect(revoked.statusCode).toBe(401);
+
+    const revokedServiceToken = await app.inject({
+      method: 'POST',
+      url: '/v1/submissions',
+      headers: { authorization: `Bearer ${serviceToken}` },
+      payload: {
+        challengeId: MOCK_CHALLENGES[0]?.id,
+        flag: 'not-a-real-flag',
+      },
+    });
+    expect(revokedServiceToken.statusCode).toBe(401);
   });
 
   it('returns generic recovery acknowledgements and keeps signup closed', async () => {

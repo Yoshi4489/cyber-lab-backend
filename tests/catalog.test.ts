@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { MOCK_CHALLENGES, mockFlag } from '../src/mocks/challenges.js';
-import { signToken, testConfig } from './helpers.js';
+import { signToken, testAppDependencies, testConfig } from './helpers.js';
 
 const SAMPLE = MOCK_CHALLENGES[0];
 const HEX_64 = /[0-9a-f]{64}/;
@@ -10,7 +10,7 @@ if (SAMPLE === undefined) throw new Error('MOCK_CHALLENGES must not be empty');
 
 describe('mock catalog', () => {
   it('lists every mock challenge and labels the data as mock', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject('/v1/challenges');
       const body = response.json<{ challenges: unknown[]; source: string }>();
@@ -24,7 +24,7 @@ describe('mock catalog', () => {
   });
 
   it('returns a single challenge by slug', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject(`/v1/challenges/${SAMPLE.slug}`);
 
@@ -36,7 +36,7 @@ describe('mock catalog', () => {
   });
 
   it('answers an unknown slug with NOT_FOUND', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject('/v1/challenges/no-such-challenge');
 
@@ -48,7 +48,7 @@ describe('mock catalog', () => {
   });
 
   it('exposes no flag and no flag hash anywhere in the catalog', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const list = await app.inject('/v1/challenges');
       const detail = await app.inject(`/v1/challenges/${SAMPLE.slug}`);
@@ -63,7 +63,7 @@ describe('mock catalog', () => {
   });
 
   it('lists the distinct categories', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject('/v1/categories');
       const { categories } = response.json<{ categories: string[] }>();
@@ -79,7 +79,7 @@ describe('mock catalog', () => {
 
 describe('mock flag submission', () => {
   it('requires a token', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject({
         method: 'POST',
@@ -95,7 +95,7 @@ describe('mock flag submission', () => {
   });
 
   it('accepts the derived mock flag but records nothing yet', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject({
         method: 'POST',
@@ -117,7 +117,7 @@ describe('mock flag submission', () => {
   });
 
   it('rejects a wrong flag without revealing the right one', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject({
         method: 'POST',
@@ -141,7 +141,7 @@ describe('mock flag submission', () => {
   });
 
   it('answers an unknown challenge id with NOT_FOUND', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject({
         method: 'POST',
@@ -158,7 +158,7 @@ describe('mock flag submission', () => {
   });
 
   it('rejects a body with an unexpected field', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject({
         method: 'POST',

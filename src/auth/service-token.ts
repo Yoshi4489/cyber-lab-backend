@@ -1,7 +1,7 @@
 import { jwtVerify, type JWTPayload } from 'jose';
 import type { Config } from '../config.js';
 
-export type ServiceIdentity = { userId: string; scope: string };
+export type ServiceIdentity = { userId: string; sessionId: string; scope: string };
 
 export async function verifyServiceToken(
   token: string,
@@ -20,12 +20,19 @@ export async function verifyServiceToken(
 }
 
 function identityFromPayload(payload: JWTPayload, requiredScope: string): ServiceIdentity {
-  if (!payload.sub || typeof payload.scope !== 'string') {
+  if (
+    !payload.sub ||
+    typeof payload.sid !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+      payload.sid,
+    ) ||
+    typeof payload.scope !== 'string'
+  ) {
     throw new Error('Invalid service token claims');
   }
   const scopes = payload.scope.split(' ');
   if (!scopes.includes(requiredScope)) {
     throw new Error('Insufficient service token scope');
   }
-  return { userId: payload.sub, scope: payload.scope };
+  return { userId: payload.sub, sessionId: payload.sid, scope: payload.scope };
 }

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { UUID_PATTERN, signToken, testConfig } from './helpers.js';
+import { UUID_PATTERN, signToken, testAppDependencies, testConfig } from './helpers.js';
 
 describe('error envelope', () => {
   it('answers an unknown route with a code, a message and a correlation id', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject('/does-not-exist');
       const body = response.json<{ code: string; message: string; correlationId: string }>();
@@ -20,7 +20,7 @@ describe('error envelope', () => {
   });
 
   it('uses the same envelope for an unauthenticated lifecycle call', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject('/v1/instances/00000000-0000-4000-8000-000000000001');
       const body = response.json<{ code: string; correlationId: string }>();
@@ -34,7 +34,7 @@ describe('error envelope', () => {
   });
 
   it('rejects a malformed body without leaking framework internals', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject({
         method: 'POST',
@@ -57,7 +57,7 @@ describe('error envelope', () => {
   });
 
   it('rejects a body that fails validation', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject({
         method: 'POST',
@@ -76,7 +76,7 @@ describe('error envelope', () => {
 
 describe('correlation ids', () => {
   it('reuses a well-formed inbound request id so one id spans both services', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const supplied = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
       const response = await app.inject({ url: '/healthz', headers: { 'x-request-id': supplied } });
@@ -88,7 +88,7 @@ describe('correlation ids', () => {
   });
 
   it('ignores a malformed inbound request id rather than logging it', async () => {
-    const app = await buildApp(testConfig);
+    const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject({
         url: '/healthz',
