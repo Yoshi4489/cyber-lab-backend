@@ -39,9 +39,9 @@ hold Docker Engine credentials.
 - `src/orchestrator/` will contain the narrow Docker lifecycle adapter.
 - `tests/` contains unit, contract, and lifecycle tests.
 
-Phase 0 includes generated OpenAPI from the Zod route schemas; see
-`docs/API.md`. Phase 1 adds backend-owned accounts and opaque sessions behind
-the frontend BFF; read `docs/AUTHENTICATION.md` before implementing auth.
+Generated OpenAPI comes from the Zod route schemas; see `docs/API.md`. Phase 1
+implements backend-owned accounts and opaque sessions behind the frontend BFF;
+read `docs/AUTHENTICATION.md` before changing auth.
 Auth bootstrap resolves credentials or tokens at the backend and must never
 trust a submitted acting-user id.
 

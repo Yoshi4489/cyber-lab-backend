@@ -1,8 +1,9 @@
 # Authentication contract for Phase 1
 
-Status: approved design, not implemented endpoints. Phase 0 verifies service
-tokens for mock submissions and lifecycle stubs. It has no account database,
-login endpoint, browser sessions, or active signup setting.
+Status: Phase 1 backend implemented. PostgreSQL accounts/sessions, BFF bootstrap
+routes, Argon2id credentials, local development mail, and session-bound service
+tokens are active. The frontend secure-cookie/CSRF integration and production
+Resend delivery remain separate checkpoints. Public signup is closed.
 
 ## Ownership and credentials
 
@@ -15,7 +16,7 @@ There are two separate server credentials:
 
 | Credential | Purpose | Holder |
 |---|---|---|
-| BFF_AUTH_SECRET (planned) | Authenticate the BFF on auth bootstrap endpoints | Frontend server and backend API |
+| BFF_AUTH_SECRET | Authenticate the BFF on auth bootstrap endpoints | Frontend server and backend API |
 | BACKEND_SERVICE_TOKEN_SECRET | Sign/verify scoped user operation tokens | Frontend server and backend API |
 
 Use `Authorization: Bearer ...` on each endpoint family; auth bootstrap must
@@ -28,10 +29,10 @@ a player or grants admin rights. Login resolves the user from verified
 credentials; other auth operations resolve an opaque session or single-use
 email token. No request accepts an acting-user ID for authorization.
 
-## Planned HTTP surface
+## HTTP surface
 
-These routes will be implemented and added to OpenAPI during Phase 1. All are
-behind the dedicated BFF credential and configurable auth rate limits.
+These routes are generated into OpenAPI. All are behind the dedicated BFF
+credential and configurable auth rate limits.
 
 | Method and path | Input | Intended behavior |
 |---|---|---|
@@ -62,10 +63,9 @@ Request bodies and browser-supplied role/scope values cannot override these
 checks. Revoked sessions and disabled accounts fail even when the JWT itself
 has not expired. The BFF resolves the session before minting a new token.
 
-Phase 1 introduces the required `sid` claim with an explicit frontend contract
-checkpoint. The current Phase 0 test tokens do not include it. Update both
-services and their tests together; do not silently retain a bypass for tokens
-without a session reference once database-backed auth is enabled.
+The `sid` claim is required. Tokens without it are rejected, and no fallback
+bypasses database-backed session validation. The frontend must include the
+backend session ID returned by session resolution.
 
 ## Session and account rules
 
@@ -86,10 +86,11 @@ without a session reference once database-backed auth is enabled.
 
 ## Email and logging
 
-The mailer is a replaceable dependency: explicit local-only delivery for
-development, Resend after a domain is verified. Local links must not enter the
-normal request, audit, or production logs. Add redaction and captured-log tests
-for the new password/session/email-token field names before exposing routes.
+The mailer is a replaceable dependency. Development writes JSON messages to the
+ignored `LOCAL_MAIL_DIRECTORY` (default `.local-mail`) and refuses to run as a
+production mailer. Resend follows after a domain is verified. Local links do not
+enter normal request or audit logs; captured-log tests cover password, session,
+and email-token field names.
 
 Login and email workflows must avoid account enumeration. Public responses use
 the existing error envelope and do not expose storage/provider details.
@@ -104,7 +105,7 @@ expiry boundaries, logout retries, reset revocation and role/account changes.
 Prove request bodies cannot choose the user, foreign sessions cannot satisfy
 `sid`, revoked sessions cannot mint/use tokens, and signup remains closed.
 
-Phase 1 delivers generated schemas and backend integration tests first. The
-frontend checkpoint then verifies login, secure session handling, session
-resolution, scoped token signing, logout, verification/reset links and errors.
-There are no frontend edits in Phase 0.
+Backend acceptance covers these cases with PostgreSQL integration tests and the
+generated contract. The remaining frontend checkpoint must verify secure cookie
+handling, CSRF/origin checks, session resolution, scoped token signing, logout,
+verification/reset links, and error mapping in the frontend repository.

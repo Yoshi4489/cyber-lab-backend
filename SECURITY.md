@@ -4,8 +4,9 @@ This control plane can authorize users, award scores, create containers and
 expose targets. Backend authorization, lab isolation and recovery from partial
 failures are required security boundaries.
 
-Phase 0 implements only the API foundation. Items below are launch requirements,
-not a claim that the scaffold already satisfies them. No real targets run yet.
+Phase 1 implements the database-backed authentication controls described below.
+Browser cookie/CSRF integration, production email, scoring, operations, and all
+lab-isolation controls remain launch requirements. No real targets run yet.
 
 ## API and authorization
 
@@ -13,7 +14,7 @@ not a claim that the scaffold already satisfies them. No real targets run yet.
   issued-at, required subject and narrow operation scope.
 - Derive the acting user for protected resources only from the verified sub.
   Reject body fields that attempt to select the acting user or runtime options.
-- In Phase 1, verify the signed token's backend session reference belongs to
+- Verify the signed token's backend session reference belongs to
   sub, is active/unexpired, and the account is enabled. Check current roles
   for privileged actions; BFF possession alone must not grant admin rights.
 - Check instance ownership on every read, extend, reset and destroy action.
@@ -49,7 +50,10 @@ not a claim that the scaffold already satisfies them. No real targets run yet.
   production request/audit logs. Production delivery uses Resend after domain
   verification. Test captured logs for password, session and email-token leaks.
 
-See [AUTHENTICATION.md](docs/AUTHENTICATION.md) for the planned contract.
+The backend now enforces these Phase 1 rules, including captured-log redaction
+tests and a signup configuration that accepts only `false`. The frontend cookie
+and CSRF checkpoint and production Resend delivery remain incomplete. See
+[AUTHENTICATION.md](docs/AUTHENTICATION.md) for the implemented contract.
 
 ## Docker boundary
 

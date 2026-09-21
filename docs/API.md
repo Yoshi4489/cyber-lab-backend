@@ -1,9 +1,10 @@
 # API contract
 
 `GET /v1/openapi.json` returns the generated OpenAPI 3.0.3 document. It describes
-the implemented Phase 0 routes; future auth, scoring, and lifecycle behavior is
-not advertised as available. The document contains no environment values or
-example flags. It is public, like the catalog.
+the implemented Phase 1 authentication routes and the existing mock domain
+routes. Future scoring and lifecycle behavior is not advertised as available.
+The document contains no environment values, credentials, tokens, or example
+flags. It is public, like the catalog.
 
 Request validation and response serialization use Zod schemas attached to the
 Fastify routes. `fastify-type-provider-zod` converts those schemas for
@@ -17,9 +18,10 @@ The generator is registered before routes in `buildApp`.
    with `.strict()` where the endpoint has a fixed command shape.
 3. Set a stable, unique `operationId`, tags, and a useful description.
 4. Include the common error responses from `src/routes/schemas.ts`.
-5. For protected routes, add `serviceTokenSecurity` and document the required
-   scope. Enforce that scope before schema validation using `requireScope` in
-   `preValidation`. Documentation alone does not enforce authorization.
+5. For protected domain routes, add `serviceTokenSecurity` and document the
+   required scope. Enforce it before schema validation using `requireScope` and
+   the live-session authorizer. BFF bootstrap routes use `bffAuthSecurity` and
+   `requireBff`. Documentation alone does not enforce authorization.
 6. Add contract tests for accepted and rejected requests, auth, and responses.
 
 Malformed JSON is rejected by Fastify before `preValidation`. For well-formed
@@ -33,6 +35,12 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
 
 ## Current behavior
 
+- Authentication bootstrap routes require the dedicated BFF credential. They
+  implement login, session resolution, logout, verification/reset request and
+  confirmation. Signup validates the registration shape and returns 403.
+- User service tokens require `sub`, `sid`, issuer, audience, issued-at, expiry,
+  and scope. Protected calls recheck session ownership/liveness, account status,
+  and current role permissions in PostgreSQL.
 - Catalog reads are public and return mock fixtures. The list includes
   `source: "mock"`.
 - Submissions require `submissions:write` and return
@@ -45,9 +53,8 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
   response contract with a frontend integration checkpoint. They are not
   implemented by Phase 0.
 
-Phase 1 will add backend-owned authentication behind the frontend BFF. The
-backend does not currently expose auth endpoints or issue opaque sessions.
-See the planned [authentication contract](AUTHENTICATION.md).
+See the implemented backend and remaining frontend responsibilities in the
+[authentication contract](AUTHENTICATION.md).
 
 ## Compatibility and checks
 
@@ -56,9 +63,9 @@ added. `recorded` and `source` will describe the actual implementation; their
 current mock literal schemas must be updated alongside that behavior and the
 frontend contract. Do not silently freeze `source` to `mock` in production.
 
-`tests/openapi.test.ts` checks the generated path inventory, security scheme,
-submission constraints, absence of secrets, and unchanged lifecycle stubs.
-The existing route tests continue to cover the payload and error contracts.
+OpenAPI and auth route tests check both security schemes, strict payloads,
+absence of secrets, BFF credential separation, session-bound user tokens, and
+unchanged lifecycle stubs.
 Fetch `/v1/openapi.json` from a running API for frontend tooling; do not commit
 an independently maintained generated copy.
 

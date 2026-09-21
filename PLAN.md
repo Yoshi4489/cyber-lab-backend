@@ -3,8 +3,8 @@
 ## Scope and current state
 
 This backend is the authorization, data, scoring, and lab lifecycle boundary
-for Cyber Range. Phase 0 implementation is complete. The next delivery is the
-Phase 1 authentication foundation, with no fixed deadline. This plan covers
+for Cyber Range. Phases 0 and 1 are implemented. The next delivery is the
+Phase 2 persistent catalog and scoring foundation, with no fixed deadline. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
@@ -31,22 +31,23 @@ Exit evidence: lint, typecheck, build, 39 tests, YAML parsing, reviewed diffs,
 and healthy PostgreSQL 16 and Redis 7 containers with successful direct client
 operations. Compose is development infrastructure, not a production lab host.
 
-## Phase 1: Database and backend-owned authentication (L, next)
+## Phase 1: Database and backend-owned authentication (implemented)
 
-Dependency: Phase 0. Deliver accounts/auth only; keep the catalog mocked.
+Dependency: Phase 0. Delivered accounts/auth only; the catalog remains mocked.
 
 | Task | Depends on | Effort |
 |---|---|---|
-| Add pg adapter, Drizzle schema and committed SQL migrations for users, profile data, sessions, email tokens, audit events, and player/admin roles | Local PostgreSQL | M |
-| Add database readiness, connection cleanup, migration and idempotent account seed commands | Schema | M |
-| Add Argon2id passwords and opaque hashed session/token repositories | Schema | M |
-| Add session lifecycle, verification/reset services and development mailer | Persistence and hashing | L |
-| Add auth bootstrap routes, BFF/session integration and current-user authorization | Auth services | L |
-| Add generated contracts, integration tests and frontend checkpoint | Routes | M |
+| PostgreSQL adapter, Drizzle schema and committed migration for users, profiles, sessions, email tokens, audit events, and roles | Local PostgreSQL | Implemented |
+| Database readiness, cleanup, migration and idempotent account seed commands | Schema | Implemented |
+| Argon2id passwords and opaque hashed session/token repositories | Schema | Implemented |
+| Session lifecycle, verification/reset services and development mailer | Persistence and hashing | Implemented |
+| Auth bootstrap routes, BFF/session contract and current-user authorization | Auth services | Implemented |
+| Generated contracts and PostgreSQL integration tests | Routes | Implemented |
+| Frontend secure-cookie/CSRF integration checkpoint | Backend contract | Pending in frontend repository |
 
 Sessions use 30-day inactivity and 90-day absolute expiry, fresh tokens on
 login, logout revocation, and single-use email tokens. Public signup returns
-403 when the Phase 1 signup endpoint is added. Initial accounts are seeded
+403. Initial accounts are seeded
 or provisioned by operators; broader admin account APIs arrive in Phase 5.
 
 The backend owns credentials, accounts, sessions, roles, and account status.
@@ -54,14 +55,15 @@ The frontend BFF uses a dedicated server credential for auth bootstrap,
 resolves its opaque session against the backend, and signs short-lived
 user-scoped service tokens. See [authentication contract](docs/AUTHENTICATION.md).
 
-Use the pg connection boundary for local PostgreSQL and managed Neon, preserving
-transaction support. Replace the currently unused Neon HTTP scaffold during this
-phase. Schema changes and consuming application behavior get separate commits.
+The `pg` connection boundary supports local PostgreSQL and managed Neon while
+preserving transaction support. The unused Neon HTTP scaffold has been removed.
 
-Exit: a seeded player/admin can authenticate through the planned BFF contract;
-sessions expire/revoke correctly; reset/verification tokens cannot be replayed;
-authorization rejects expired/revoked sessions and disabled accounts; signup is
-closed. Database integration tests cover migrations and repeated seeding.
+Exit evidence: seeded player/admin authentication passes through the backend BFF
+contract; sessions expire/revoke correctly; reset/verification tokens cannot be
+replayed; authorization rejects foreign, expired, revoked, role-disallowed, and
+disabled sessions; signup is closed. PostgreSQL tests cover migrations,
+concurrent token consumption, and repeated seeding. The actual frontend cookie
+and CSRF flow remains a separate repository checkpoint.
 
 ## Phase 2: Persistent catalog and scoring (M)
 
@@ -163,6 +165,6 @@ belong to the frontend repo, coordinated through generated OpenAPI and phase
 checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
-Next implementation task: Phase 1 PostgreSQL adapter, initial Drizzle schema,
-reviewed migration, and migration integration tests. It starts only after this
-Phase 0 handoff is committed and pushed.
+Next implementation task: Phase 2 challenge/catalog schema and reviewed seed
+format, preserving the existing public response fields and explicit source
+metadata before replacing mock reads.

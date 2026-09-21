@@ -15,30 +15,29 @@ This repository is
 
 ## Project status
 
-**Now:** Phase 0 implementation complete, including repository alignment.
-**Next:** Phase 1 database and backend-owned authentication foundation.
+**Now:** Phase 1 database and backend-owned authentication complete.
+**Next:** Phase 2 persistent catalog and scoring.
 **Last updated:** 2026-09-21.
 
-Working today: Fastify/TypeScript, service-token verification, error envelopes,
-correlation IDs, redacted request logging, health/readiness, mock catalog and
-submissions, generated OpenAPI, local dependency configuration, lint, build,
-type checks, and contract tests.
+Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
+committed migrations, account seeds, Argon2id credentials, opaque sessions,
+verification/reset flows, player/admin roles, BFF auth routes, session-bound
+service tokens, generated OpenAPI, PostgreSQL readiness, and the Phase 0 mock
+catalog/submission routes.
 
-Not implemented yet: database schema/migrations, account or session endpoints,
-email delivery, persisted scores, queue workers, real targets, or deployment.
-The existing database factory is an unused Neon HTTP scaffold. Local Compose
-does not connect the API to PostgreSQL or Redis.
+Not implemented yet: the frontend cookie/CSRF checkpoint, production email
+delivery, persisted catalog/scores, queue workers, real targets, or deployment.
+Local development email is written only to the ignored `.local-mail` directory.
 
-Verification: 39 tests, lint, type checking, and build pass on Node 22.23.2.
+Verification: 68 tests, lint, type checking, and build pass on Node 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
 started with Docker Desktop, reached healthy status, accepted direct client
 operations, and exposed reachable loopback ports. PostgreSQL used the supported
 `DEV_POSTGRES_PORT=55432` override because port 5432 was unavailable on the
-verification machine. CI includes Compose configuration validation; it does
-not yet run dependency integration tests. The CI workflow has passed on
-`develop` with Compose configuration validation, linting, type checking,
-building, and tests on Node 22.
+verification machine. CI starts disposable PostgreSQL for migrations and auth
+integration tests, validates Compose configuration, and runs linting, type
+checking, building, and tests on Node 22.
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
@@ -49,16 +48,16 @@ script is retained.
 | Phase | Deliverable | State |
 |---|---|---|
 | 0 | API foundation, Node 22 alignment, local services, generated OpenAPI, agreed docs | Implemented |
-| 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF integration | Next |
-| 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Planned |
+| 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF contract | Implemented |
+| 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Next |
 | 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Planned |
 | 4 | Isolation hardening and security review; required gate for public signup | Planned |
 | 5 | Admin tools, monitoring, backup/restore, operational deployment | Planned |
 | 6 | Browser terminal, TCP/VPN access, multi-node scheduling, advanced progression/auth | Deferred |
 
 See [PLAN.md](PLAN.md) for ordered tasks, dependencies, effort, and exit criteria.
-There is no fixed delivery deadline. The immediate milestone is Phase 1 auth
-foundation; catalog persistence and real labs remain later milestones.
+There is no fixed delivery deadline. The immediate milestone is Phase 2 catalog
+and scoring persistence; real labs remain a later milestone.
 
 Public signup stays closed until every required control in
 [SECURITY.md](SECURITY.md) is implemented and reviewed.
@@ -78,8 +77,8 @@ Public signup stays closed until every required control in
 | Operations | API and worker on a VM with Compose; managed data services; separate target hosts |
 
 These are implementation decisions, not claims that later phases already work.
-The [authentication contract](docs/AUTHENTICATION.md) defines the planned trust
-boundary and frontend checkpoints.
+The [authentication contract](docs/AUTHENTICATION.md) defines the implemented
+backend trust boundary and the remaining frontend checkpoint.
 
 ## Quick start
 
@@ -91,9 +90,12 @@ cp .env.example .env
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-Copy the generated value into `BACKEND_SERVICE_TOKEN_SECRET` in `.env`, then
-run `npm run dev`. In PowerShell, use `Copy-Item .env.example .env`. If you
-already have a local `.env`, update it without replacing existing values.
+Generate independent values for `BFF_AUTH_SECRET`,
+`BACKEND_SERVICE_TOKEN_SECRET`, and `DEV_POSTGRES_PASSWORD`. Start Compose, set
+`DATABASE_URL`, run `npm run db:migrate`, provide the seed variables, and run
+`npm run db:seed` before `npm run dev`. In PowerShell, use
+`Copy-Item .env.example .env`. If you already have a local `.env`, update it
+without replacing existing values.
 
 The API listens on `http://127.0.0.1:4000`. Read
 [local development](docs/LOCAL_DEVELOPMENT.md) to start PostgreSQL and Redis,
@@ -107,7 +109,10 @@ Never commit credentials, `.env`, certificates, TLS material, or real flags.
 | `npm run dev` | Watch mode through tsx |
 | `npm run build` | Compile TypeScript to dist |
 | `npm start` | Run the compiled server |
-| `npm test` | Unit and API contract tests, without external services |
+| `npm run db:generate` | Generate a reviewed migration after schema changes |
+| `npm run db:migrate` | Apply committed PostgreSQL migrations |
+| `npm run db:seed` | Idempotently create the configured player/admin accounts |
+| `npm test` | Unit/contracts; database integration tests run when `TEST_DATABASE_URL` is set |
 | `npm run lint` | ESLint and focused promise-safety rules |
 | `npm run typecheck` | Strict type checking for source and tests |
 
@@ -128,15 +133,19 @@ contains Compose and future worker settings which the API does not yet consume.
 | `NODE_ENV` | API | development/test/production; defaults to development |
 | `HOST`, `PORT` | API | Defaults to 127.0.0.1:4000 |
 | `FRONTEND_ORIGIN` | API | Required exact CORS origin; not an authorization mechanism |
-| `BACKEND_SERVICE_TOKEN_SECRET` | API and frontend server | Required, at least 32 characters; never browser-visible |
+| `BFF_AUTH_SECRET` | API and frontend server | Dedicated auth bootstrap credential; distinct from signing key |
+| `BACKEND_SERVICE_TOKEN_SECRET` | API and frontend server | Signs/verifies five-minute user JWTs; never browser-visible |
 | `SERVICE_TOKEN_ISSUER`, `SERVICE_TOKEN_AUDIENCE` | API | Required JWT checks |
-| `DATABASE_URL` | Reserved | Optional today; leave empty until Phase 1 integration |
+| `DATABASE_URL` | API and database commands | Required PostgreSQL URL |
+| `SIGNUPS_OPEN` | API | Must remain `false`; open signup is not implemented |
+| `AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW` | API | Per-route auth request limits |
+| `LOCAL_MAIL_DIRECTORY` | Development API | Ignored local verification/reset delivery directory |
 | `DEV_POSTGRES_PASSWORD` | Local Compose | Required to initialize local PostgreSQL |
 | `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
 | `REDIS_URL` | Future worker | Not consumed until Phase 3 |
 
-BFF bootstrap credentials, signup controls, and session settings will be added
-with Phase 1 validation; they are not active environment settings today.
+Seed variables are consumed only by `npm run db:seed`; normal repeated seeding
+does not replace an existing password hash or profile.
 
 ## Current API
 
@@ -146,12 +155,20 @@ See [API guidance](docs/API.md) for schema conventions and compatibility rules.
 | Method | Endpoint | Auth | Behavior |
 |---|---|---|---|
 | GET | /healthz | None | Liveness |
-| GET | /readyz | None | Readiness, no dependency probes yet |
+| GET | /readyz | None | Readiness, including PostgreSQL in the running API |
 | GET | /v1/meta | None | API metadata |
 | GET | /v1/openapi.json | None | Generated OpenAPI 3.0.3 |
 | GET | /v1/categories | None | Mock categories |
 | GET | /v1/challenges | None | Mock catalog |
 | GET | /v1/challenges/:slug | None | Mock challenge |
+| POST | /v1/auth/login | BFF credential | Verify credentials and issue opaque session |
+| POST | /v1/auth/session | BFF credential | Resolve and refresh a live session |
+| POST | /v1/auth/logout | BFF credential | Idempotently revoke a session |
+| POST | /v1/auth/verification/request | BFF credential | Generic acknowledgement; local delivery when eligible |
+| POST | /v1/auth/verification/confirm | BFF credential | Consume verification token once |
+| POST | /v1/auth/password-reset/request | BFF credential | Generic acknowledgement; local delivery when eligible |
+| POST | /v1/auth/password-reset/confirm | BFF credential | Reset password and revoke sessions |
+| POST | /v1/auth/signup | BFF credential | Always 403 while signup is closed |
 | POST | /v1/submissions | submissions:write | Mock checking; no persisted solve |
 | POST | /v1/instances | instances:write | 501 until Phase 3 |
 | GET | /v1/instances/:id | instances:read | 501 until Phase 3 |
@@ -170,7 +187,10 @@ submissions return `recorded: false`. Phase 2 keeps field names but changes
 ## Frontend connection
 
 Authenticated browser actions go through the frontend BFF. The BFF holds the
-backend URL in server-only configuration and signs short-lived service tokens.
+backend URL and both server credentials in server-only configuration. It
+resolves the opaque backend session, then signs short-lived service tokens with
+the trusted `sub`, `sid`, and allowed scope. The backend rechecks session
+ownership, liveness, account status, and current role on every protected call.
 Public catalog requests may remain browser-accessible under the configured
 CORS origin. Neither a public backend URL nor CORS proves user identity.
 

@@ -34,9 +34,10 @@ receive no Docker, database, Redis, or lab-node administrative credentials.
 Players may reach their target through lab ingress; this is distinct from
 access to the host, Docker Engine, or control plane.
 
-Phase 0 currently contains the API and mocks only. Session handling, database
-repositories, worker processes, routing and target execution below describe
-the approved future architecture.
+Phase 1 implements PostgreSQL identity repositories, authentication services,
+BFF bootstrap routes, and session-bound service-token authorization. Catalog,
+submissions, lifecycle routes, routing, and target execution remain mock or
+future behavior as described by their phase labels.
 
 ## Module boundaries
 
@@ -65,7 +66,7 @@ generic repository framework.
 4. BFF binds the opaque session to its secure browser-session flow and resolves
    it at the backend before signing a user operation token.
 5. BFF signs HS256 claims including sub, issuer, audience, issued-at, expiry,
-   narrow scope, and (from Phase 1) a backend session reference.
+   narrow scope, and the backend `sid` session reference.
 6. Backend verifies the token and uses the verified sub as the acting user.
    Phase 1 also validates session ownership/liveness and current account/role
    state, so revocation is not bypassed by an unexpired service token.
@@ -73,18 +74,20 @@ generic repository framework.
 
 The dedicated BFF credential identifies a trusted caller, not a signed-in user.
 User identity never comes from an acting-user field in a request body. The
-existing Phase 0 verifier validates signature, algorithm, issuer, audience,
-required claims, max token age and scope; it does not yet check database state.
+verifier validates signature, algorithm, issuer, audience, required claims,
+five-minute max token age, scope, session ownership/liveness, current account
+status, and current role permissions.
 
 The [auth contract](docs/AUTHENTICATION.md) describes bootstrap, cookie handling,
 expiry/revocation and the frontend integration checkpoint.
 
 ## Data and challenge definitions
 
-Phase 1 replaces the unused Neon HTTP factory with a PostgreSQL connection
-adapter supporting local PostgreSQL and managed Neon. Drizzle defines the
-schema and generates reviewed, committed SQL migrations. Database transactions
-enforce single-use auth tokens and unique solve awards.
+Phase 1 replaced the unused Neon HTTP factory with a transactional PostgreSQL
+connection adapter supporting local PostgreSQL and managed Neon. Drizzle defines
+the users, profiles, sessions, email tokens, and audit schema with reviewed,
+committed SQL migrations. Database transactions enforce single-use auth tokens.
+Phase 2 adds the uniqueness transaction for solve awards.
 
 Reviewed repository files define trusted challenge images, resource limits and
 health checks. Seeding loads catalog metadata into PostgreSQL in Phase 2.
@@ -112,8 +115,8 @@ lifetime and a 2-hour absolute maximum. HTTP targets ship first.
 ## Deployment boundaries
 
 Local Compose runs PostgreSQL/Redis on loopback with named data volumes.
-The API runs separately through npm during development; Phase 0 does not
-consume either service. Never run challenge targets on that control-plane
+The API runs separately through npm and consumes PostgreSQL; Redis remains a
+Phase 3 worker dependency. Never run challenge targets on that control-plane
 Compose network.
 
 The production control-plane VM will run separate API and worker processes
