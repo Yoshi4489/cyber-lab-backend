@@ -15,8 +15,8 @@ This repository is
 
 ## Project status
 
-**Now:** Phase 2 persistent catalog and scoring complete.
-**Next:** Phase 3 asynchronous HTTP lab lifecycle.
+**Now:** Phase 3 lifecycle implementation complete; compliant-host target validation pending.
+**Next:** Run the isolated-host Phase 3 exit check, then begin Phase 4 security verification.
 **Last updated:** 2026-09-21.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
@@ -24,15 +24,17 @@ committed migrations, account seeds, Argon2id credentials, opaque sessions,
 verification/reset flows, player/admin roles, BFF auth routes, session-bound
 service tokens, generated OpenAPI, PostgreSQL readiness, seeded catalog reads,
 transactional submissions/first solves, player progress, public leaderboard,
-per-instance flag derivation, and verified-user submission rate limits.
+per-instance flag derivation, owned/idempotent instance APIs, PostgreSQL
+lifecycle state, BullMQ delivery/recovery, expiry/reconciliation, a separate
+worker, restricted Docker options, and generated Traefik file-provider routes.
 
-Not implemented yet: the frontend cookie/CSRF and scoring checkpoints,
-production email delivery, queue workers, real targets, or deployment. Dynamic
-submission scoring remains unavailable in the running API until Phase 3 supplies
-an ownership-checked active instance. Local development email is written only
+Not implemented yet: the frontend cookie/CSRF, scoring and lifecycle checkpoints,
+production email delivery, authored target images/manifests, compliant-host
+target validation, or deployment. Dynamic submission scoring is active only for
+an owned, running, unexpired instance. Local development email is written only
 to the ignored `.local-mail` directory.
 
-Verification: 75 tests, lint, type checking, and build pass on Node 22.23.2.
+Verification: 93 tests, lint, type checking, and build pass on Node 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
 started with Docker Desktop, reached healthy status, accepted direct client
@@ -41,6 +43,9 @@ operations, and exposed reachable loopback ports. PostgreSQL used the supported
 verification machine. CI starts disposable PostgreSQL for migration, auth,
 catalog, scoring, and progress integration tests, validates Compose
 configuration, and runs linting, type checking, building, and tests on Node 22.
+CI now starts disposable Redis as well as PostgreSQL. Docker Desktop 29.7.2 was
+reachable, but its engine did not advertise user namespaces or AppArmor; the
+worker therefore failed closed and no target was launched on that host.
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
@@ -53,14 +58,14 @@ script is retained.
 | 0 | API foundation, Node 22 alignment, local services, generated OpenAPI, agreed docs | Implemented |
 | 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF contract | Implemented |
 | 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Implemented |
-| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Next |
+| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Implemented; host validation pending |
 | 4 | Isolation hardening and security review; required gate for public signup | Planned |
 | 5 | Admin tools, monitoring, backup/restore, operational deployment | Planned |
 | 6 | Browser terminal, TCP/VPN access, multi-node scheduling, advanced progression/auth | Deferred |
 
 See [PLAN.md](PLAN.md) for ordered tasks, dependencies, effort, and exit criteria.
-There is no fixed delivery deadline. The immediate milestone is the Phase 3 HTTP
-instance lifecycle and its ownership bridge to dynamic submissions.
+There is no fixed delivery deadline. The immediate milestone is the Phase 3
+isolated-host exit run and frontend lifecycle contract checkpoint.
 
 Public signup stays closed until every required control in
 [SECURITY.md](SECURITY.md) is implemented and reviewed.
@@ -83,7 +88,8 @@ These are implementation decisions, not claims that later phases already work.
 The [authentication contract](docs/AUTHENTICATION.md) defines the implemented
 backend trust boundary and the remaining frontend checkpoint. The
 [scoring contract](docs/SCORING.md) defines Phase 2 behavior and the Phase 3
-instance dependency.
+instance dependency. The [lifecycle contract](docs/LIFECYCLE.md) defines the
+Phase 3 API, worker, manifest, recovery, and deployment boundaries.
 
 ## Quick start
 
@@ -115,10 +121,12 @@ Never commit credentials, `.env`, certificates, TLS material, or real flags.
 | `npm run dev` | Watch mode through tsx |
 | `npm run build` | Compile TypeScript to dist |
 | `npm start` | Run the compiled server |
+| `npm run worker` | Run the lifecycle worker from TypeScript |
+| `npm run worker:start` | Run the compiled lifecycle worker |
 | `npm run db:generate` | Generate a reviewed migration after schema changes |
 | `npm run db:migrate` | Apply committed PostgreSQL migrations |
 | `npm run db:seed` | Idempotently seed the catalog and configured player/admin accounts |
-| `npm test` | Unit/contracts; database integration tests run when `TEST_DATABASE_URL` is set |
+| `npm test` | Unit/contracts; PostgreSQL/Redis integrations run when their test URLs are set |
 | `npm run lint` | ESLint and focused promise-safety rules |
 | `npm run typecheck` | Strict type checking for source and tests |
 
@@ -132,7 +140,8 @@ and `await-thenable` without the entire type-checked recommended preset.
 ## Configuration
 
 `src/config.ts` validates API settings at startup. The example file also
-contains Compose and future worker settings which the API does not yet consume.
+contains separate worker settings. Docker credentials are parsed only by
+`src/worker-config.ts`, never by the API configuration.
 
 | Variable | Current consumer | Requirement |
 |---|---|---|
@@ -141,16 +150,23 @@ contains Compose and future worker settings which the API does not yet consume.
 | `FRONTEND_ORIGIN` | API | Required exact CORS origin; not an authorization mechanism |
 | `BFF_AUTH_SECRET` | API and frontend server | Dedicated auth bootstrap credential; distinct from signing key |
 | `BACKEND_SERVICE_TOKEN_SECRET` | API and frontend server | Signs/verifies five-minute user JWTs; never browser-visible |
-| `INSTANCE_FLAG_SECRET` | API and future worker | Derives per-user/challenge/instance flags; backend-only and distinct |
+| `INSTANCE_FLAG_SECRET` | API and worker | Derives per-user/challenge/instance flags; backend-only and distinct |
 | `SERVICE_TOKEN_ISSUER`, `SERVICE_TOKEN_AUDIENCE` | API | Required JWT checks |
 | `DATABASE_URL` | API and database commands | Required PostgreSQL URL |
 | `SIGNUPS_OPEN` | API | Must remain `false`; open signup is not implemented |
 | `AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW` | API | Per-route auth request limits |
 | `SUBMISSION_RATE_LIMIT_MAX`, `SUBMISSION_RATE_LIMIT_WINDOW_MS` | API | Fixed-window limits keyed by verified user identity |
+| `INSTANCE_RATE_LIMIT_MAX`, `INSTANCE_RATE_LIMIT_WINDOW_MS` | API | Instance-create limits keyed by verified user identity |
+| `LAB_PUBLIC_BASE_URL` | API | Base URL used only when a target is running and has an unguessable route |
 | `LOCAL_MAIL_DIRECTORY` | Development API | Ignored local verification/reset delivery directory |
 | `DEV_POSTGRES_PASSWORD` | Local Compose | Required to initialize local PostgreSQL |
 | `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
-| `REDIS_URL` | Future worker | Not consumed until Phase 3 |
+| `REDIS_URL` | Worker | BullMQ connection; never sent to targets or frontend |
+| `RUNTIME_MANIFEST_PATH` | Worker | Reviewed JSON array of pinned runtime manifests |
+| `TRAEFIK_DYNAMIC_DIRECTORY`, `LAB_INGRESS_CONTAINER` | Worker | Isolated ingress file-provider path and container name |
+| `LAB_NODE_NAME` | Worker | Non-secret scheduling identity stored in PostgreSQL |
+| `DOCKER_HOST`, `DOCKER_CA_PATH`, `DOCKER_CERT_PATH`, `DOCKER_KEY_PATH` | Production worker | Complete remote Docker mTLS configuration |
+| `DOCKER_SOCKET_PATH` | Development worker only | Local disposable testing; rejected in production |
 
 Seed variables are consumed only by `npm run db:seed`; normal repeated seeding
 does not replace an existing password hash or profile.
@@ -177,13 +193,13 @@ See [API guidance](docs/API.md) for schema conventions and compatibility rules.
 | POST | /v1/auth/password-reset/request | BFF credential | Generic acknowledgement; local delivery when eligible |
 | POST | /v1/auth/password-reset/confirm | BFF credential | Reset password and revoke sessions |
 | POST | /v1/auth/signup | BFF credential | Always 403 while signup is closed |
-| POST | /v1/submissions | submissions:write | Instance-bound persistence contract; 501 until Phase 3 owns instances |
+| POST | /v1/submissions | submissions:write | Verify against an owned running instance and record scoring transactionally |
 | GET | /v1/profile | profile:read | Current player progress from verified subject |
 | GET | /v1/leaderboard | None | Top 100 active-player display names and scores |
-| POST | /v1/instances | instances:write | 501 until Phase 3 |
-| GET | /v1/instances/:id | instances:read | 501 until Phase 3 |
-| POST | /v1/instances/:id/extend | instances:write | 501 until Phase 3 |
-| DELETE | /v1/instances/:id | instances:write | 501 until Phase 3 |
+| POST | /v1/instances | instances:write + Idempotency-Key | Persist pending spawn intent; return 202 |
+| GET | /v1/instances/:id | instances:read | Owner-only polling; URL appears only while running |
+| POST | /v1/instances/:id/extend | instances:write + Idempotency-Key | Add 30 minutes up to the 2-hour cap; return 202 |
+| DELETE | /v1/instances/:id | instances:write + Idempotency-Key | Persist retry-safe stop intent; return 202 |
 
 Errors use `{ code, message, correlationId }`. All responses echo
 `x-request-id`. The existing readiness exception returns its check results
@@ -205,5 +221,5 @@ Public catalog requests may remain browser-accessible under the configured
 CORS origin. Neither a public backend URL nor CORS proves user identity.
 
 Docker, database, Redis, and lab-node credentials never cross into the frontend.
-Players will access targets through isolated lab ingress in Phase 3; they never
+Players access targets through isolated lab ingress; they never
 access the Docker Engine or administrative node interfaces.

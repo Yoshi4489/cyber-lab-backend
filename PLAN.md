@@ -3,12 +3,13 @@
 ## Scope and current state
 
 This backend is the authorization, data, scoring, and lab lifecycle boundary
-for Cyber Range. Phases 0 through 2 are implemented. The next delivery is the
-Phase 3 asynchronous HTTP lab lifecycle, with no fixed deadline. This plan covers
+for Cyber Range. Phases 0 through 2 and the Phase 3 implementation are complete.
+The next delivery is Phase 3 validation on a compliant isolated Docker host,
+followed by the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-All 75 local tests and checks pass on Node 22.23.2. Local PostgreSQL 16 and Redis 7
+All 93 local tests and checks pass on Node 22.23.2. Local PostgreSQL 16 and Redis 7
 containers start, become healthy, and accept direct client operations. Remote
 CI has passed on `develop`. See README for current verification evidence.
 Nothing is deployed and public signup remains closed.
@@ -80,31 +81,31 @@ Dependency: Phase 1 users and database.
 - Pending in the frontend repository: catalog/source, `profile:read`, leaderboard,
   and submission contract integration.
 
-Per-instance flags depend on real instance identity in Phase 3. During Phase 2,
-test this boundary using explicit instance fixtures. Do not award production
-points for mock flags or pretend a mock session is a running lab. Production
-dynamic submissions become available with the owned-instance lifecycle.
+Per-instance flags depend on real instance identity. Phase 3 now supplies the
+owned running-instance resolver; tests still use explicit fixtures where Docker
+is not relevant.
 
 Exit evidence: repository/contract tests prove catalog compatibility,
 published-only reads, solve uniqueness under eight concurrent requests,
-subject-bound progress, leaderboard privacy, and no flag/hash leakage. The
-running API returns 501 for dynamic submissions until Phase 3 supplies an owned
-instance resolver. No real challenge authoring or content-management UI.
+subject-bound progress, leaderboard privacy, and no flag/hash leakage. No real
+challenge authoring or content-management UI is included.
 
-## Phase 3: Asynchronous HTTP lab lifecycle (L)
+## Phase 3: Asynchronous HTTP lab lifecycle (implemented; host validation pending)
 
 Dependencies: Phases 1-2, Redis, Docker test environment, trusted manifests.
 A routing domain and certificates are prerequisites for remote deployment.
 
-- M: Add instances, operations and node persistence with explicit transitions.
-- M: Add BullMQ producers/workers for spawn, destroy, extend, reap and reconcile;
+- Implemented: instances, operations and node persistence with explicit transitions.
+- Implemented: BullMQ producers/workers for spawn, destroy, extend, reap and reconcile;
   deterministic job IDs, bounded retries/backoff and failed-job inspection.
-- M: Implement ownership-checked API operations and client idempotency keys.
+- Implemented: ownership-checked API operations and client idempotency keys.
   Creation returns a pending instance ID; the frontend polls until ready.
-- L: Add the narrow Docker adapter, fixed runtime restrictions, trusted image
+- Implemented: the narrow Docker adapter, fixed runtime restrictions, trusted image
   manifests, isolated networks, generated Traefik routes, health polling and
   cleanup of partial failures.
-- M: Add expiry/reconciliation jobs and frontend polling integration tests.
+- Implemented: expiry/reconciliation jobs and backend polling integration tests.
+- Pending: frontend polling integration in the frontend repository and one full
+  target run on a separate host that advertises userns, seccomp and AppArmor.
 
 Start with HTTP targets and a single node. One active instance per player,
 60-minute default lifetime, 2-hour absolute maximum. Extensions cannot exceed
@@ -116,9 +117,12 @@ hardens them; it is not permission to run unrestricted targets in Phase 3.
 Local tests use disposable fixtures. Production targets must use separate
 hosts/trust zones and remote Docker mTLS.
 
-Exit: start, poll, submit, extend, destroy, expire and recover complete end to
-end; foreign-user access fails; routing URLs appear only after readiness;
-partial operations do not leave unmanaged containers.
+Automated exit evidence covers start-state transitions, polling, submission
+ownership, extension caps, destroy, expiry, recovery, foreign-user denial,
+readiness-only URLs and partial-create cleanup. The remaining exit check is the
+same flow with a disposable pinned image on a compliant isolated host. Docker
+Desktop on the verification machine lacked userns and AppArmor, so the adapter
+correctly refused to run a target there.
 
 ## Phase 4: Isolation hardening and security gate (L)
 
@@ -172,6 +176,6 @@ belong to the frontend repo, coordinated through generated OpenAPI and phase
 checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
-Next implementation task: Phase 3 instance/operation/node persistence with
-explicit transitions and idempotency records, followed by the ownership resolver
-that activates the existing dynamic submission service.
+Next task: provision or select a disposable isolated Docker host with userns,
+seccomp and AppArmor enabled; run the Phase 3 target lifecycle exit check; then
+begin the Phase 4 isolation test matrix without opening public signup.

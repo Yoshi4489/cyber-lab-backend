@@ -1,8 +1,8 @@
 # API contract
 
 `GET /v1/openapi.json` returns the generated OpenAPI 3.0.3 document. It describes
-the implemented Phase 2 authentication, catalog, scoring, progress, and
-leaderboard contracts. Future lifecycle behavior is not advertised as available.
+the implemented authentication, catalog, scoring, progress, leaderboard, and
+Phase 3 lifecycle contracts.
 The document contains no environment values, credentials, tokens, or example
 flags. It is public, like the catalog.
 
@@ -46,16 +46,16 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
 - Submissions require `submissions:write`, an `instanceId`, and an owned running
   challenge instance. They persist the attempt and return
   `{ correct, points, recorded: true, source: "database" }`; only the first
-  correct solve awards points. The server-wired resolver returns 501 until Phase 3.
+  correct solve awards points. The server-wired resolver accepts only an owned,
+  running, unexpired instance for the requested challenge.
 - `GET /v1/profile` requires `profile:read` and derives the account only from the
   verified subject. `GET /v1/leaderboard` is public and omits account IDs/emails.
-- Instance create, extend, and destroy require `instances:write`; reads require
-  `instances:read`. Valid, authenticated requests still return 501.
-- Instance creation currently accepts only `{ challengeId }`. No Docker
-  runtime options or acting-user fields are accepted.
-- Phase 3 will introduce the idempotency header and asynchronous instance
-  response contract with a frontend integration checkpoint. They are not
-  implemented by Phase 0.
+- Instance create, extend, and destroy require `instances:write` and a valid
+  `Idempotency-Key`; reads require `instances:read`. Mutations persist intent
+  and return `202` with the instance, operation ID, and replay indicator.
+- Instance creation accepts only `{ challengeId }`. No Docker runtime options
+  or acting-user fields are accepted. Owner polling omits the route URL until
+  the worker marks the target running.
 
 See the implemented backend and remaining frontend responsibilities in the
 [authentication contract](AUTHENTICATION.md) and [scoring contract](SCORING.md).
@@ -69,7 +69,7 @@ attempt, so a repeated correct solve returns zero.
 
 OpenAPI and route tests check both security schemes, strict payloads, absence of
 secrets, BFF credential separation, session-bound user tokens, catalog fields,
-profile/leaderboard exposure, and unchanged lifecycle stubs.
+profile/leaderboard exposure, lifecycle ownership, idempotency, and polling.
 Fetch `/v1/openapi.json` from a running API for frontend tooling; do not commit
 an independently maintained generated copy.
 

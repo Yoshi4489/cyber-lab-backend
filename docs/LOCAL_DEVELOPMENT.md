@@ -1,7 +1,7 @@
 # Local development
 
-Use Node 22 (`.nvmrc`), npm, and Docker with Compose v2. The Phase 2 API requires
-PostgreSQL. Redis can remain stopped until Phase 3 worker development.
+Use Node 22 (`.nvmrc`), npm, and Docker with Compose v2. The API requires
+PostgreSQL; the Phase 3 worker also requires Redis.
 
 ## API
 
@@ -52,8 +52,24 @@ Set `DATABASE_URL` to
 configured override if PostgreSQL is published on another port. Generated
 base64url passwords do not need extra URL escaping. Apply committed migrations
 with `npm run db:migrate`. Use `npm run db:generate` only after a reviewed schema
-change, and review the generated SQL before committing it. Phase 3 starts using
+change, and review the generated SQL before committing it. The worker consumes
 `REDIS_URL`.
+
+## Lifecycle worker
+
+Read [LIFECYCLE.md](LIFECYCLE.md), create a reviewed runtime-manifest JSON file,
+and configure the Traefik file-provider directory and ingress container. Run
+the worker separately from the API:
+
+```sh
+npm run worker
+```
+
+Local socket access is allowed only for development. The adapter still requires
+the Docker engine to advertise user namespaces, seccomp and AppArmor. Docker
+Desktop on the verification machine lacked user namespaces and AppArmor, so it
+is suitable for PostgreSQL/Redis development but not for launching these target
+containers. Production uses an isolated target host and complete Docker mTLS.
 
 ## Initial accounts and local mail
 
@@ -82,10 +98,10 @@ npm run build
 npm test
 ```
 
-To run PostgreSQL integration tests locally, set `TEST_DATABASE_URL` to a
-disposable PostgreSQL database before `npm test`. CI starts PostgreSQL 16 and
-runs migration, auth, catalog, scoring, and progress integration tests in
-addition to the four checks above. Queue/lifecycle tests arrive in Phase 3.
+To run infrastructure integration tests locally, set `TEST_DATABASE_URL` and
+`TEST_REDIS_URL` to disposable services before `npm test`. CI starts PostgreSQL
+16 and Redis 7 and runs migration, auth, catalog, scoring, progress, queue and
+lifecycle integration tests in addition to the four checks above.
 Production will use managed Neon
 PostgreSQL and managed Redis, with API and worker processes on a VM and target
 hosts in a separate trust zone.

@@ -2,8 +2,8 @@
 
 Status: Phase 2 backend implemented. Catalog, submission persistence, first
 solves, profile progress, leaderboard queries, dynamic flag derivation, and
-verified-user rate limiting are active code paths. The production submission
-resolver returns 501 until Phase 3 provides owned running instances.
+verified-user rate limiting are active code paths. Phase 3 connects the
+production resolver to owned running instances.
 
 ## Catalog
 
@@ -48,9 +48,9 @@ creates the first solve and receives points. The response is:
 Responses never echo the submitted or expected flag. The fixed-window limiter
 keys on the verified user identity after live-session authorization.
 
-The current server-wired resolver returns `NOT_IMPLEMENTED` (501). Phase 3 swaps
-in persisted instance ownership and activates this same service. Fixture-based
-integration tests are the only Phase 2 path that awards points.
+The server-wired resolver reads persisted instance ownership and accepts only a
+running instance before its expiry. Foreign, stopped, expired, or mismatched
+instances return ownership-safe `NOT_FOUND`.
 
 ## Progress and leaderboard
 
@@ -70,6 +70,6 @@ The frontend repository must update its generated contract and UI for:
 - catalog `source: "database"`;
 - the new `profile:read` scope and `/v1/profile` response;
 - the public `/v1/leaderboard` response;
-- submission `instanceId`, `recorded: true`, points-awarded semantics, and
-  `NOT_IMPLEMENTED` until the Phase 3 instance flow is connected;
+- submission `instanceId`, `recorded: true`, points-awarded semantics, and the
+  owned running-instance requirement;
 - `RATE_LIMITED`, ownership-safe `NOT_FOUND`, and ordinary auth errors.

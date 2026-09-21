@@ -34,10 +34,10 @@ receive no Docker, database, Redis, or lab-node administrative credentials.
 Players may reach their target through lab ingress; this is distinct from
 access to the host, Docker Engine, or control plane.
 
-Phases 1 and 2 implement PostgreSQL identity, catalog, scoring, and progress
+Phases 1 through 3 implement PostgreSQL identity, catalog, scoring, progress,
 repositories; authentication services; BFF bootstrap routes; session-bound
-authorization; and public catalog/leaderboard reads. Lifecycle routes, routing,
-and target execution remain future behavior as described by their phase labels.
+authorization; public catalog/leaderboard reads; lifecycle intent; durable queue
+delivery; worker transitions; and the restricted Docker/Traefik boundary.
 
 ## Module boundaries
 
@@ -47,8 +47,8 @@ and target execution remain future behavior as described by their phase labels.
 | src/auth | Service-token verification; Phase 1 credentials/session boundary |
 | src/services | Business rules and coordination through typed dependencies |
 | src/db | Database client, repositories, schema and migrations |
-| src/queue (Phase 3) | Job production, delivery, retry policy and worker entry point |
-| src/orchestrator (Phase 3) | Narrow Docker lifecycle adapter consuming trusted runtime specs |
+| src/queue | Job production, delivery, retry policy and worker entry point |
+| src/orchestrator | Narrow Docker lifecycle adapter consuming trusted runtime specs |
 | src/plugins | Error handling, correlation IDs, generated OpenAPI |
 | tests | Units, contracts and later service/lifecycle integration tests |
 
@@ -89,27 +89,26 @@ identity, catalog, submission, solve, and audit data through reviewed committed
 SQL migrations. Database transactions enforce single-use auth tokens and one
 scored solve per user/challenge.
 
-Validated repository definitions currently seed public catalog metadata into
-PostgreSQL. Phase 3 extends these definitions with trusted images, resource
-limits, and health checks. Flags are HMAC-derived per user/challenge/instance at
+Validated repository definitions seed public catalog metadata into PostgreSQL.
+Separate worker-only runtime manifests bind challenge IDs to pinned images,
+resource limits, non-root users, and bounded health checks. Flags are HMAC-derived per user/challenge/instance at
 runtime; no expected or submitted flag is persisted. Target flag injection uses
 a narrow runtime path, never an image layer, public API response, or unrestricted
 Docker option.
 
-The submission service resolves an instance through a narrow ownership
-interface before deriving or checking a flag. Phase 2 tests this boundary with
-explicit fixtures and records attempts, audits, and first solves transactionally.
-The server-wired resolver deliberately returns 501 until Phase 3 owns real
-instance state. Progress reads use only the verified token subject; the public
+The submission service resolves a running, unexpired instance through a narrow
+ownership interface before deriving or checking a flag, then records attempts,
+audits, and first solves transactionally. Progress reads use only the verified token subject; the public
 leaderboard exposes display names and aggregate scores without account IDs.
 
 ## Lifecycle intent and recovery (Phase 3)
 
-The API persists owned instance intent and idempotency records, then arranges
-durable queue delivery. Implementation must recover the database/enqueue gap;
-a database write followed by an unchecked enqueue is insufficient.
+The API persists owned instance intent and idempotency records. A worker sweep
+adds pending operations to BullMQ using the operation UUID as the job ID and
+marks delivery only after enqueue succeeds. This closes the database/enqueue
+gap and recovers stale running operations.
 
-Workers validate the manifest/quota, choose a healthy node, create an isolated
+Workers validate the manifest/quota, choose the registered node, create an isolated
 network, start the pinned image with fixed restrictions, configure ingress,
 poll health, and mark the instance running. URLs are exposed only to the owner
 after readiness. Reapers expire instances; reconciliation compares persisted
@@ -123,8 +122,8 @@ lifetime and a 2-hour absolute maximum. HTTP targets ship first.
 ## Deployment boundaries
 
 Local Compose runs PostgreSQL/Redis on loopback with named data volumes.
-The API runs separately through npm and consumes PostgreSQL; Redis remains a
-Phase 3 worker dependency. Never run challenge targets on that control-plane
+The API runs separately through npm and consumes PostgreSQL; Redis is a worker
+dependency. Never run challenge targets on that control-plane
 Compose network.
 
 The production control-plane VM will run separate API and worker processes

@@ -4,10 +4,11 @@ This control plane can authorize users, award scores, create containers and
 expose targets. Backend authorization, lab isolation and recovery from partial
 failures are required security boundaries.
 
-Phases 1 and 2 implement the database-backed authentication, catalog, scoring,
-dynamic-flag, and progress controls described below. Browser cookie/CSRF and
-scoring integration, production email, operations, and all lab-isolation
-controls remain launch requirements. No real targets run yet.
+Phases 1 through 3 implement the database-backed authentication, catalog,
+scoring, dynamic-flag, progress, lifecycle, queue and restricted Docker adapter
+controls described below. Browser cookie/CSRF and frontend lifecycle integration,
+production email, operations, and Phase 4 isolation evidence remain launch
+requirements. No real target has been launched on the verification machine.
 
 ## API and authorization
 
@@ -69,8 +70,9 @@ and CSRF checkpoint and production Resend delivery remain incomplete. See
 - Use pinned images and backend-controlled resource labels. Bound health
   checks, retries and startup times; failed starts must clean up resources.
 
-These defaults apply when Phase 3 first runs a target. Phase 4 adds verification
-and hardening; it does not defer the basic restrictions.
+The adapter applies these defaults now and refuses hosts that do not advertise
+user namespaces, seccomp and AppArmor. Phase 4 records isolated-host evidence
+and hardens the boundary; it does not defer the basic restrictions.
 
 ## Network boundary
 
@@ -98,10 +100,10 @@ and hardening; it does not defer the basic restrictions.
   contents; enforce append-only access for application audit writers.
 - Reap expired instances and enforce the active-instance quota and lifetime cap.
 
-Phase 2 enforces the flag, solve-uniqueness, audit-content, subject-bound
-progress, and verified-user rate-limit rules with integration tests. The real
-owned-instance resolver, restricted flag injection, and append-only production
-audit role remain Phase 3/4 work; dynamic submissions return 501 until then.
+Phases 2 and 3 enforce the flag, solve uniqueness, audit content, subject-bound
+progress, verified-user rate limits, real owned-instance resolution, runtime-only
+flag derivation, idempotent lifecycle intent and reaping. Append-only production
+audit roles and full isolation evidence remain Phase 4 work.
 
 ## Launch evidence
 
