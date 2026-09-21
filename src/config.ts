@@ -11,6 +11,7 @@ const envSchema = z.object({
   SERVICE_TOKEN_ISSUER: z.string().min(1),
   SERVICE_TOKEN_AUDIENCE: z.string().min(1),
   DATABASE_URL: z.url().optional(),
+  REDIS_URL: z.url().optional(),
   LAB_PUBLIC_BASE_URL: z.url().optional(),
   SIGNUPS_OPEN: z.enum(['false']).default('false').transform(() => false as const),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
