@@ -10,8 +10,9 @@ import { DrizzleCatalogRepository } from './db/catalog-repository.js';
 import { DrizzleScoringRepository } from './db/scoring-repository.js';
 import { HmacInstanceFlagService } from './services/instance-flags.js';
 import { SubmissionService } from './services/submissions.js';
-import { notImplemented } from './lib/errors.js';
 import { DrizzleProgressRepository } from './db/progress-repository.js';
+import { DrizzleInstanceLifecycleRepository } from './db/instance-lifecycle-repository.js';
+import { InstanceLifecycleService } from './services/instance-lifecycle.js';
 
 const config = loadConfig();
 if (!config.DATABASE_URL) throw new Error('DATABASE_URL is required');
@@ -26,12 +27,13 @@ const authentication = await AuthenticationService.create({
     config.NODE_ENV,
   ),
 });
+const instanceService = new InstanceLifecycleService(
+  new DrizzleInstanceLifecycleRepository(database.db),
+  config.LAB_PUBLIC_BASE_URL,
+);
 const submissionService = new SubmissionService(
   new DrizzleScoringRepository(database.db),
-  {
-    findOwnedInstance: () =>
-      Promise.reject(notImplemented('Dynamic submissions require the instance lifecycle')),
-  },
+  instanceService,
   new HmacInstanceFlagService(config.INSTANCE_FLAG_SECRET),
 );
 const app = await buildApp(config, {
@@ -40,6 +42,7 @@ const app = await buildApp(config, {
   catalog: new DrizzleCatalogRepository(database.db),
   submissions: submissionService,
   progress: new DrizzleProgressRepository(database.db),
+  instances: instanceService,
 });
 
 async function shutdown(signal: string) {

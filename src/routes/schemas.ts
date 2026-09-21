@@ -13,6 +13,7 @@ export const errorResponses = {
   401: errorBody,
   403: errorBody,
   404: errorBody,
+  409: errorBody,
   413: errorBody,
   415: errorBody,
   429: errorBody,

@@ -37,7 +37,7 @@ describe('generated OpenAPI contract', () => {
           },
         });
       expect(document.paths['/v1/instances'].post.responses).toHaveProperty('501');
-      expect(document.paths['/v1/instances'].post.responses).not.toHaveProperty('200');
+      expect(document.paths['/v1/instances'].post.responses).toHaveProperty('202');
       expect(document.paths['/readyz'].get.responses).toHaveProperty('503');
       expect(document.paths['/v1/challenges'].get.security ?? []).toEqual([]);
       expect(document.paths['/v1/profile'].get.security).toEqual([{ serviceToken: [] }]);
@@ -113,12 +113,16 @@ describe('generated OpenAPI contract', () => {
       const request = {
         method,
         url,
+        headers: method === 'GET' ? {} : { 'idempotency-key': 'test-request-001' },
         ...(url === '/v1/instances' ? { payload: { challengeId: SAMPLE.id } } : {}),
       };
       expect((await app.inject(request)).statusCode).toBe(401);
       const response = await app.inject({
         ...request,
-        headers: { authorization: `Bearer ${await signToken(scope)}` },
+        headers: {
+          ...request.headers,
+          authorization: `Bearer ${await signToken(scope)}`,
+        },
       });
       expect(response.statusCode).toBe(501);
       expect(response.json()).toMatchObject({ code: 'NOT_IMPLEMENTED' });

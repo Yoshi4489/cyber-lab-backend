@@ -21,6 +21,7 @@ import type { SubmissionService } from './services/submissions.js';
 import { FixedWindowUserRateLimiter } from './services/user-rate-limiter.js';
 import type { ProgressRepository } from './services/progress-repository.js';
 import { registerProgressRoutes } from './routes/progress.js';
+import type { InstanceLifecycleService } from './services/instance-lifecycle.js';
 
 export type AppDependencies = {
   database?: DatabaseClient;
@@ -29,6 +30,7 @@ export type AppDependencies = {
   catalog?: CatalogRepository;
   submissions?: SubmissionService;
   progress?: ProgressRepository;
+  instances?: InstanceLifecycleService;
 };
 
 const unavailableCatalog: CatalogRepository = {
@@ -97,6 +99,11 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
     sessionAuthorizer,
     ...(dependencies.progress ? { progress: dependencies.progress } : {}),
   });
-  await app.register(registerInstanceRoutes, { prefix: '/v1', config, sessionAuthorizer });
+  await app.register(registerInstanceRoutes, {
+    prefix: '/v1',
+    config,
+    sessionAuthorizer,
+    ...(dependencies.instances ? { instances: dependencies.instances } : {}),
+  });
   return app;
 }

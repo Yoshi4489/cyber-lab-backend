@@ -8,6 +8,7 @@ export const ErrorCodes = {
   UNAUTHORIZED: 'UNAUTHORIZED',
   FORBIDDEN: 'FORBIDDEN',
   NOT_FOUND: 'NOT_FOUND',
+  CONFLICT: 'CONFLICT',
   INVALID_REQUEST: 'INVALID_REQUEST',
   RATE_LIMITED: 'RATE_LIMITED',
   NOT_IMPLEMENTED: 'NOT_IMPLEMENTED',
@@ -50,6 +51,9 @@ export const forbidden = (message = 'Not permitted'): AppError =>
 
 export const notFound = (message = 'Resource not found'): AppError =>
   new AppError(ErrorCodes.NOT_FOUND, 404, message);
+
+export const conflict = (message = 'Request conflicts with current state'): AppError =>
+  new AppError(ErrorCodes.CONFLICT, 409, message);
 
 export const invalidRequest = (message = 'Request validation failed'): AppError =>
   new AppError(ErrorCodes.INVALID_REQUEST, 400, message);

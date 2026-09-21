@@ -2,41 +2,66 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { Config } from '../config.js';
-import { requireScope } from '../auth/require-scope.js';
-import { notImplemented } from '../lib/errors.js';
+import { requireScope, type ServiceSessionAuthorizer } from '../auth/require-scope.js';
+import type { ServiceIdentity } from '../auth/service-token.js';
+import { notImplemented, unauthorized } from '../lib/errors.js';
+import {
+  INSTANCE_STATUSES,
+  type InstanceLifecycleService,
+} from '../services/instance-lifecycle.js';
 import { errorBody, errorResponses, serviceTokenSecurity } from './schemas.js';
-import type { ServiceSessionAuthorizer } from '../auth/require-scope.js';
 
 const instanceParams = z.object({ id: z.uuid() });
 const createBody = z.object({ challengeId: z.uuid() }).strict();
+const idempotencyHeaders = z.object({
+  'idempotency-key': z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/),
+});
+const instanceResponse = z.object({
+  id: z.uuid(),
+  challengeId: z.uuid(),
+  status: z.enum(INSTANCE_STATUSES),
+  createdAt: z.iso.datetime(),
+  startedAt: z.iso.datetime().nullable(),
+  expiresAt: z.iso.datetime(),
+  absoluteExpiresAt: z.iso.datetime(),
+  stoppedAt: z.iso.datetime().nullable(),
+  failureCode: z.string().nullable(),
+  url: z.url().optional(),
+});
+const mutationResponse = z.object({
+  instance: instanceResponse,
+  operationId: z.uuid(),
+  replayed: z.boolean(),
+});
 
 export async function registerInstanceRoutes(
   app: FastifyInstance,
-  options: { config: Config; sessionAuthorizer: ServiceSessionAuthorizer },
+  options: {
+    config: Config;
+    sessionAuthorizer: ServiceSessionAuthorizer;
+    instances?: InstanceLifecycleService;
+  },
 ) {
+  const identities = new WeakMap<object, ServiceIdentity>();
   const routes = app.withTypeProvider<ZodTypeProvider>();
   const response = { ...errorResponses, 501: errorBody };
 
   function authorize(scope: string) {
     return async (request: FastifyRequest): Promise<void> => {
-      await requireScope(
+      const identity = await requireScope(
         request.headers.authorization,
         options.config,
         scope,
         options.sessionAuthorizer,
       );
+      identities.set(request, identity);
     };
   }
 
-  const ownedInstanceSchema = {
-    tags: ['Instances'],
-    security: serviceTokenSecurity,
-    params: instanceParams,
-    response,
-  };
-
-  async function unfinished(): Promise<never> {
-    throw notImplemented('Instance lifecycle ships in Phase 3');
+  function identityFor(request: object): ServiceIdentity {
+    const identity = identities.get(request);
+    if (!identity) throw unauthorized();
+    return identity;
   }
 
   routes.post('/instances', {
@@ -44,39 +69,79 @@ export async function registerInstanceRoutes(
     schema: {
       operationId: 'createInstance',
       tags: ['Instances'],
-      description: 'Requires instances:write. Returns 501 until Phase 3.',
+      description: 'Creates owned instance intent. Requires instances:write and Idempotency-Key.',
       security: serviceTokenSecurity,
+      headers: idempotencyHeaders,
       body: createBody,
-      response,
+      response: { ...response, 202: mutationResponse },
     },
-  }, async () => {
-    throw notImplemented('Instance provisioning ships in Phase 3');
+  }, async (request, reply) => {
+    if (!options.instances) throw notImplemented('Instance lifecycle is unavailable');
+    const result = await options.instances.create({
+      userId: identityFor(request).userId,
+      challengeId: request.body.challengeId,
+      idempotencyKey: request.headers['idempotency-key'],
+      correlationId: request.id,
+    });
+    return reply.code(202).send(result);
   });
 
   routes.get('/instances/:id', {
     preValidation: authorize('instances:read'),
     schema: {
-      ...ownedInstanceSchema,
       operationId: 'getInstance',
-      description: 'Requires instances:read. Returns 501 until Phase 3.',
+      tags: ['Instances'],
+      description: 'Returns an owned instance. Its URL appears only after readiness.',
+      security: serviceTokenSecurity,
+      params: instanceParams,
+      response: { ...response, 200: instanceResponse },
     },
-  }, unfinished);
+  }, async (request) => {
+    if (!options.instances) throw notImplemented('Instance lifecycle is unavailable');
+    return options.instances.get(identityFor(request).userId, request.params.id);
+  });
 
   routes.post('/instances/:id/extend', {
     preValidation: authorize('instances:write'),
     schema: {
-      ...ownedInstanceSchema,
       operationId: 'extendInstance',
-      description: 'Requires instances:write. Returns 501 until Phase 3.',
+      tags: ['Instances'],
+      description: 'Adds 30 minutes without exceeding the two-hour absolute lifetime.',
+      security: serviceTokenSecurity,
+      headers: idempotencyHeaders,
+      params: instanceParams,
+      response: { ...response, 202: mutationResponse },
     },
-  }, unfinished);
+  }, async (request, reply) => {
+    if (!options.instances) throw notImplemented('Instance lifecycle is unavailable');
+    const result = await options.instances.extend({
+      userId: identityFor(request).userId,
+      instanceId: request.params.id,
+      idempotencyKey: request.headers['idempotency-key'],
+      correlationId: request.id,
+    });
+    return reply.code(202).send(result);
+  });
 
   routes.delete('/instances/:id', {
     preValidation: authorize('instances:write'),
     schema: {
-      ...ownedInstanceSchema,
       operationId: 'destroyInstance',
-      description: 'Requires instances:write. Returns 501 until Phase 3.',
+      tags: ['Instances'],
+      description: 'Requests retry-safe destruction of an owned instance.',
+      security: serviceTokenSecurity,
+      headers: idempotencyHeaders,
+      params: instanceParams,
+      response: { ...response, 202: mutationResponse },
     },
-  }, unfinished);
+  }, async (request, reply) => {
+    if (!options.instances) throw notImplemented('Instance lifecycle is unavailable');
+    const result = await options.instances.destroy({
+      userId: identityFor(request).userId,
+      instanceId: request.params.id,
+      idempotencyKey: request.headers['idempotency-key'],
+      correlationId: request.id,
+    });
+    return reply.code(202).send(result);
+  });
 }
