@@ -12,8 +12,13 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerMetaRoutes } from './routes/meta.js';
 import { registerSubmissionRoutes } from './routes/submissions.js';
 import { registerInstanceRoutes } from './routes/instances.js';
+import type { DatabaseClient } from './db/client.js';
 
-export async function buildApp(config: Config) {
+export type AppDependencies = {
+  database?: DatabaseClient;
+};
+
+export async function buildApp(config: Config, dependencies: AppDependencies = {}) {
   const app = Fastify({
     logger: buildLoggerOptions(config),
     genReqId: generateRequestId,
@@ -22,13 +27,23 @@ export async function buildApp(config: Config) {
   registerErrorHandler(app);
   registerCorrelation(app);
 
+  if (dependencies.database) {
+    app.addHook('onClose', async () => {
+      await dependencies.database?.close();
+    });
+  }
+
   await app.register(helmet);
   await app.register(cors, { origin: config.FRONTEND_ORIGIN });
   await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
   await registerOpenApi(app);
 
   // Unprefixed: orchestrators and uptime monitors expect fixed paths.
-  await app.register(registerHealthRoutes, {});
+  await app.register(registerHealthRoutes, {
+    probes: dependencies.database
+      ? [{ name: 'postgres', check: dependencies.database.check }]
+      : [],
+  });
   await app.register(registerMetaRoutes, { prefix: '/v1' });
   await app.register(registerChallengeRoutes, { prefix: '/v1' });
   await app.register(registerSubmissionRoutes, { prefix: '/v1', config });

@@ -8,7 +8,7 @@ const envSchema = z.object({
   BACKEND_SERVICE_TOKEN_SECRET: z.string().min(32),
   SERVICE_TOKEN_ISSUER: z.string().min(1),
   SERVICE_TOKEN_AUDIENCE: z.string().min(1),
-  DATABASE_URL: z.string().optional(),
+  DATABASE_URL: z.url().optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;
