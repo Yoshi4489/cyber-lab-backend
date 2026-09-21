@@ -40,16 +40,24 @@ export class DockerOrchestrator {
     const names = resourceNames(input.instanceId);
     const existing = await this.findContainer(input.instanceId);
     if (existing) {
-      await this.router.upsert({
-        instanceId: input.instanceId,
-        routeKey: input.routeKey,
-        targetHost: names.container,
-        targetPort: input.manifest.containerPort,
-      });
-      await this.waitUntilHealthy(existing, input.manifest.healthcheck.startupSeconds);
       const network = await this.findNetwork(input.instanceId);
       if (!network) throw new Error('Managed container is missing its isolated network');
-      return { containerId: existing.id, networkId: network.id };
+      try {
+        await startContainer(existing.container);
+        await this.router.upsert({
+          instanceId: input.instanceId,
+          routeKey: input.routeKey,
+          targetHost: names.container,
+          targetPort: input.manifest.containerPort,
+        });
+        await this.waitUntilHealthy(existing, input.manifest.healthcheck.startupSeconds);
+        return { containerId: existing.id, networkId: network.id };
+      } catch (error) {
+        await this.router.remove(input.instanceId).catch(() => undefined);
+        await removeContainer(existing.container).catch(() => undefined);
+        await removeNetwork(network.network).catch(() => undefined);
+        throw error;
+      }
     }
 
     let network: Docker.Network | undefined;
@@ -68,7 +76,7 @@ export class DockerOrchestrator {
       container = await this.docker.createContainer(
         buildContainerOptions(input, names.container, names.network),
       );
-      await container.start();
+      await startContainer(container);
       await this.router.upsert({
         instanceId: input.instanceId,
         routeKey: input.routeKey,
@@ -233,6 +241,12 @@ async function removeContainer(container: Docker.Container | undefined): Promise
   });
 }
 
+async function startContainer(container: Docker.Container): Promise<void> {
+  await container.start().catch((error: unknown) => {
+    if (!isDockerAlreadyStarted(error)) throw error;
+  });
+}
+
 async function removeNetwork(network: Docker.Network | undefined): Promise<void> {
   if (!network) return;
   await network.remove().catch((error: unknown) => {
@@ -247,4 +261,8 @@ function isDockerNotFound(error: unknown): boolean {
 function isDockerNotFoundOrStopped(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'statusCode' in error &&
     (error.statusCode === 304 || error.statusCode === 404);
+}
+
+function isDockerAlreadyStarted(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'statusCode' in error && error.statusCode === 304;
 }

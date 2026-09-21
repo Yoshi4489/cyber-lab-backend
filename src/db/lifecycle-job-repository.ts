@@ -118,12 +118,26 @@ export class DrizzleLifecycleJobRepository implements LifecycleJobRepository {
   }
 
   async markFailed(operationId: string, failureCode: string, now: Date): Promise<void> {
-    await this.database
-      .update(instanceOperations)
-      .set({ status: 'failed', updatedAt: now, completedAt: now, failureCode })
-      .where(
-        and(eq(instanceOperations.id, operationId), eq(instanceOperations.status, 'running')),
-      );
+    await this.database.transaction(async (transaction) => {
+      const [operation] = await transaction
+        .update(instanceOperations)
+        .set({ status: 'failed', updatedAt: now, completedAt: now, failureCode })
+        .where(
+          and(eq(instanceOperations.id, operationId), eq(instanceOperations.status, 'running')),
+        )
+        .returning({ instanceId: instanceOperations.instanceId, type: instanceOperations.type });
+      if (operation?.type === 'spawn') {
+        await transaction
+          .update(instances)
+          .set({ status: 'failed', failureCode, stoppedAt: now, updatedAt: now })
+          .where(
+            and(
+              eq(instances.id, operation.instanceId),
+              inArray(instances.status, ['pending', 'provisioning']),
+            ),
+          );
+      }
+    });
   }
 
   async createMaintenanceIntents(now: Date, reconciliationBucket: string): Promise<void> {
