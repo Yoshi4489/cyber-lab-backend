@@ -97,6 +97,19 @@ describe('Docker orchestrator', () => {
     );
     expect(fixture.createContainer).not.toHaveBeenCalled();
   });
+
+  it('refuses to delete persisted resource ids without matching ownership labels', async () => {
+    const fixture = dockerFixture({ managedInstanceId: '88888888-8888-4888-8888-888888888888' });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture());
+
+    await expect(orchestrator.destroy({
+      instanceId: INSTANCE_ID,
+      containerId: 'container-id',
+      networkId: 'network-id',
+    })).rejects.toThrow('without matching ownership labels');
+    expect(fixture.containerRemove).not.toHaveBeenCalled();
+    expect(fixture.networkRemove).not.toHaveBeenCalled();
+  });
 });
 
 function spawnInput() {
@@ -122,6 +135,7 @@ function routerFixture(): TraefikRouter & {
 function dockerFixture(options: {
   startError?: Error;
   securityOptions?: string[];
+  managedInstanceId?: string;
 } = {}) {
   const containerRemove = vi.fn(async () => undefined);
   const networkRemove = vi.fn(async () => undefined);
@@ -132,12 +146,26 @@ function dockerFixture(options: {
     }),
     stop: vi.fn(async () => undefined),
     remove: containerRemove,
-    inspect: vi.fn(async () => ({ State: { Running: true, Health: { Status: 'healthy' } } })),
+    inspect: vi.fn(async () => ({
+      State: { Running: true, Health: { Status: 'healthy' } },
+      Config: {
+        Labels: {
+          'cyber-range.managed': 'true',
+          'cyber-range.instance-id': options.managedInstanceId ?? INSTANCE_ID,
+        },
+      },
+    })),
   };
   const network = {
     id: 'network-id',
     connect: vi.fn(async () => undefined),
     remove: networkRemove,
+    inspect: vi.fn(async () => ({
+      Labels: {
+        'cyber-range.managed': 'true',
+        'cyber-range.instance-id': options.managedInstanceId ?? INSTANCE_ID,
+      },
+    })),
   };
   const createContainer = vi.fn(async (_options: Docker.ContainerCreateOptions) => container);
   const createNetwork = vi.fn(async (_options: Docker.NetworkCreateOptions) => network);

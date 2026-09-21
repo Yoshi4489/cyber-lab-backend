@@ -126,6 +126,7 @@ export class DrizzleInstanceLifecycleRepository implements InstanceLifecycleRepo
         ? accepted(replay.instance, replay.operationId, true)
         : { kind: 'idempotency_conflict' };
 
+      await lock(transaction, `instance:${input.instanceId}`);
       const [current] = await transaction
         .select(instanceSelection)
         .from(instances)
@@ -189,6 +190,7 @@ export class DrizzleInstanceLifecycleRepository implements InstanceLifecycleRepo
         ? accepted(replay.instance, replay.operationId, true)
         : { kind: 'idempotency_conflict' };
 
+      await lock(transaction, `instance:${input.instanceId}`);
       const [current] = await transaction
         .select(instanceSelection)
         .from(instances)

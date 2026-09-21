@@ -99,11 +99,11 @@ export class DockerOrchestrator {
   async destroy(input: DestroyTargetInput): Promise<void> {
     await this.router.remove(input.instanceId);
     const container = input.containerId
-      ? this.docker.getContainer(input.containerId)
+      ? await this.getManagedContainer(input.containerId, input.instanceId)
       : (await this.findContainer(input.instanceId))?.container;
     if (container) await removeContainer(container);
     const network = input.networkId
-      ? this.docker.getNetwork(input.networkId)
+      ? await this.getManagedNetwork(input.networkId, input.instanceId)
       : (await this.findNetwork(input.instanceId))?.network;
     if (network) await removeNetwork(network);
   }
@@ -145,6 +145,28 @@ export class DockerOrchestrator {
     const match = networks[0];
     if (!match?.Id) return null;
     return { id: match.Id, network: this.docker.getNetwork(match.Id) };
+  }
+
+  private async getManagedContainer(containerId: string, instanceId: string) {
+    const container = this.docker.getContainer(containerId);
+    const details = await container.inspect().catch((error: unknown) => {
+      if (isDockerNotFound(error)) return null;
+      throw error;
+    });
+    if (!details) return undefined;
+    assertManagedLabels(details.Config?.Labels, instanceId);
+    return container;
+  }
+
+  private async getManagedNetwork(networkId: string, instanceId: string) {
+    const network = this.docker.getNetwork(networkId);
+    const details = await network.inspect().catch((error: unknown) => {
+      if (isDockerNotFound(error)) return null;
+      throw error;
+    });
+    if (!details) return undefined;
+    assertManagedLabels(details.Labels, instanceId);
+    return network;
   }
 
   private async waitUntilHealthy(
@@ -229,6 +251,15 @@ function validateSpawnInput(input: SpawnTargetInput): void {
   }
   if (!/^[A-Za-z0-9_-]{24,64}$/u.test(input.routeKey)) throw new Error('Invalid route key');
   if (!input.flag || input.flag.length > 256) throw new Error('Invalid runtime flag');
+}
+
+function assertManagedLabels(
+  labels: Record<string, string> | undefined,
+  instanceId: string,
+): void {
+  if (labels?.[MANAGED_LABEL] !== 'true' || labels[INSTANCE_LABEL] !== instanceId) {
+    throw new Error('Refusing to remove a Docker resource without matching ownership labels');
+  }
 }
 
 async function removeContainer(container: Docker.Container | undefined): Promise<void> {

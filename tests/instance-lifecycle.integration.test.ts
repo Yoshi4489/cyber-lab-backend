@@ -171,6 +171,20 @@ describeDatabase('owned instance lifecycle API', () => {
       replayed: true,
     });
 
+    const concurrentExtensions = await Promise.all([
+      app.inject({
+        ...extendRequest,
+        headers: { authorization: writeAuthorization, 'idempotency-key': 'extend-request-002' },
+      }),
+      app.inject({
+        ...extendRequest,
+        headers: { authorization: writeAuthorization, 'idempotency-key': 'extend-request-003' },
+      }),
+    ]);
+    expect(concurrentExtensions.map(({ statusCode }) => statusCode).sort()).toEqual([202, 409]);
+    expect(concurrentExtensions.find(({ statusCode }) => statusCode === 202)?.json().instance.expiresAt)
+      .toBe('2026-01-01T02:00:00.000Z');
+
     const destroyRequest = {
       method: 'DELETE' as const,
       url: `/v1/instances/${pending.id}`,
@@ -192,6 +206,6 @@ describeDatabase('owned instance lifecycle API', () => {
       .select({ id: instanceOperations.id })
       .from(instanceOperations)
       .where(eq(instanceOperations.userId, ownerId));
-    expect(operations).toHaveLength(3);
+    expect(operations).toHaveLength(4);
   });
 });
