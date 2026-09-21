@@ -22,6 +22,8 @@ describe('authentication configuration', () => {
       AUTH_RATE_LIMIT_WINDOW: '1 minute',
       SUBMISSION_RATE_LIMIT_MAX: 20,
       SUBMISSION_RATE_LIMIT_WINDOW_MS: 60_000,
+      INSTANCE_RATE_LIMIT_MAX: 5,
+      INSTANCE_RATE_LIMIT_WINDOW_MS: 60_000,
     });
   });
 

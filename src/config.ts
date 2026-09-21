@@ -18,6 +18,8 @@ const envSchema = z.object({
   AUTH_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
   SUBMISSION_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1_000).default(20),
   SUBMISSION_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
+  INSTANCE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(5),
+  INSTANCE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
   LOCAL_MAIL_DIRECTORY: z.string().min(1).default('.local-mail'),
 });
 

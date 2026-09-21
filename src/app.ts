@@ -81,6 +81,10 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
     config.SUBMISSION_RATE_LIMIT_MAX,
     config.SUBMISSION_RATE_LIMIT_WINDOW_MS,
   );
+  const instanceRateLimiter = new FixedWindowUserRateLimiter(
+    config.INSTANCE_RATE_LIMIT_MAX,
+    config.INSTANCE_RATE_LIMIT_WINDOW_MS,
+  );
   await app.register(registerMetaRoutes, { prefix: '/v1' });
   await app.register(registerChallengeRoutes, {
     prefix: '/v1',
@@ -103,6 +107,7 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
     prefix: '/v1',
     config,
     sessionAuthorizer,
+    rateLimiter: instanceRateLimiter,
     ...(dependencies.instances ? { instances: dependencies.instances } : {}),
   });
   return app;

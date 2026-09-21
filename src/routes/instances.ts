@@ -4,11 +4,12 @@ import { z } from 'zod';
 import type { Config } from '../config.js';
 import { requireScope, type ServiceSessionAuthorizer } from '../auth/require-scope.js';
 import type { ServiceIdentity } from '../auth/service-token.js';
-import { notImplemented, unauthorized } from '../lib/errors.js';
+import { notImplemented, rateLimited, unauthorized } from '../lib/errors.js';
 import {
   INSTANCE_STATUSES,
   type InstanceLifecycleService,
 } from '../services/instance-lifecycle.js';
+import type { UserRateLimiter } from '../services/user-rate-limiter.js';
 import { errorBody, errorResponses, serviceTokenSecurity } from './schemas.js';
 
 const instanceParams = z.object({ id: z.uuid() });
@@ -39,6 +40,7 @@ export async function registerInstanceRoutes(
   options: {
     config: Config;
     sessionAuthorizer: ServiceSessionAuthorizer;
+    rateLimiter: UserRateLimiter;
     instances?: InstanceLifecycleService;
   },
 ) {
@@ -46,7 +48,7 @@ export async function registerInstanceRoutes(
   const routes = app.withTypeProvider<ZodTypeProvider>();
   const response = { ...errorResponses, 501: errorBody };
 
-  function authorize(scope: string) {
+  function authorize(scope: string, applyRateLimit = false) {
     return async (request: FastifyRequest): Promise<void> => {
       const identity = await requireScope(
         request.headers.authorization,
@@ -54,6 +56,7 @@ export async function registerInstanceRoutes(
         scope,
         options.sessionAuthorizer,
       );
+      if (applyRateLimit && !options.rateLimiter.consume(identity.userId)) throw rateLimited();
       identities.set(request, identity);
     };
   }
@@ -65,7 +68,7 @@ export async function registerInstanceRoutes(
   }
 
   routes.post('/instances', {
-    preValidation: authorize('instances:write'),
+    preValidation: authorize('instances:write', true),
     schema: {
       operationId: 'createInstance',
       tags: ['Instances'],

@@ -102,6 +102,30 @@ describe('generated OpenAPI contract', () => {
     }
   });
 
+  it('rate-limits instance creation by the verified user identity', async () => {
+    const app = await buildApp(
+      { ...testConfig, INSTANCE_RATE_LIMIT_MAX: 1 },
+      testAppDependencies,
+    );
+    try {
+      const request = {
+        method: 'POST' as const,
+        url: '/v1/instances',
+        headers: {
+          authorization: `Bearer ${await signToken('instances:write')}`,
+          'idempotency-key': 'spawn-rate-limit-001',
+        },
+        payload: { challengeId: SAMPLE.id },
+      };
+      expect((await app.inject(request)).statusCode).toBe(501);
+      const limited = await app.inject(request);
+      expect(limited.statusCode).toBe(429);
+      expect(limited.json()).toMatchObject({ code: 'RATE_LIMITED' });
+    } finally {
+      await app.close();
+    }
+  });
+
   it.each([
     { method: 'POST' as const, url: '/v1/instances', scope: 'instances:write' },
     { method: 'GET' as const, url: '/v1/instances/00000000-0000-4000-8000-000000000001', scope: 'instances:read' },
