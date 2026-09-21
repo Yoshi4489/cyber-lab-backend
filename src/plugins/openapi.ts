@@ -17,11 +17,12 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       info: {
         title: 'Cyber Range Backend',
         version: '0.1.0',
-        description: 'Phase 0 API: mock catalog and submissions; lifecycle operations return 501.',
+        description: 'Cyber Range API with backend-owned authentication and Phase 0 mock domain routes.',
       },
       components: {
         securitySchemes: {
           serviceToken: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+          bffAuth: { type: 'http', scheme: 'bearer' },
         },
       },
     },

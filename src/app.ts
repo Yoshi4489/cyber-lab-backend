@@ -13,9 +13,12 @@ import { registerMetaRoutes } from './routes/meta.js';
 import { registerSubmissionRoutes } from './routes/submissions.js';
 import { registerInstanceRoutes } from './routes/instances.js';
 import type { DatabaseClient } from './db/client.js';
+import type { AuthenticationService } from './services/authentication.js';
+import { registerAuthenticationRoutes } from './routes/authentication.js';
 
 export type AppDependencies = {
   database?: DatabaseClient;
+  authentication?: AuthenticationService;
 };
 
 export async function buildApp(config: Config, dependencies: AppDependencies = {}) {
@@ -44,6 +47,13 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
       ? [{ name: 'postgres', check: dependencies.database.check }]
       : [],
   });
+  if (dependencies.authentication) {
+    await app.register(registerAuthenticationRoutes, {
+      prefix: '/v1',
+      config,
+      authentication: dependencies.authentication,
+    });
+  }
   await app.register(registerMetaRoutes, { prefix: '/v1' });
   await app.register(registerChallengeRoutes, { prefix: '/v1' });
   await app.register(registerSubmissionRoutes, { prefix: '/v1', config });

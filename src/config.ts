@@ -5,10 +5,15 @@ const envSchema = z.object({
   HOST: z.string().min(1).default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   FRONTEND_ORIGIN: z.url(),
+  BFF_AUTH_SECRET: z.string().min(32),
   BACKEND_SERVICE_TOKEN_SECRET: z.string().min(32),
   SERVICE_TOKEN_ISSUER: z.string().min(1),
   SERVICE_TOKEN_AUDIENCE: z.string().min(1),
   DATABASE_URL: z.url().optional(),
+  SIGNUPS_OPEN: z.enum(['false']).default('false').transform(() => false as const),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
+  AUTH_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
+  LOCAL_MAIL_DIRECTORY: z.string().min(1).default('.local-mail'),
 });
 
 export type Config = z.infer<typeof envSchema>;
@@ -17,6 +22,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const config = envSchema.parse(env);
   if (config.BACKEND_SERVICE_TOKEN_SECRET.startsWith('replace-with-')) {
     throw new Error('Set a generated BACKEND_SERVICE_TOKEN_SECRET before starting the server');
+  }
+  if (config.BFF_AUTH_SECRET.startsWith('replace-with-')) {
+    throw new Error('Set a generated BFF_AUTH_SECRET before starting the server');
+  }
+  if (config.BFF_AUTH_SECRET === config.BACKEND_SERVICE_TOKEN_SECRET) {
+    throw new Error('BFF_AUTH_SECRET and BACKEND_SERVICE_TOKEN_SECRET must be different');
   }
   return config;
 }

@@ -17,6 +17,10 @@ const REDACT_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
   'res.headers["set-cookie"]',
+  'req.body.password',
+  'req.body.newPassword',
+  'req.body.sessionToken',
+  'req.body.token',
   'password',
   'token',
   'accessToken',
@@ -24,6 +28,8 @@ const REDACT_PATHS = [
   'flag',
   'secret',
   '*.password',
+  '*.newPassword',
+  '*.sessionToken',
   '*.token',
   '*.accessToken',
   '*.refreshToken',
@@ -54,8 +60,8 @@ export function scrubQuery(url: string): string {
   return `${path}?${[...new Set(names)].map((name) => `${name}=<redacted>`).join('&')}`;
 }
 
-function censor(value: unknown, path: string[]): unknown {
-  if (path.join('.') === 'req.url') {
+function censor(value: unknown, path: (string | symbol)[]): unknown {
+  if (path.map(String).join('.') === 'req.url') {
     return typeof value === 'string' ? scrubQuery(value) : value;
   }
   return '[Redacted]';

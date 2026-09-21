@@ -20,3 +20,4 @@ export const errorResponses = {
 };
 
 export const serviceTokenSecurity = [{ serviceToken: [] as string[] }];
+export const bffAuthSecurity = [{ bffAuth: [] as string[] }];

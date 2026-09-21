@@ -7,9 +7,14 @@ export const testConfig: Config = {
   HOST: '127.0.0.1',
   PORT: 4000,
   FRONTEND_ORIGIN: 'http://localhost:3000',
+  BFF_AUTH_SECRET: 'test-bff-secret-at-least-thirty-two-characters',
   BACKEND_SERVICE_TOKEN_SECRET: 'test-secret-at-least-thirty-two-characters',
   SERVICE_TOKEN_ISSUER: 'cyber-range-frontend',
   SERVICE_TOKEN_AUDIENCE: 'cyber-range-backend',
+  SIGNUPS_OPEN: false,
+  AUTH_RATE_LIMIT_MAX: 10,
+  AUTH_RATE_LIMIT_WINDOW: '1 minute',
+  LOCAL_MAIL_DIRECTORY: '.local-mail',
 };
 
 export function signToken(scope: string): Promise<string> {

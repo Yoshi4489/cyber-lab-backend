@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { scrubQuery } from '../src/lib/logger.js';
+import Fastify from 'fastify';
+import { buildLoggerOptions, scrubQuery } from '../src/lib/logger.js';
+import { testConfig } from './helpers.js';
 
 describe('scrubQuery', () => {
   it('leaves a url without a query string untouched', () => {
@@ -30,5 +32,49 @@ describe('scrubQuery', () => {
     expect(scrubQuery('/v1/instances?access_token=supersecretvalue')).not.toContain(
       'supersecretvalue',
     );
+  });
+
+  it('redacts every authentication credential field from captured logs', async () => {
+    const lines: string[] = [];
+    const logger = buildLoggerOptions({ ...testConfig, NODE_ENV: 'development' });
+    if (!logger || typeof logger !== 'object') {
+      throw new Error('Expected development logger options');
+    }
+    const app = Fastify({
+      logger: {
+        ...logger,
+        stream: { write: (line: string) => lines.push(line) },
+      },
+    });
+    app.post('/capture', async (request) => {
+      request.log.info({ payload: request.body }, 'captured authentication payload');
+      return { ok: true };
+    });
+
+    try {
+      await app.inject({
+        method: 'POST',
+        url: '/capture',
+        payload: {
+          password: 'login-password-secret',
+          newPassword: 'reset-password-secret',
+          sessionToken: 'opaque-session-secret',
+          token: 'email-token-secret',
+        },
+      });
+    } finally {
+      await app.close();
+    }
+
+    const output = lines.join('');
+    expect(output).toContain('[Redacted]');
+    for (const secret of [
+      'login-password-secret',
+      'reset-password-secret',
+      'opaque-session-secret',
+      'email-token-secret',
+    ]) {
+      expect(output).not.toContain(secret);
+    }
   });
 });
