@@ -15,6 +15,13 @@
       "when": 1789968785212,
       "tag": "0001_black_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789999626242,
+      "tag": "0002_steep_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

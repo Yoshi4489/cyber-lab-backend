@@ -36,7 +36,8 @@ describeDatabase('PostgreSQL foundation', () => {
         where table_schema = 'public'
           and table_name in (
             'users', 'user_profiles', 'sessions', 'email_tokens', 'audit_events',
-            'challenges', 'submissions', 'solves'
+            'challenges', 'submissions', 'solves', 'lab_nodes', 'instances',
+            'instance_operations'
           )
         order by table_name
       `,
@@ -46,6 +47,9 @@ describeDatabase('PostgreSQL foundation', () => {
       'audit_events',
       'challenges',
       'email_tokens',
+      'instance_operations',
+      'instances',
+      'lab_nodes',
       'sessions',
       'solves',
       'submissions',

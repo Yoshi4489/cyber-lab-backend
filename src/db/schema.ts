@@ -22,6 +22,30 @@ export const emailTokenPurpose = pgEnum('email_token_purpose', [
 ]);
 export const challengeDifficulty = pgEnum('challenge_difficulty', ['easy', 'medium', 'hard']);
 export const challengeKind = pgEnum('challenge_kind', ['web', 'shell']);
+export const labNodeStatus = pgEnum('lab_node_status', ['active', 'draining', 'offline']);
+export const instanceStatus = pgEnum('instance_status', [
+  'pending',
+  'provisioning',
+  'running',
+  'stopping',
+  'stopped',
+  'failed',
+  'expired',
+]);
+export const instanceOperationType = pgEnum('instance_operation_type', [
+  'spawn',
+  'extend',
+  'destroy',
+  'reap',
+  'reconcile',
+]);
+export const instanceOperationStatus = pgEnum('instance_operation_status', [
+  'pending',
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+]);
 
 export const users = pgTable(
   'users',
@@ -75,6 +99,106 @@ export const challenges = pgTable(
     check('challenges_category_normalized', sql`${table.category} = lower(${table.category})`),
     check('challenges_points_positive', sql`${table.points} > 0`),
     check('challenges_definition_version_positive', sql`${table.definitionVersion} > 0`),
+  ],
+);
+
+export const labNodes = pgTable(
+  'lab_nodes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: varchar('name', { length: 64 }).notNull(),
+    status: labNodeStatus('status').default('active').notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('lab_nodes_name_unique').on(table.name),
+    index('lab_nodes_status_idx').on(table.status),
+    check('lab_nodes_name_normalized', sql`${table.name} = lower(${table.name})`),
+  ],
+);
+
+export const instances = pgTable(
+  'instances',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => challenges.id, { onDelete: 'restrict' }),
+    nodeId: uuid('node_id').references(() => labNodes.id, { onDelete: 'set null' }),
+    status: instanceStatus('status').default('pending').notNull(),
+    routeKey: varchar('route_key', { length: 64 }),
+    containerId: varchar('container_id', { length: 128 }),
+    networkId: varchar('network_id', { length: 128 }),
+    failureCode: varchar('failure_code', { length: 64 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    absoluteExpiresAt: timestamp('absolute_expires_at', { withTimezone: true }).notNull(),
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('instances_route_key_unique').on(table.routeKey),
+    uniqueIndex('instances_one_active_per_user')
+      .on(table.userId)
+      .where(sql`${table.status} in ('pending', 'provisioning', 'running', 'stopping')`),
+    index('instances_user_created_idx').on(table.userId, table.createdAt),
+    index('instances_status_expiry_idx').on(table.status, table.expiresAt),
+    index('instances_node_status_idx').on(table.nodeId, table.status),
+    check(
+      'instances_expiry_before_absolute',
+      sql`${table.expiresAt} <= ${table.absoluteExpiresAt}`,
+    ),
+    check(
+      'instances_started_after_creation',
+      sql`${table.startedAt} is null or ${table.startedAt} >= ${table.createdAt}`,
+    ),
+    check(
+      'instances_stopped_after_creation',
+      sql`${table.stoppedAt} is null or ${table.stoppedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const instanceOperations = pgTable(
+  'instance_operations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    instanceId: uuid('instance_id')
+      .notNull()
+      .references(() => instances.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: instanceOperationType('type').notNull(),
+    status: instanceOperationStatus('status').default('pending').notNull(),
+    idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
+    requestHash: varchar('request_hash', { length: 64 }).notNull(),
+    attempts: integer('attempts').default(0).notNull(),
+    failureCode: varchar('failure_code', { length: 64 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('instance_operations_idempotency_unique').on(
+      table.userId,
+      table.type,
+      table.idempotencyKey,
+    ),
+    index('instance_operations_instance_created_idx').on(table.instanceId, table.createdAt),
+    index('instance_operations_delivery_idx').on(table.status, table.createdAt),
+    check('instance_operations_attempts_nonnegative', sql`${table.attempts} >= 0`),
+    check(
+      'instance_operations_completed_after_creation',
+      sql`${table.completedAt} is null or ${table.completedAt} >= ${table.createdAt}`,
+    ),
   ],
 );
 
