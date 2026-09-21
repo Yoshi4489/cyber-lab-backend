@@ -4,9 +4,10 @@ This control plane can authorize users, award scores, create containers and
 expose targets. Backend authorization, lab isolation and recovery from partial
 failures are required security boundaries.
 
-Phase 1 implements the database-backed authentication controls described below.
-Browser cookie/CSRF integration, production email, scoring, operations, and all
-lab-isolation controls remain launch requirements. No real targets run yet.
+Phases 1 and 2 implement the database-backed authentication, catalog, scoring,
+dynamic-flag, and progress controls described below. Browser cookie/CSRF and
+scoring integration, production email, operations, and all lab-isolation
+controls remain launch requirements. No real targets run yet.
 
 ## API and authorization
 
@@ -84,10 +85,11 @@ and hardening; it does not defer the basic restrictions.
 
 ## Data, flags, retries and audit
 
-- Persist flag hashes or key references only. Derive per-instance flags at
-  runtime and verify them against an owned instance.
+- Derive per-instance flags from a dedicated backend secret and runtime identity;
+  persist neither expected flags nor submitted values. Verify only after an
+  ownership resolver binds user, challenge, and instance.
 - Never include expected or submitted flags in API responses, logs, browser
-  bundles, images or audit details. Mock flags carry no production credit.
+  bundles, images or audit details.
 - Award points once per user/challenge through a database uniqueness/transaction
   guarantee, including concurrent requests.
 - Make lifecycle mutations ownership-checked and retry-safe, with scoped
@@ -95,6 +97,11 @@ and hardening; it does not defer the basic restrictions.
 - Audit failed submissions and destructive/admin actions without flag/token
   contents; enforce append-only access for application audit writers.
 - Reap expired instances and enforce the active-instance quota and lifetime cap.
+
+Phase 2 enforces the flag, solve-uniqueness, audit-content, subject-bound
+progress, and verified-user rate-limit rules with integration tests. The real
+owned-instance resolver, restricted flag injection, and append-only production
+audit role remain Phase 3/4 work; dynamic submissions return 501 until then.
 
 ## Launch evidence
 

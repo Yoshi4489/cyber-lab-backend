@@ -1,8 +1,8 @@
 # API contract
 
 `GET /v1/openapi.json` returns the generated OpenAPI 3.0.3 document. It describes
-the implemented Phase 1 authentication routes and the existing mock domain
-routes. Future scoring and lifecycle behavior is not advertised as available.
+the implemented Phase 2 authentication, catalog, scoring, progress, and
+leaderboard contracts. Future lifecycle behavior is not advertised as available.
 The document contains no environment values, credentials, tokens, or example
 flags. It is public, like the catalog.
 
@@ -41,10 +41,14 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
 - User service tokens require `sub`, `sid`, issuer, audience, issued-at, expiry,
   and scope. Protected calls recheck session ownership/liveness, account status,
   and current role permissions in PostgreSQL.
-- Catalog reads are public and return mock fixtures. The list includes
-  `source: "mock"`.
-- Submissions require `submissions:write` and return
-  `{ correct, points, recorded: false, source: "mock" }`.
+- Catalog reads are public, include published database rows only, preserve the
+  original public fields, and return `source: "database"` on the list.
+- Submissions require `submissions:write`, an `instanceId`, and an owned running
+  challenge instance. They persist the attempt and return
+  `{ correct, points, recorded: true, source: "database" }`; only the first
+  correct solve awards points. The server-wired resolver returns 501 until Phase 3.
+- `GET /v1/profile` requires `profile:read` and derives the account only from the
+  verified subject. `GET /v1/leaderboard` is public and omits account IDs/emails.
 - Instance create, extend, and destroy require `instances:write`; reads require
   `instances:read`. Valid, authenticated requests still return 501.
 - Instance creation currently accepts only `{ challengeId }`. No Docker
@@ -54,18 +58,18 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
   implemented by Phase 0.
 
 See the implemented backend and remaining frontend responsibilities in the
-[authentication contract](AUTHENTICATION.md).
+[authentication contract](AUTHENTICATION.md) and [scoring contract](SCORING.md).
 
 ## Compatibility and checks
 
-Keep existing catalog fields and submission field names when persistence is
-added. `recorded` and `source` will describe the actual implementation; their
-current mock literal schemas must be updated alongside that behavior and the
-frontend contract. Do not silently freeze `source` to `mock` in production.
+Keep existing catalog fields stable. Submission bodies now require
+`{ challengeId, instanceId, flag }`; the frontend must obtain `instanceId` from
+the Phase 3 lifecycle before submitting. `points` means points awarded by this
+attempt, so a repeated correct solve returns zero.
 
-OpenAPI and auth route tests check both security schemes, strict payloads,
-absence of secrets, BFF credential separation, session-bound user tokens, and
-unchanged lifecycle stubs.
+OpenAPI and route tests check both security schemes, strict payloads, absence of
+secrets, BFF credential separation, session-bound user tokens, catalog fields,
+profile/leaderboard exposure, and unchanged lifecycle stubs.
 Fetch `/v1/openapi.json` from a running API for frontend tooling; do not commit
 an independently maintained generated copy.
 

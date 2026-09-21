@@ -32,9 +32,9 @@ hold Docker Engine credentials.
 
 - `src/routes/` contains HTTP adapters and request validation.
 - `src/auth/` verifies frontend-to-backend service tokens.
-- `src/services/` will contain application rules behind typed repository,
+- `src/services/` contains application rules behind typed repository,
   mailer, and lifecycle interfaces.
-- `src/db/` will contain Drizzle schema access and migrations.
+- `src/db/` contains Drizzle schema access and migrations.
 - `src/queue/` will contain BullMQ producers and workers.
 - `src/orchestrator/` will contain the narrow Docker lifecycle adapter.
 - `tests/` contains unit, contract, and lifecycle tests.
@@ -44,6 +44,8 @@ implements backend-owned accounts and opaque sessions behind the frontend BFF;
 read `docs/AUTHENTICATION.md` before changing auth.
 Auth bootstrap resolves credentials or tokens at the backend and must never
 trust a submitted acting-user id.
+Phase 2 implements catalog/scoring/progress; read `docs/SCORING.md` before
+changing challenge, submission, flag, progress, or leaderboard behavior.
 
 Keep the Docker adapter small enough to audit in one sitting. Business rules
 belong in ordinary application services where possible.

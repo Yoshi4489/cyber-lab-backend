@@ -34,10 +34,10 @@ receive no Docker, database, Redis, or lab-node administrative credentials.
 Players may reach their target through lab ingress; this is distinct from
 access to the host, Docker Engine, or control plane.
 
-Phase 1 implements PostgreSQL identity repositories, authentication services,
-BFF bootstrap routes, and session-bound service-token authorization. Catalog,
-submissions, lifecycle routes, routing, and target execution remain mock or
-future behavior as described by their phase labels.
+Phases 1 and 2 implement PostgreSQL identity, catalog, scoring, and progress
+repositories; authentication services; BFF bootstrap routes; session-bound
+authorization; and public catalog/leaderboard reads. Lifecycle routes, routing,
+and target execution remain future behavior as described by their phase labels.
 
 ## Module boundaries
 
@@ -45,8 +45,8 @@ future behavior as described by their phase labels.
 |---|---|
 | src/routes | HTTP schemas, validation, serialization, auth entry checks |
 | src/auth | Service-token verification; Phase 1 credentials/session boundary |
-| src/services (Phase 1 onward) | Business rules and coordination through typed dependencies |
-| src/db | Database client; Phase 1 repositories, schema and migrations |
+| src/services | Business rules and coordination through typed dependencies |
+| src/db | Database client, repositories, schema and migrations |
 | src/queue (Phase 3) | Job production, delivery, retry policy and worker entry point |
 | src/orchestrator (Phase 3) | Narrow Docker lifecycle adapter consuming trusted runtime specs |
 | src/plugins | Error handling, correlation IDs, generated OpenAPI |
@@ -85,15 +85,23 @@ expiry/revocation and the frontend integration checkpoint.
 
 Phase 1 replaced the unused Neon HTTP factory with a transactional PostgreSQL
 connection adapter supporting local PostgreSQL and managed Neon. Drizzle defines
-the users, profiles, sessions, email tokens, and audit schema with reviewed,
-committed SQL migrations. Database transactions enforce single-use auth tokens.
-Phase 2 adds the uniqueness transaction for solve awards.
+identity, catalog, submission, solve, and audit data through reviewed committed
+SQL migrations. Database transactions enforce single-use auth tokens and one
+scored solve per user/challenge.
 
-Reviewed repository files define trusted challenge images, resource limits and
-health checks. Seeding loads catalog metadata into PostgreSQL in Phase 2.
-Production flags are derived per instance at runtime; only hashes or key
-references are persisted. Target flag injection uses a narrow runtime path,
-never an image layer, public API response, or unrestricted Docker option.
+Validated repository definitions currently seed public catalog metadata into
+PostgreSQL. Phase 3 extends these definitions with trusted images, resource
+limits, and health checks. Flags are HMAC-derived per user/challenge/instance at
+runtime; no expected or submitted flag is persisted. Target flag injection uses
+a narrow runtime path, never an image layer, public API response, or unrestricted
+Docker option.
+
+The submission service resolves an instance through a narrow ownership
+interface before deriving or checking a flag. Phase 2 tests this boundary with
+explicit fixtures and records attempts, audits, and first solves transactionally.
+The server-wired resolver deliberately returns 501 until Phase 3 owns real
+instance state. Progress reads use only the verified token subject; the public
+leaderboard exposes display names and aggregate scores without account IDs.
 
 ## Lifecycle intent and recovery (Phase 3)
 

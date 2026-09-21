@@ -3,12 +3,12 @@
 ## Scope and current state
 
 This backend is the authorization, data, scoring, and lab lifecycle boundary
-for Cyber Range. Phases 0 and 1 are implemented. The next delivery is the
-Phase 2 persistent catalog and scoring foundation, with no fixed deadline. This plan covers
+for Cyber Range. Phases 0 through 2 are implemented. The next delivery is the
+Phase 3 asynchronous HTTP lab lifecycle, with no fixed deadline. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-Local tests and checks pass on Node 22.23.2. Local PostgreSQL 16 and Redis 7
+All 75 local tests and checks pass on Node 22.23.2. Local PostgreSQL 16 and Redis 7
 containers start, become healthy, and accept direct client operations. Remote
 CI has passed on `develop`. See README for current verification evidence.
 Nothing is deployed and public signup remains closed.
@@ -65,24 +65,31 @@ disabled sessions; signup is closed. PostgreSQL tests cover migrations,
 concurrent token consumption, and repeated seeding. The actual frontend cookie
 and CSRF flow remains a separate repository checkpoint.
 
-## Phase 2: Persistent catalog and scoring (M)
+## Phase 2: Persistent catalog and scoring (implemented)
 
 Dependency: Phase 1 users and database.
 
-- M: Seed catalog metadata from reviewed repository challenge definitions;
-  retain public reads and current field names. Update mock source markers.
-- M: Store submissions, first solves, progress, and audit events; ensure
-  concurrent correct submissions award points only once.
-- M: Add profile/leaderboard queries and a frontend contract checkpoint.
-- M: Build per-instance flag derivation/verification behind a tested interface.
+- Implemented: validated repository challenge definitions, idempotent database
+  seed, published-only public reads, and `source: "database"`.
+- Implemented: submission/audit persistence and transaction-safe first solves;
+  concurrent correct attempts award points once.
+- Implemented: subject-bound profile/progress and privacy-limited leaderboard
+  queries with generated contracts.
+- Implemented: HMAC per-instance flag derivation/verification and a trusted-user
+  submission rate limiter.
+- Pending in the frontend repository: catalog/source, `profile:read`, leaderboard,
+  and submission contract integration.
 
 Per-instance flags depend on real instance identity in Phase 3. During Phase 2,
 test this boundary using explicit instance fixtures. Do not award production
 points for mock flags or pretend a mock session is a running lab. Production
 dynamic submissions become available with the owned-instance lifecycle.
 
-Exit: repository/contract tests prove catalog compatibility, solve uniqueness,
-and no flag/hash leakage. No real challenge authoring or content-management UI.
+Exit evidence: repository/contract tests prove catalog compatibility,
+published-only reads, solve uniqueness under eight concurrent requests,
+subject-bound progress, leaderboard privacy, and no flag/hash leakage. The
+running API returns 501 for dynamic submissions until Phase 3 supplies an owned
+instance resolver. No real challenge authoring or content-management UI.
 
 ## Phase 3: Asynchronous HTTP lab lifecycle (L)
 
@@ -165,6 +172,6 @@ belong to the frontend repo, coordinated through generated OpenAPI and phase
 checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
-Next implementation task: Phase 2 challenge/catalog schema and reviewed seed
-format, preserving the existing public response fields and explicit source
-metadata before replacing mock reads.
+Next implementation task: Phase 3 instance/operation/node persistence with
+explicit transitions and idempotency records, followed by the ownership resolver
+that activates the existing dynamic submission service.

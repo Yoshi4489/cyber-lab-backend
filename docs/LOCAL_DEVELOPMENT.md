@@ -1,6 +1,6 @@
 # Local development
 
-Use Node 22 (`.nvmrc`), npm, and Docker with Compose v2. The Phase 1 API requires
+Use Node 22 (`.nvmrc`), npm, and Docker with Compose v2. The Phase 2 API requires
 PostgreSQL. Redis can remain stopped until Phase 3 worker development.
 
 ## API
@@ -8,8 +8,8 @@ PostgreSQL. Redis can remain stopped until Phase 3 worker development.
 1. Copy `.env.example` to `.env` if you do not already have local configuration.
    In PowerShell use `Copy-Item .env.example .env`; in a POSIX shell use
    `cp .env.example .env`. Keep any existing `.env` values when updating it.
-2. Run the command below twice. Put independent values in `BFF_AUTH_SECRET` and
-   `BACKEND_SERVICE_TOKEN_SECRET`.
+2. Run the command below three times. Put independent values in
+   `BFF_AUTH_SECRET`, `BACKEND_SERVICE_TOKEN_SECRET`, and `INSTANCE_FLAG_SECRET`.
 3. Set the PostgreSQL and seed variables described below.
 4. Run `npm ci`, `npm run db:migrate`, `npm run db:seed`, then `npm run dev`.
 
@@ -63,8 +63,9 @@ Set all `SEED_ADMIN_*` and `SEED_PLAYER_*` variables, then run:
 npm run db:seed
 ```
 
-The seed is safe to repeat. It creates verified player/admin accounts and their
-profiles, but does not replace an existing password hash, role, or profile.
+The seed is safe to repeat. It upserts validated catalog metadata and creates
+verified player/admin accounts and profiles, but does not replace an existing
+password hash, role, or profile.
 Use unique development credentials and keep them out of source and logs.
 
 Verification and reset requests write JSON messages to
@@ -83,7 +84,8 @@ npm test
 
 To run PostgreSQL integration tests locally, set `TEST_DATABASE_URL` to a
 disposable PostgreSQL database before `npm test`. CI starts PostgreSQL 16 and
-runs migration/auth integration tests in addition to the four checks above.
-Queue/lifecycle tests arrive in Phase 3. Production will use managed Neon
+runs migration, auth, catalog, scoring, and progress integration tests in
+addition to the four checks above. Queue/lifecycle tests arrive in Phase 3.
+Production will use managed Neon
 PostgreSQL and managed Redis, with API and worker processes on a VM and target
 hosts in a separate trust zone.

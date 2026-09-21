@@ -15,29 +15,32 @@ This repository is
 
 ## Project status
 
-**Now:** Phase 1 database and backend-owned authentication complete.
-**Next:** Phase 2 persistent catalog and scoring.
+**Now:** Phase 2 persistent catalog and scoring complete.
+**Next:** Phase 3 asynchronous HTTP lab lifecycle.
 **Last updated:** 2026-09-21.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,
 verification/reset flows, player/admin roles, BFF auth routes, session-bound
-service tokens, generated OpenAPI, PostgreSQL readiness, and the Phase 0 mock
-catalog/submission routes.
+service tokens, generated OpenAPI, PostgreSQL readiness, seeded catalog reads,
+transactional submissions/first solves, player progress, public leaderboard,
+per-instance flag derivation, and verified-user submission rate limits.
 
-Not implemented yet: the frontend cookie/CSRF checkpoint, production email
-delivery, persisted catalog/scores, queue workers, real targets, or deployment.
-Local development email is written only to the ignored `.local-mail` directory.
+Not implemented yet: the frontend cookie/CSRF and scoring checkpoints,
+production email delivery, queue workers, real targets, or deployment. Dynamic
+submission scoring remains unavailable in the running API until Phase 3 supplies
+an ownership-checked active instance. Local development email is written only
+to the ignored `.local-mail` directory.
 
-Verification: 68 tests, lint, type checking, and build pass on Node 22.23.2.
+Verification: 75 tests, lint, type checking, and build pass on Node 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
 started with Docker Desktop, reached healthy status, accepted direct client
 operations, and exposed reachable loopback ports. PostgreSQL used the supported
 `DEV_POSTGRES_PORT=55432` override because port 5432 was unavailable on the
-verification machine. CI starts disposable PostgreSQL for migrations and auth
-integration tests, validates Compose configuration, and runs linting, type
-checking, building, and tests on Node 22.
+verification machine. CI starts disposable PostgreSQL for migration, auth,
+catalog, scoring, and progress integration tests, validates Compose
+configuration, and runs linting, type checking, building, and tests on Node 22.
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
@@ -49,15 +52,15 @@ script is retained.
 |---|---|---|
 | 0 | API foundation, Node 22 alignment, local services, generated OpenAPI, agreed docs | Implemented |
 | 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF contract | Implemented |
-| 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Next |
-| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Planned |
+| 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Implemented |
+| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Next |
 | 4 | Isolation hardening and security review; required gate for public signup | Planned |
 | 5 | Admin tools, monitoring, backup/restore, operational deployment | Planned |
 | 6 | Browser terminal, TCP/VPN access, multi-node scheduling, advanced progression/auth | Deferred |
 
 See [PLAN.md](PLAN.md) for ordered tasks, dependencies, effort, and exit criteria.
-There is no fixed delivery deadline. The immediate milestone is Phase 2 catalog
-and scoring persistence; real labs remain a later milestone.
+There is no fixed delivery deadline. The immediate milestone is the Phase 3 HTTP
+instance lifecycle and its ownership bridge to dynamic submissions.
 
 Public signup stays closed until every required control in
 [SECURITY.md](SECURITY.md) is implemented and reviewed.
@@ -78,7 +81,9 @@ Public signup stays closed until every required control in
 
 These are implementation decisions, not claims that later phases already work.
 The [authentication contract](docs/AUTHENTICATION.md) defines the implemented
-backend trust boundary and the remaining frontend checkpoint.
+backend trust boundary and the remaining frontend checkpoint. The
+[scoring contract](docs/SCORING.md) defines Phase 2 behavior and the Phase 3
+instance dependency.
 
 ## Quick start
 
@@ -91,9 +96,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
 Generate independent values for `BFF_AUTH_SECRET`,
-`BACKEND_SERVICE_TOKEN_SECRET`, and `DEV_POSTGRES_PASSWORD`. Start Compose, set
-`DATABASE_URL`, run `npm run db:migrate`, provide the seed variables, and run
-`npm run db:seed` before `npm run dev`. In PowerShell, use
+`BACKEND_SERVICE_TOKEN_SECRET`, `INSTANCE_FLAG_SECRET`, and
+`DEV_POSTGRES_PASSWORD`. Start Compose, set `DATABASE_URL`, run
+`npm run db:migrate`, provide the seed variables, and run `npm run db:seed`
+before `npm run dev`. In PowerShell, use
 `Copy-Item .env.example .env`. If you already have a local `.env`, update it
 without replacing existing values.
 
@@ -111,7 +117,7 @@ Never commit credentials, `.env`, certificates, TLS material, or real flags.
 | `npm start` | Run the compiled server |
 | `npm run db:generate` | Generate a reviewed migration after schema changes |
 | `npm run db:migrate` | Apply committed PostgreSQL migrations |
-| `npm run db:seed` | Idempotently create the configured player/admin accounts |
+| `npm run db:seed` | Idempotently seed the catalog and configured player/admin accounts |
 | `npm test` | Unit/contracts; database integration tests run when `TEST_DATABASE_URL` is set |
 | `npm run lint` | ESLint and focused promise-safety rules |
 | `npm run typecheck` | Strict type checking for source and tests |
@@ -135,10 +141,12 @@ contains Compose and future worker settings which the API does not yet consume.
 | `FRONTEND_ORIGIN` | API | Required exact CORS origin; not an authorization mechanism |
 | `BFF_AUTH_SECRET` | API and frontend server | Dedicated auth bootstrap credential; distinct from signing key |
 | `BACKEND_SERVICE_TOKEN_SECRET` | API and frontend server | Signs/verifies five-minute user JWTs; never browser-visible |
+| `INSTANCE_FLAG_SECRET` | API and future worker | Derives per-user/challenge/instance flags; backend-only and distinct |
 | `SERVICE_TOKEN_ISSUER`, `SERVICE_TOKEN_AUDIENCE` | API | Required JWT checks |
 | `DATABASE_URL` | API and database commands | Required PostgreSQL URL |
 | `SIGNUPS_OPEN` | API | Must remain `false`; open signup is not implemented |
 | `AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW` | API | Per-route auth request limits |
+| `SUBMISSION_RATE_LIMIT_MAX`, `SUBMISSION_RATE_LIMIT_WINDOW_MS` | API | Fixed-window limits keyed by verified user identity |
 | `LOCAL_MAIL_DIRECTORY` | Development API | Ignored local verification/reset delivery directory |
 | `DEV_POSTGRES_PASSWORD` | Local Compose | Required to initialize local PostgreSQL |
 | `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
@@ -158,9 +166,9 @@ See [API guidance](docs/API.md) for schema conventions and compatibility rules.
 | GET | /readyz | None | Readiness, including PostgreSQL in the running API |
 | GET | /v1/meta | None | API metadata |
 | GET | /v1/openapi.json | None | Generated OpenAPI 3.0.3 |
-| GET | /v1/categories | None | Mock categories |
-| GET | /v1/challenges | None | Mock catalog |
-| GET | /v1/challenges/:slug | None | Mock challenge |
+| GET | /v1/categories | None | Published database categories |
+| GET | /v1/challenges | None | Published database catalog |
+| GET | /v1/challenges/:slug | None | Published challenge metadata |
 | POST | /v1/auth/login | BFF credential | Verify credentials and issue opaque session |
 | POST | /v1/auth/session | BFF credential | Resolve and refresh a live session |
 | POST | /v1/auth/logout | BFF credential | Idempotently revoke a session |
@@ -169,7 +177,9 @@ See [API guidance](docs/API.md) for schema conventions and compatibility rules.
 | POST | /v1/auth/password-reset/request | BFF credential | Generic acknowledgement; local delivery when eligible |
 | POST | /v1/auth/password-reset/confirm | BFF credential | Reset password and revoke sessions |
 | POST | /v1/auth/signup | BFF credential | Always 403 while signup is closed |
-| POST | /v1/submissions | submissions:write | Mock checking; no persisted solve |
+| POST | /v1/submissions | submissions:write | Instance-bound persistence contract; 501 until Phase 3 owns instances |
+| GET | /v1/profile | profile:read | Current player progress from verified subject |
+| GET | /v1/leaderboard | None | Top 100 active-player display names and scores |
 | POST | /v1/instances | instances:write | 501 until Phase 3 |
 | GET | /v1/instances/:id | instances:read | 501 until Phase 3 |
 | POST | /v1/instances/:id/extend | instances:write | 501 until Phase 3 |
@@ -179,10 +189,10 @@ Errors use `{ code, message, correlationId }`. All responses echo
 `x-request-id`. The existing readiness exception returns its check results
 with HTTP 503, not the ordinary error envelope.
 
-Mock challenges are placeholders, not real challenge content. Mock flags are
-derived by `mockFlag(slug)`; no real flag material is stored. Correct mock
-submissions return `recorded: false`. Phase 2 keeps field names but changes
-`source` and `recorded` to reflect persistence, with a frontend checkpoint.
+The seeded entries remain catalog fixtures rather than authored challenge
+content. Catalog lists use `source: "database"`. Successful submission handling
+uses `recorded: true` and `source: "database"`; points are nonzero only for the
+first correct solve. No expected or submitted flag is persisted.
 
 ## Frontend connection
 
