@@ -8,10 +8,10 @@ Phase 1 authentication foundation, with no fixed deadline. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-Local tests and checks pass on Node 22.23.2. Docker startup still needs runtime
-confirmation in an equipped environment; remote CI results are not yet
-independently confirmed. See README for current verification evidence.
-Nothing is deployed and public signup remains closed.
+Local tests and checks pass on Node 22.23.2. Local PostgreSQL 16 and Redis 7
+containers start, become healthy, and accept direct client operations. Remote
+CI results are not yet independently confirmed. See README for current
+verification evidence. Nothing is deployed and public signup remains closed.
 
 Effort: S is a focused change; M spans several modules; L requires several
 reviewable batches and integration/security checks. These are relative sizes,
@@ -27,9 +27,9 @@ not time estimates.
 - Align README, architecture, auth contract, and security requirements.
 - The obsolete Phase 0 finishing script is no longer present.
 
-Exit evidence: lint, typecheck, build, 39 tests, YAML parsing, and reviewed
-diffs. Actual container startup remains unverified locally because Docker is
-unavailable. Compose is development infrastructure, not a production lab host.
+Exit evidence: lint, typecheck, build, 39 tests, YAML parsing, reviewed diffs,
+and healthy PostgreSQL 16 and Redis 7 containers with successful direct client
+operations. Compose is development infrastructure, not a production lab host.
 
 ## Phase 1: Database and backend-owned authentication (L, next)
 

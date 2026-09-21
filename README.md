@@ -31,10 +31,13 @@ does not connect the API to PostgreSQL or Redis.
 
 Verification: 39 tests, lint, type checking, and build pass on Node 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
-and CI. Compose and CI YAML parse successfully, but Docker is unavailable on
-the implementation machine, so container startup has not been verified there.
-CI includes Compose configuration validation; it does not yet run dependency
-integration tests. Remote CI results have not been independently confirmed.
+and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
+started with Docker Desktop, reached healthy status, accepted direct client
+operations, and exposed reachable loopback ports. PostgreSQL used the supported
+`DEV_POSTGRES_PORT=55432` override because port 5432 was unavailable on the
+verification machine. CI includes Compose configuration validation; it does
+not yet run dependency integration tests. Remote CI results have not been
+independently confirmed.
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
