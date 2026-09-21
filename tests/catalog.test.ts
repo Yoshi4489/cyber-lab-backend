@@ -1,23 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { MOCK_CHALLENGES, mockFlag } from '../src/mocks/challenges.js';
+import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
+import { mockFlag } from '../src/mocks/challenges.js';
 import { signToken, testAppDependencies, testConfig } from './helpers.js';
 
-const SAMPLE = MOCK_CHALLENGES[0];
+const SAMPLE = CHALLENGE_DEFINITIONS[0];
 const HEX_64 = /[0-9a-f]{64}/;
 
-if (SAMPLE === undefined) throw new Error('MOCK_CHALLENGES must not be empty');
+if (SAMPLE === undefined) throw new Error('CHALLENGE_DEFINITIONS must not be empty');
 
-describe('mock catalog', () => {
-  it('lists every mock challenge and labels the data as mock', async () => {
+describe('persistent catalog contract', () => {
+  it('lists every published challenge and labels the data as database-backed', async () => {
     const app = await buildApp(testConfig, testAppDependencies);
     try {
       const response = await app.inject('/v1/challenges');
       const body = response.json<{ challenges: unknown[]; source: string }>();
 
       expect(response.statusCode).toBe(200);
-      expect(body.source).toBe('mock');
-      expect(body.challenges).toHaveLength(MOCK_CHALLENGES.length);
+      expect(body.source).toBe('database');
+      expect(body.challenges).toHaveLength(
+        CHALLENGE_DEFINITIONS.filter((challenge) => challenge.published).length,
+      );
     } finally {
       await app.close();
     }

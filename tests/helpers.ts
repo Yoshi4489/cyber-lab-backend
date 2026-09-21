@@ -1,5 +1,6 @@
 import { SignJWT } from 'jose';
 import type { Config } from '../src/config.js';
+import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
 
 /** A complete, valid config so tests never depend on a `.env` file. */
 export const testConfig: Config = {
@@ -20,6 +21,19 @@ export const testConfig: Config = {
 export const TEST_SESSION_ID = '00000000-0000-4000-8000-000000000002';
 
 export const testAppDependencies = {
+  catalog: {
+    listCategories: async () => [
+      ...new Set(CHALLENGE_DEFINITIONS.filter((challenge) => challenge.published).map((challenge) => challenge.category)),
+    ].sort(),
+    listPublishedChallenges: async () =>
+      CHALLENGE_DEFINITIONS.filter((challenge) => challenge.published).map(toCatalogChallenge),
+    findPublishedChallengeBySlug: async (slug: string) => {
+      const challenge = CHALLENGE_DEFINITIONS.find(
+        (candidate) => candidate.published && candidate.slug === slug,
+      );
+      return challenge ? toCatalogChallenge(challenge) : null;
+    },
+  },
   sessionAuthorizer: {
     validateServiceSession: async (userId: string, sessionId: string) => {
       if (userId !== 'player-1' || sessionId !== TEST_SESSION_ID) {
@@ -36,6 +50,12 @@ export const testAppDependencies = {
     },
   },
 };
+
+function toCatalogChallenge(challenge: (typeof CHALLENGE_DEFINITIONS)[number]) {
+  const { definitionVersion: _definitionVersion, published: _published, ...publicChallenge } =
+    challenge;
+  return publicChallenge;
+}
 
 export function signToken(
   scope: string,

@@ -3,11 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { notFound } from '../lib/errors.js';
 import { errorResponses } from './schemas.js';
-import {
-  MOCK_CATEGORIES,
-  MOCK_CHALLENGES,
-  findMockChallengeBySlug,
-} from '../mocks/challenges.js';
+import type { CatalogRepository } from '../services/catalog-repository.js';
 
 const slugParams = z.object({ slug: z.string().min(1).max(64) });
 const challenge = z.object({
@@ -23,13 +19,15 @@ const challenge = z.object({
 });
 
 /**
- * Read-only catalog served from the mock fixtures.
+ * Read-only catalog served from published PostgreSQL rows.
  *
  * Public on purpose: it carries no user data and no flags, and the frontend
- * needs it to build screens before accounts exist. Phase 2 swaps the fixture
- * import for database queries; the response shape does not change.
+ * needs it without an account. The response contains only public metadata.
  */
-export async function registerChallengeRoutes(app: FastifyInstance) {
+export async function registerChallengeRoutes(
+  app: FastifyInstance,
+  options: { catalog: CatalogRepository },
+) {
   const routes = app.withTypeProvider<ZodTypeProvider>();
   routes.get('/categories', {
     schema: {
@@ -40,7 +38,7 @@ export async function registerChallengeRoutes(app: FastifyInstance) {
         200: z.object({ categories: z.array(z.string()).readonly() }),
       },
     },
-  }, async () => ({ categories: MOCK_CATEGORIES }));
+  }, async () => ({ categories: await options.catalog.listCategories() }));
 
   routes.get('/challenges', {
     schema: {
@@ -48,12 +46,12 @@ export async function registerChallengeRoutes(app: FastifyInstance) {
       tags: ['Catalog'],
       response: {
         ...errorResponses,
-        200: z.object({ challenges: z.array(challenge).readonly(), source: z.literal('mock') }),
+        200: z.object({ challenges: z.array(challenge).readonly(), source: z.literal('database') }),
       },
     },
   }, async () => ({
-    challenges: MOCK_CHALLENGES,
-    source: 'mock' as const,
+    challenges: await options.catalog.listPublishedChallenges(),
+    source: 'database' as const,
   }));
 
   routes.get('/challenges/:slug', {
@@ -64,8 +62,8 @@ export async function registerChallengeRoutes(app: FastifyInstance) {
       response: { ...errorResponses, 200: challenge },
     },
   }, async (request) => {
-    const found = findMockChallengeBySlug(request.params.slug);
-    if (found === undefined) throw notFound('Challenge not found');
+    const found = await options.catalog.findPublishedChallengeBySlug(request.params.slug);
+    if (found === null) throw notFound('Challenge not found');
 
     return found;
   });

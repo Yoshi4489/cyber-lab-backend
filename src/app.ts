@@ -16,11 +16,19 @@ import type { DatabaseClient } from './db/client.js';
 import type { AuthenticationService } from './services/authentication.js';
 import { registerAuthenticationRoutes } from './routes/authentication.js';
 import type { ServiceSessionAuthorizer } from './auth/require-scope.js';
+import type { CatalogRepository } from './services/catalog-repository.js';
 
 export type AppDependencies = {
   database?: DatabaseClient;
   authentication?: AuthenticationService;
   sessionAuthorizer?: ServiceSessionAuthorizer;
+  catalog?: CatalogRepository;
+};
+
+const unavailableCatalog: CatalogRepository = {
+  listCategories: () => Promise.reject(new Error('Catalog repository unavailable')),
+  listPublishedChallenges: () => Promise.reject(new Error('Catalog repository unavailable')),
+  findPublishedChallengeBySlug: () => Promise.reject(new Error('Catalog repository unavailable')),
 };
 
 export async function buildApp(config: Config, dependencies: AppDependencies = {}) {
@@ -62,7 +70,10 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
       validateServiceSession: () => Promise.reject(new Error('Session authorizer unavailable')),
     };
   await app.register(registerMetaRoutes, { prefix: '/v1' });
-  await app.register(registerChallengeRoutes, { prefix: '/v1' });
+  await app.register(registerChallengeRoutes, {
+    prefix: '/v1',
+    catalog: dependencies.catalog ?? unavailableCatalog,
+  });
   await app.register(registerSubmissionRoutes, { prefix: '/v1', config, sessionAuthorizer });
   await app.register(registerInstanceRoutes, { prefix: '/v1', config, sessionAuthorizer });
   return app;
