@@ -10,8 +10,8 @@ in its separate repository.
 
 Local tests and checks pass on Node 22.23.2. Local PostgreSQL 16 and Redis 7
 containers start, become healthy, and accept direct client operations. Remote
-CI results are not yet independently confirmed. See README for current
-verification evidence. Nothing is deployed and public signup remains closed.
+CI has passed on `develop`. See README for current verification evidence.
+Nothing is deployed and public signup remains closed.
 
 Effort: S is a focused change; M spans several modules; L requires several
 reviewable batches and integration/security checks. These are relative sizes,

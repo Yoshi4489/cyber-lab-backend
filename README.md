@@ -36,8 +36,9 @@ started with Docker Desktop, reached healthy status, accepted direct client
 operations, and exposed reachable loopback ports. PostgreSQL used the supported
 `DEV_POSTGRES_PORT=55432` override because port 5432 was unavailable on the
 verification machine. CI includes Compose configuration validation; it does
-not yet run dependency integration tests. Remote CI results have not been
-independently confirmed.
+not yet run dependency integration tests. The CI workflow has passed on
+`develop` with Compose configuration validation, linting, type checking,
+building, and tests on Node 22.
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
