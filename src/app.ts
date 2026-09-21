@@ -19,6 +19,8 @@ import type { ServiceSessionAuthorizer } from './auth/require-scope.js';
 import type { CatalogRepository } from './services/catalog-repository.js';
 import type { SubmissionService } from './services/submissions.js';
 import { FixedWindowUserRateLimiter } from './services/user-rate-limiter.js';
+import type { ProgressRepository } from './services/progress-repository.js';
+import { registerProgressRoutes } from './routes/progress.js';
 
 export type AppDependencies = {
   database?: DatabaseClient;
@@ -26,6 +28,7 @@ export type AppDependencies = {
   sessionAuthorizer?: ServiceSessionAuthorizer;
   catalog?: CatalogRepository;
   submissions?: SubmissionService;
+  progress?: ProgressRepository;
 };
 
 const unavailableCatalog: CatalogRepository = {
@@ -87,6 +90,12 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
     sessionAuthorizer,
     rateLimiter: submissionRateLimiter,
     ...(dependencies.submissions ? { submissions: dependencies.submissions } : {}),
+  });
+  await app.register(registerProgressRoutes, {
+    prefix: '/v1',
+    config,
+    sessionAuthorizer,
+    ...(dependencies.progress ? { progress: dependencies.progress } : {}),
   });
   await app.register(registerInstanceRoutes, { prefix: '/v1', config, sessionAuthorizer });
   return app;

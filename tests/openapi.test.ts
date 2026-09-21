@@ -18,6 +18,7 @@ describe('generated OpenAPI contract', () => {
       expect(Object.keys(document.paths).sort()).toEqual([
         '/healthz', '/readyz', '/v1/meta', '/v1/categories', '/v1/challenges',
         '/v1/challenges/{slug}', '/v1/submissions', '/v1/instances',
+        '/v1/profile', '/v1/leaderboard',
         '/v1/instances/{id}', '/v1/instances/{id}/extend',
       ].sort());
       expect(document.components.securitySchemes.serviceToken).toMatchObject({
@@ -39,7 +40,10 @@ describe('generated OpenAPI contract', () => {
       expect(document.paths['/v1/instances'].post.responses).not.toHaveProperty('200');
       expect(document.paths['/readyz'].get.responses).toHaveProperty('503');
       expect(document.paths['/v1/challenges'].get.security ?? []).toEqual([]);
+      expect(document.paths['/v1/profile'].get.security).toEqual([{ serviceToken: [] }]);
+      expect(document.paths['/v1/leaderboard'].get.security ?? []).toEqual([]);
       expect(response.body).not.toContain(testConfig.BACKEND_SERVICE_TOKEN_SECRET);
+      expect(response.body).not.toContain(testConfig.INSTANCE_FLAG_SECRET);
       expect(response.body).not.toContain('CTF{');
     } finally {
       await app.close();

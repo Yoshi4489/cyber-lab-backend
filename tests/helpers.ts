@@ -44,6 +44,7 @@ export const testAppDependencies = {
       }
       return {
         allowedScopes: [
+          'profile:read',
           'submissions:write',
           'instances:read',
           'instances:write',

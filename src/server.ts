@@ -11,6 +11,7 @@ import { DrizzleScoringRepository } from './db/scoring-repository.js';
 import { HmacInstanceFlagService } from './services/instance-flags.js';
 import { SubmissionService } from './services/submissions.js';
 import { notImplemented } from './lib/errors.js';
+import { DrizzleProgressRepository } from './db/progress-repository.js';
 
 const config = loadConfig();
 if (!config.DATABASE_URL) throw new Error('DATABASE_URL is required');
@@ -38,6 +39,7 @@ const app = await buildApp(config, {
   authentication,
   catalog: new DrizzleCatalogRepository(database.db),
   submissions: submissionService,
+  progress: new DrizzleProgressRepository(database.db),
 });
 
 async function shutdown(signal: string) {

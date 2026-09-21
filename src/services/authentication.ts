@@ -205,6 +205,11 @@ function toTrustedUser(account: Omit<AccountRecord, 'passwordHash'>): TrustedUse
 }
 
 function scopesForRole(role: AccountRole): string[] {
-  const playerScopes = ['submissions:write', 'instances:read', 'instances:write'];
+  const playerScopes = [
+    'profile:read',
+    'submissions:write',
+    'instances:read',
+    'instances:write',
+  ];
   return role === 'admin' ? [...playerScopes, 'admin:write'] : playerScopes;
 }

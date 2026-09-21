@@ -93,6 +93,7 @@ describeDatabase('authentication service', () => {
     expect(login.sessionToken).toMatch(/^[A-Za-z0-9_-]{43}$/u);
     expect(login.user).toMatchObject({ id: account.id, role: 'player' });
     expect(login.allowedScopes).toEqual([
+      'profile:read',
       'submissions:write',
       'instances:read',
       'instances:write',
@@ -132,7 +133,7 @@ describeDatabase('authentication service', () => {
     await expect(
       service.validateServiceSession(account.id, login.sessionId),
     ).resolves.toMatchObject({
-      allowedScopes: ['submissions:write', 'instances:read', 'instances:write'],
+      allowedScopes: ['profile:read', 'submissions:write', 'instances:read', 'instances:write'],
     });
 
     await database.db

@@ -119,7 +119,7 @@ describeDatabase('BFF authentication routes', () => {
     const loginBody = login.json();
     expect(loginBody).toMatchObject({
       user: { id: userId, email, role: 'player' },
-      allowedScopes: ['submissions:write', 'instances:read', 'instances:write'],
+      allowedScopes: ['profile:read', 'submissions:write', 'instances:read', 'instances:write'],
     });
 
     const userSelection = await app.inject({
