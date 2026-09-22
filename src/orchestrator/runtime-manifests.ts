@@ -57,5 +57,5 @@ export class RuntimeManifestRegistry {
 
 export async function loadRuntimeManifestRegistry(path: string): Promise<RuntimeManifestRegistry> {
   const contents = await readFile(path, 'utf8');
-  return new RuntimeManifestRegistry(JSON.parse(contents) as unknown[]);
+  return new RuntimeManifestRegistry(JSON.parse(contents.replace(/^\uFEFF/u, '')) as unknown[]);
 }
