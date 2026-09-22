@@ -49,6 +49,10 @@ export class RuntimeManifestRegistry {
   get(challengeId: string): RuntimeManifest | null {
     return this.byChallengeId.get(challengeId) ?? null;
   }
+
+  all(): readonly RuntimeManifest[] {
+    return [...this.byChallengeId.values()];
+  }
 }
 
 export async function loadRuntimeManifestRegistry(path: string): Promise<RuntimeManifestRegistry> {

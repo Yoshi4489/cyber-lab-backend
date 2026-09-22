@@ -112,6 +112,24 @@ export class DockerOrchestrator {
     return (await this.findContainer(instanceId)) !== null;
   }
 
+  async preflight(manifests: readonly RuntimeManifest[]): Promise<void> {
+    await this.verifyHostSecurity();
+    if (!this.ingressContainer) throw new Error('Docker preflight requires an ingress container');
+    if (manifests.length === 0) throw new Error('Docker preflight requires at least one runtime manifest');
+
+    const ingress = await this.docker.getContainer(this.ingressContainer).inspect();
+    if (!ingress.State.Running) throw new Error('Docker ingress container is not running');
+
+    await Promise.all(manifests.map(async (manifest) => {
+      await this.docker.getImage(manifest.image).inspect().catch((error: unknown) => {
+        if (isDockerNotFound(error)) {
+          throw new Error('A trusted runtime image is unavailable on the Docker host');
+        }
+        throw error;
+      });
+    }));
+  }
+
   private async verifyHostSecurity(): Promise<void> {
     if (this.hostVerified) return;
     const info = await this.docker.info();

@@ -98,6 +98,35 @@ describe('Docker orchestrator', () => {
     expect(fixture.createContainer).not.toHaveBeenCalled();
   });
 
+  it('preflights host isolation, the ingress container, and trusted images', async () => {
+    const fixture = dockerFixture();
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+
+    await expect(orchestrator.preflight([manifest])).resolves.toBeUndefined();
+    expect(fixture.getContainer).toHaveBeenCalledWith('traefik');
+    expect(fixture.getImage).toHaveBeenCalledWith(IMAGE);
+  });
+
+  it('rejects a stopped ingress container before any target is created', async () => {
+    const fixture = dockerFixture({ ingressRunning: false });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+
+    await expect(orchestrator.preflight([manifest])).rejects.toThrow(
+      'Docker ingress container is not running',
+    );
+    expect(fixture.createContainer).not.toHaveBeenCalled();
+  });
+
+  it('rejects a manifest image that is unavailable on the Docker host', async () => {
+    const fixture = dockerFixture({ availableImages: [] });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+
+    await expect(orchestrator.preflight([manifest])).rejects.toThrow(
+      'A trusted runtime image is unavailable on the Docker host',
+    );
+    expect(fixture.createContainer).not.toHaveBeenCalled();
+  });
+
   it('refuses to delete persisted resource ids without matching ownership labels', async () => {
     const fixture = dockerFixture({ managedInstanceId: '88888888-8888-4888-8888-888888888888' });
     const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture());
@@ -136,6 +165,8 @@ function dockerFixture(options: {
   startError?: Error;
   securityOptions?: string[];
   managedInstanceId?: string;
+  ingressRunning?: boolean;
+  availableImages?: string[];
 } = {}) {
   const containerRemove = vi.fn(async () => undefined);
   const networkRemove = vi.fn(async () => undefined);
@@ -147,7 +178,10 @@ function dockerFixture(options: {
     stop: vi.fn(async () => undefined),
     remove: containerRemove,
     inspect: vi.fn(async () => ({
-      State: { Running: true, Health: { Status: 'healthy' } },
+      State: {
+        Running: options.ingressRunning ?? true,
+        Health: { Status: 'healthy' },
+      },
       Config: {
         Labels: {
           'cyber-range.managed': 'true',
@@ -169,6 +203,15 @@ function dockerFixture(options: {
   };
   const createContainer = vi.fn(async (_options: Docker.ContainerCreateOptions) => container);
   const createNetwork = vi.fn(async (_options: Docker.NetworkCreateOptions) => network);
+  const getContainer = vi.fn(() => container);
+  const getImage = vi.fn((image: string) => ({
+    inspect: vi.fn(async () => {
+      if (options.availableImages && !options.availableImages.includes(image)) {
+        throw { statusCode: 404 };
+      }
+      return { Id: 'image-id' };
+    }),
+  }));
   const docker = {
     info: vi.fn(async () => ({
       SecurityOptions: options.securityOptions ?? [
@@ -181,13 +224,16 @@ function dockerFixture(options: {
     listNetworks: vi.fn(async () => []),
     createContainer,
     createNetwork,
-    getContainer: vi.fn(() => container),
+    getContainer,
     getNetwork: vi.fn(() => network),
+    getImage,
   };
   return {
     docker: docker as unknown as Docker,
     createContainer,
     createNetwork,
+    getContainer,
+    getImage,
     containerRemove,
     networkRemove,
   };

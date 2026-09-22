@@ -12,6 +12,8 @@
     "start": "node dist/server.js",
     "worker": "tsx src/worker.ts",
     "worker:start": "node dist/worker.js",
+    "worker:preflight": "tsx src/worker-preflight.ts",
+    "worker:preflight:start": "node dist/worker-preflight.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",

@@ -1,23 +1,22 @@
 import 'dotenv/config';
-import { readFile } from 'node:fs/promises';
-import Docker from 'dockerode';
 import { createDatabase } from './db/client.js';
 import { DrizzleLifecycleJobRepository } from './db/lifecycle-job-repository.js';
 import { DrizzleLifecycleStateRepository } from './db/lifecycle-state-repository.js';
+import { createWorkerDockerClient } from './orchestrator/docker-client.js';
 import { DockerOrchestrator } from './orchestrator/docker-adapter.js';
 import { loadRuntimeManifestRegistry } from './orchestrator/runtime-manifests.js';
 import { FileTraefikRouter } from './orchestrator/traefik-router.js';
 import { createRedisConnection, LifecycleQueue } from './queue/lifecycle-queue.js';
 import { DockerLifecycleHandler } from './services/docker-lifecycle-handler.js';
 import { HmacInstanceFlagService } from './services/instance-flags.js';
-import { loadWorkerConfig, type WorkerConfig } from './worker-config.js';
+import { loadWorkerConfig } from './worker-config.js';
 
 const config = loadWorkerConfig();
 const database = createDatabase(config.DATABASE_URL);
 const jobRepository = new DrizzleLifecycleJobRepository(database.db);
 const stateRepository = new DrizzleLifecycleStateRepository(database.db);
 const manifests = await loadRuntimeManifestRegistry(config.RUNTIME_MANIFEST_PATH);
-const docker = await createDockerClient(config);
+const docker = await createWorkerDockerClient(config);
 const orchestrator = new DockerOrchestrator(
   docker,
   new FileTraefikRouter(config.TRAEFIK_DYNAMIC_DIRECTORY),
@@ -82,34 +81,6 @@ async function shutdown(): Promise<void> {
 process.once('SIGINT', () => void shutdown());
 process.once('SIGTERM', () => void shutdown());
 worker.on('error', () => reportWorkerError('worker'));
-
-async function createDockerClient(workerConfig: WorkerConfig): Promise<Docker> {
-  if (workerConfig.DOCKER_SOCKET_PATH) {
-    return new Docker({ socketPath: workerConfig.DOCKER_SOCKET_PATH });
-  }
-  if (
-    !workerConfig.DOCKER_HOST ||
-    !workerConfig.DOCKER_CA_PATH ||
-    !workerConfig.DOCKER_CERT_PATH ||
-    !workerConfig.DOCKER_KEY_PATH
-  ) {
-    throw new Error('Remote Docker mTLS configuration is incomplete');
-  }
-  const endpoint = new URL(workerConfig.DOCKER_HOST);
-  const [ca, cert, key] = await Promise.all([
-    readFile(workerConfig.DOCKER_CA_PATH),
-    readFile(workerConfig.DOCKER_CERT_PATH),
-    readFile(workerConfig.DOCKER_KEY_PATH),
-  ]);
-  return new Docker({
-    protocol: 'https',
-    host: endpoint.hostname,
-    port: Number(endpoint.port || 2376),
-    ca,
-    cert,
-    key,
-  });
-}
 
 function reportWorkerError(operation: string): void {
   process.stderr.write(`${JSON.stringify({ level: 'error', event: 'lifecycle_worker_error', operation })}\n`);
