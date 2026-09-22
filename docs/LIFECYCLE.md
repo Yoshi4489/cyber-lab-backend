@@ -109,6 +109,8 @@ run the disposable target exit flow: create, poll until running, submit, extend,
 destroy or expire, and recover after a worker restart. Record the command
 output and lifecycle evidence as the final Phase 3 isolated-host check.
 
-The verification Docker Desktop host lacked user namespaces and AppArmor, so no
-real target was launched there. A successful preflight alone does not verify
-target egress, cross-instance isolation, or other Phase 4 controls.
+The verification Docker Desktop host lacked user namespaces and AppArmor. Its
+actual preflight failed at the user-namespace gate and left zero
+backend-managed containers or networks, so no real target was launched there.
+A successful preflight alone does not verify target egress, cross-instance
+isolation, or other Phase 4 controls.

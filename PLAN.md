@@ -9,9 +9,10 @@ followed by the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-All 93 local tests and checks pass on Node 22.23.2. Local PostgreSQL 16 and Redis 7
-containers start, become healthy, and accept direct client operations. Remote
-CI has passed on `develop`. See README for current verification evidence.
+The current local run passes 59 tests and skips 38 environment-gated cases on
+Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
+and accept direct client operations. Remote CI has passed on `develop`. See
+README for current verification evidence.
 Nothing is deployed and public signup remains closed.
 
 Effort: S is a focused change; M spans several modules; L requires several
@@ -126,8 +127,8 @@ ownership, extension caps, destroy, expiry, recovery, foreign-user denial,
 readiness-only URLs and partial-create cleanup. The remaining exit check is the
 same flow with a disposable pinned image on a compliant isolated host after
 `npm run worker:preflight` succeeds. Docker Desktop on the verification machine
-lacked userns and AppArmor, so the adapter correctly refused to run a target
-there.
+lacked userns and AppArmor, so the actual preflight correctly refused to run a
+target there and left zero backend-managed containers or networks.
 
 ## Phase 4: Isolation hardening and security gate (L)
 

@@ -34,7 +34,7 @@ target validation, or deployment. Dynamic submission scoring is active only for
 an owned, running, unexpired instance. Local development email is written only
 to the ignored `.local-mail` directory.
 
-Verification: 96 Vitest cases are defined; the current local run passes 58 and
+Verification: 97 Vitest cases are defined; the current local run passes 59 and
 skips 38 environment-gated cases. Lint, type checking, and build pass on Node
 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
@@ -47,10 +47,11 @@ catalog, scoring, and progress integration tests, validates Compose
 configuration, and runs linting, type checking, building, and tests on Node 22.
 CI now starts disposable Redis as well as PostgreSQL. Docker Desktop 29.7.2 was
 reachable, but its engine did not advertise user namespaces or AppArmor; the
-worker therefore failed closed and no target was launched on that host. Run
-`npm run worker:preflight` on the intended isolated host before starting a
-worker; it verifies host isolation, ingress, and reviewed images without
-creating a target.
+worker preflight correctly rejected the host before any Docker resource was
+created. The verification observed zero backend-managed containers and
+networks after the command. Run `npm run worker:preflight` on the intended
+isolated host before starting a worker; it verifies host isolation, ingress,
+and reviewed images without creating a target.
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
