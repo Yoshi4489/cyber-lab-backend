@@ -71,8 +71,11 @@ and CSRF checkpoint and production Resend delivery remain incomplete. See
   checks, retries and startup times; failed starts must clean up resources.
 
 The adapter applies these defaults now and refuses hosts that do not advertise
-user namespaces, seccomp and AppArmor. Phase 4 records isolated-host evidence
-and hardens the boundary; it does not defer the basic restrictions.
+user namespaces, seccomp and AppArmor. `npm run worker:preflight` checks those
+controls, the configured ingress state, and local availability of every
+reviewed pinned image before operators start a worker on a target host. Phase 4
+records isolated-host evidence and hardens the boundary; it does not defer the
+basic restrictions.
 
 ## Network boundary
 

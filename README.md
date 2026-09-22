@@ -15,9 +15,9 @@ This repository is
 
 ## Project status
 
-**Now:** Phase 3 lifecycle implementation complete; compliant-host target validation pending.
+**Now:** Phase 3 host preflight is implemented; compliant-host target validation is pending.
 **Next:** Run the isolated-host Phase 3 exit check, then begin Phase 4 security verification.
-**Last updated:** 2026-09-21.
+**Last updated:** 2026-09-22.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,
@@ -34,7 +34,9 @@ target validation, or deployment. Dynamic submission scoring is active only for
 an owned, running, unexpired instance. Local development email is written only
 to the ignored `.local-mail` directory.
 
-Verification: 93 tests, lint, type checking, and build pass on Node 22.23.2.
+Verification: 96 Vitest cases are defined; the current local run passes 58 and
+skips 38 environment-gated cases. Lint, type checking, and build pass on Node
+22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
 started with Docker Desktop, reached healthy status, accepted direct client
@@ -45,7 +47,10 @@ catalog, scoring, and progress integration tests, validates Compose
 configuration, and runs linting, type checking, building, and tests on Node 22.
 CI now starts disposable Redis as well as PostgreSQL. Docker Desktop 29.7.2 was
 reachable, but its engine did not advertise user namespaces or AppArmor; the
-worker therefore failed closed and no target was launched on that host.
+worker therefore failed closed and no target was launched on that host. Run
+`npm run worker:preflight` on the intended isolated host before starting a
+worker; it verifies host isolation, ingress, and reviewed images without
+creating a target.
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
@@ -58,7 +63,7 @@ script is retained.
 | 0 | API foundation, Node 22 alignment, local services, generated OpenAPI, agreed docs | Implemented |
 | 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF contract | Implemented |
 | 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Implemented |
-| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Implemented; host validation pending |
+| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Implemented; isolated-host validation pending (preflight available) |
 | 4 | Isolation hardening and security review; required gate for public signup | Planned |
 | 5 | Admin tools, monitoring, backup/restore, operational deployment | Planned |
 | 6 | Browser terminal, TCP/VPN access, multi-node scheduling, advanced progression/auth | Deferred |
@@ -123,6 +128,8 @@ Never commit credentials, `.env`, certificates, TLS material, or real flags.
 | `npm start` | Run the compiled server |
 | `npm run worker` | Run the lifecycle worker from TypeScript |
 | `npm run worker:start` | Run the compiled lifecycle worker |
+| `npm run worker:preflight` | Read-only isolated-host readiness check before starting a worker |
+| `npm run worker:preflight:start` | Run the compiled host preflight |
 | `npm run db:generate` | Generate a reviewed migration after schema changes |
 | `npm run db:migrate` | Apply committed PostgreSQL migrations |
 | `npm run db:seed` | Idempotently seed the catalog and configured player/admin accounts |
@@ -162,11 +169,11 @@ contains separate worker settings. Docker credentials are parsed only by
 | `DEV_POSTGRES_PASSWORD` | Local Compose | Required to initialize local PostgreSQL |
 | `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
 | `REDIS_URL` | Worker | BullMQ connection; never sent to targets or frontend |
-| `RUNTIME_MANIFEST_PATH` | Worker | Reviewed JSON array of pinned runtime manifests |
-| `TRAEFIK_DYNAMIC_DIRECTORY`, `LAB_INGRESS_CONTAINER` | Worker | Isolated ingress file-provider path and container name |
-| `LAB_NODE_NAME` | Worker | Non-secret scheduling identity stored in PostgreSQL |
-| `DOCKER_HOST`, `DOCKER_CA_PATH`, `DOCKER_CERT_PATH`, `DOCKER_KEY_PATH` | Production worker | Complete remote Docker mTLS configuration |
-| `DOCKER_SOCKET_PATH` | Development worker only | Local disposable testing; rejected in production |
+| `RUNTIME_MANIFEST_PATH` | Worker/preflight | Reviewed JSON array of pinned runtime manifests |
+| `TRAEFIK_DYNAMIC_DIRECTORY`, `LAB_INGRESS_CONTAINER` | Worker/preflight | Isolated ingress file-provider path and container name |
+| `LAB_NODE_NAME` | Worker/preflight | Non-secret scheduling identity stored in PostgreSQL |
+| `DOCKER_HOST`, `DOCKER_CA_PATH`, `DOCKER_CERT_PATH`, `DOCKER_KEY_PATH` | Production worker/preflight | Complete remote Docker mTLS configuration |
+| `DOCKER_SOCKET_PATH` | Development worker/preflight only | Local disposable testing; rejected in production |
 
 Seed variables are consumed only by `npm run db:seed`; normal repeated seeding
 does not replace an existing password hash or profile.

@@ -103,6 +103,9 @@ A routing domain and certificates are prerequisites for remote deployment.
 - Implemented: the narrow Docker adapter, fixed runtime restrictions, trusted image
   manifests, isolated networks, generated Traefik routes, health polling and
   cleanup of partial failures.
+- Implemented: `npm run worker:preflight`, a read-only check of the Docker
+  isolation controls, ingress availability, and every reviewed pinned image
+  before a worker receives lifecycle jobs.
 - Implemented: expiry/reconciliation jobs and backend polling integration tests.
 - Pending: frontend polling integration in the frontend repository and one full
   target run on a separate host that advertises userns, seccomp and AppArmor.
@@ -117,12 +120,14 @@ hardens them; it is not permission to run unrestricted targets in Phase 3.
 Local tests use disposable fixtures. Production targets must use separate
 hosts/trust zones and remote Docker mTLS.
 
+A preflight does not create a target or prove the runtime network boundary.
 Automated exit evidence covers start-state transitions, polling, submission
 ownership, extension caps, destroy, expiry, recovery, foreign-user denial,
 readiness-only URLs and partial-create cleanup. The remaining exit check is the
-same flow with a disposable pinned image on a compliant isolated host. Docker
-Desktop on the verification machine lacked userns and AppArmor, so the adapter
-correctly refused to run a target there.
+same flow with a disposable pinned image on a compliant isolated host after
+`npm run worker:preflight` succeeds. Docker Desktop on the verification machine
+lacked userns and AppArmor, so the adapter correctly refused to run a target
+there.
 
 ## Phase 4: Isolation hardening and security gate (L)
 
@@ -177,5 +182,7 @@ checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
 Next task: provision or select a disposable isolated Docker host with userns,
-seccomp and AppArmor enabled; run the Phase 3 target lifecycle exit check; then
-begin the Phase 4 isolation test matrix without opening public signup.
+seccomp and AppArmor enabled; make the reviewed target image available; run
+`npm run worker:preflight`; then run and record the Phase 3 target lifecycle
+exit check before beginning the Phase 4 isolation test matrix. Public signup
+remains closed.

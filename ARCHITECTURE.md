@@ -114,6 +114,11 @@ poll health, and mark the instance running. URLs are exposed only to the owner
 after readiness. Reapers expire instances; reconciliation compares persisted
 intent with Docker resources labeled by backend-owned IDs and repairs drift.
 
+Before starting a worker on an isolated host, `npm run worker:preflight` uses
+the same Docker credential boundary to read the required host controls, inspect
+the ingress container, and confirm every trusted pinned image is present. It
+does not create Docker resources or connect to PostgreSQL or Redis.
+
 Create/extend/destroy accept client idempotency keys. Repeated deliveries,
 partial creates, lost replies and worker restarts must not duplicate resources
 or points. One player has at most one active instance, a default 60-minute
