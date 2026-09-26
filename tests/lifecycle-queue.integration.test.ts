@@ -169,6 +169,27 @@ describeInfrastructure('durable lifecycle queue', () => {
     }
   });
 
+  it('releases the duplicated worker Redis connection on shutdown', async () => {
+    if (!testRedisUrl) throw new Error('Test Redis is required');
+    const shutdownQueue = new LifecycleQueue(
+      createRedisConnection(testRedisUrl),
+      repository,
+      `lifecycle-shutdown-${randomUUID()}`,
+    );
+    const shutdownWorker = shutdownQueue.createWorker({ handle: async () => undefined });
+    await shutdownWorker.waitUntilReady();
+    const workerClient = await shutdownWorker.client;
+    try {
+      await shutdownWorker.close();
+      await shutdownQueue.close();
+      const status = workerClient.status;
+      if (status !== 'end') workerClient.disconnect();
+      expect(status).toBe('end');
+    } finally {
+      if (workerClient.status !== 'end') workerClient.disconnect();
+    }
+  });
+
   async function insertOperation(type: LifecycleOperationType, idempotencyKey: string) {
     const [operation] = await database.db
       .insert(instanceOperations)

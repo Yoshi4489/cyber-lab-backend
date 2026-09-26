@@ -19,6 +19,7 @@ export const lifecycleJobOptions: JobsOptions = {
 
 export class LifecycleQueue {
   private readonly queue: Queue<LifecycleJobData, void, LifecycleOperationType>;
+  private readonly workerConnections = new Set<Redis>();
 
   constructor(
     private readonly connection: Redis,
@@ -76,6 +77,9 @@ export class LifecycleQueue {
         .markFailed(job.data.operationId, 'execution_failed', this.clock())
         .catch(() => undefined);
     });
+    // BullMQ treats a supplied Redis instance as shared and leaves it open on
+    // Worker.close(). This queue owns the duplicate and releases it in close().
+    this.workerConnections.add(workerConnection);
     return worker;
   }
 
@@ -85,6 +89,10 @@ export class LifecycleQueue {
 
   async close(): Promise<void> {
     await this.queue.close();
+    for (const workerConnection of this.workerConnections) {
+      if (workerConnection.status !== 'end') await workerConnection.quit();
+    }
+    this.workerConnections.clear();
     await this.connection.quit();
   }
 }
