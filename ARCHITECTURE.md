@@ -143,3 +143,7 @@ with managed Neon and Redis. Lab targets run on separate hosts/trust zones via
 Docker mTLS and isolated ingress. Readiness will check active dependencies;
 liveness stays independent of them. A domain/TLS setup is required before
 remote target routing, and every SECURITY.md gate must pass before public signup.
+The API and worker will use a restricted PostgreSQL application login; migrations
+will use a separate table owner. The reviewed grants and operational checks are
+described in [database roles](docs/DATABASE_ROLES.md). Production provisioning
+remains an open Phase 4 gate.

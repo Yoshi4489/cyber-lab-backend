@@ -105,3 +105,6 @@ lifecycle integration tests in addition to the four checks above.
 Production will use managed Neon
 PostgreSQL and managed Redis, with API and worker processes on a VM and target
 hosts in a separate trust zone.
+It also requires separate application and migration database roles; see
+[DATABASE_ROLES.md](DATABASE_ROLES.md). The local Compose owner credential is
+for development and integration testing, not the production runtime login.

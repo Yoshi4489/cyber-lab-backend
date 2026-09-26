@@ -35,8 +35,8 @@ manifest were used for the Phase 3 exit check. Dynamic submission scoring is
 active only for an owned, running, unexpired instance. Local development email
 is written only to the ignored `.local-mail` directory.
 
-Verification: 108 Vitest cases are defined; the current local run passes 66 and
-skips 42 environment-gated cases. Lint, type checking, and build pass on Node
+Verification: 109 Vitest cases are defined; the current local run passes 66 and
+skips 43 environment-gated cases. Lint, type checking, and build pass on Node
 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
@@ -70,9 +70,11 @@ Phase 4 VM probes additionally observed user-namespace remapping, seccomp,
 AppArmor, bounded resources, and `ENETUNREACH` to public, metadata, private,
 Docker-gateway, and separate-network peer destinations. A killed target was
 automatically removed and audited. Audit rows reject direct update/delete.
+The restricted application-role grants have a passing disposable-PostgreSQL
+integration test; production role provisioning remains open.
 See the [Phase 4 security gate record](docs/PHASE4_SECURITY_GATE.md) for exact
 evidence and open checks. Remote CI passed on `develop`
-([run 36236046093](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36236046093)).
+([run 36251545049](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36251545049)).
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
