@@ -26,32 +26,26 @@ export class FileTraefikRouter implements TraefikRouter {
     const name = resourceName(route.instanceId);
     const path = this.pathFor(route.instanceId);
     const temporaryPath = `${path}.${process.pid}.tmp`;
-    const configuration = {
-      http: {
-        routers: {
-          [name]: {
-            rule: `PathPrefix(\`/labs/${route.routeKey}/\`)`,
-            entryPoints: ['websecure'],
-            middlewares: [`${name}-strip`],
-            service: name,
-            tls: {},
-          },
-        },
-        middlewares: {
-          [`${name}-strip`]: {
-            stripPrefix: { prefixes: [`/labs/${route.routeKey}`] },
-          },
-        },
-        services: {
-          [name]: {
-            loadBalancer: {
-              servers: [{ url: `http://${route.targetHost}:${route.targetPort}` }],
-            },
-          },
-        },
-      },
-    };
-    await writeFile(temporaryPath, `${JSON.stringify(configuration, null, 2)}\n`, {
+    const configuration = [
+      'http:',
+      '  routers:',
+      `    ${name}:`,
+      `      rule: ${JSON.stringify(`PathPrefix(\`/labs/${route.routeKey}/\`)`)}`,
+      '      entryPoints: [websecure]',
+      `      middlewares: [${name}-strip]`,
+      `      service: ${name}`,
+      '      tls: {}',
+      '  middlewares:',
+      `    ${name}-strip:`,
+      '      stripPrefix:',
+      `        prefixes: [${JSON.stringify(`/labs/${route.routeKey}`)}]`,
+      '  services:',
+      `    ${name}:`,
+      '      loadBalancer:',
+      `        servers: [{url: ${JSON.stringify(`http://${route.targetHost}:${route.targetPort}`)}}]`,
+      '',
+    ].join('\n');
+    await writeFile(temporaryPath, configuration, {
       encoding: 'utf8',
       mode: 0o600,
     });
@@ -66,7 +60,7 @@ export class FileTraefikRouter implements TraefikRouter {
   }
 
   private pathFor(instanceId: string): string {
-    return join(this.directory, `${resourceName(instanceId)}.json`);
+    return join(this.directory, `${resourceName(instanceId)}.yml`);
   }
 }
 
