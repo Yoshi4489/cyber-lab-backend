@@ -58,7 +58,7 @@ export default tseslint.config(
   },
   {
     // This config file is plain JS with no tsconfig to resolve against.
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
   },
 );
