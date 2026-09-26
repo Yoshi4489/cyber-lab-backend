@@ -85,7 +85,7 @@ describe('Docker orchestrator', () => {
         PidsLimit: 64,
         Privileged: false,
         ReadonlyRootfs: true,
-        SecurityOpt: ['no-new-privileges:true', 'seccomp=default', 'apparmor=docker-default'],
+        SecurityOpt: ['no-new-privileges:true', 'apparmor=docker-default'],
       },
     });
     expect(options?.HostConfig).not.toHaveProperty('PortBindings');
@@ -103,6 +103,36 @@ describe('Docker orchestrator', () => {
     expect(router.remove).toHaveBeenCalledWith(INSTANCE_ID);
     expect(fixture.containerRemove).toHaveBeenCalledWith({ force: true, v: true });
     expect(fixture.networkRemove).toHaveBeenCalledOnce();
+  });
+
+  it('disconnects ingress before removing a network after a partial failure', async () => {
+    const fixture = dockerFixture({ startError: new Error('start failed') });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+
+    await expect(orchestrator.spawn(spawnInput())).rejects.toThrow('start failed');
+    expect(fixture.networkDisconnect).toHaveBeenCalledWith({ Container: 'ingress-id', Force: true });
+    expect(fixture.networkRemove).toHaveBeenCalledOnce();
+  });
+
+  it('reuses a labeled isolated network left by a failed spawn', async () => {
+    const fixture = dockerFixture({ existingNetwork: true, ingressAttached: true });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+
+    await expect(orchestrator.spawn(spawnInput())).resolves.toEqual({
+      containerId: 'container-id', networkId: 'network-id',
+    });
+    expect(fixture.createNetwork).not.toHaveBeenCalled();
+    expect(fixture.networkConnect).not.toHaveBeenCalled();
+    expect(fixture.createContainer).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to reuse a network for another challenge', async () => {
+    const fixture = dockerFixture({ existingNetwork: true, managedChallengeId: 'other-challenge' });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+
+    await expect(orchestrator.spawn(spawnInput())).rejects.toThrow('challenge label');
+    expect(fixture.createContainer).not.toHaveBeenCalled();
+    expect(fixture.networkRemove).not.toHaveBeenCalled();
   });
 
   it('fails closed when the Docker host lacks a required isolation control', async () => {
@@ -182,6 +212,9 @@ function dockerFixture(options: {
   startError?: Error;
   securityOptions?: string[];
   managedInstanceId?: string;
+  managedChallengeId?: string;
+  existingNetwork?: boolean;
+  ingressAttached?: boolean;
   ingressRunning?: boolean;
   availableImages?: string[];
 } = {}) {
@@ -207,14 +240,22 @@ function dockerFixture(options: {
       },
     })),
   };
+  let ingressAttached = options.ingressAttached ?? false;
+  const networkConnect = vi.fn(async () => { ingressAttached = true; });
+  const networkDisconnect = vi.fn(async () => { ingressAttached = false; });
   const network = {
     id: 'network-id',
-    connect: vi.fn(async () => undefined),
+    connect: networkConnect,
+    disconnect: networkDisconnect,
     remove: networkRemove,
     inspect: vi.fn(async () => ({
+      Internal: true,
+      Attachable: false,
+      Containers: ingressAttached ? { 'ingress-id': { Name: 'traefik' } } : {},
       Labels: {
         'cyber-range.managed': 'true',
         'cyber-range.instance-id': options.managedInstanceId ?? INSTANCE_ID,
+        'cyber-range.challenge-id': options.managedChallengeId ?? CHALLENGE_ID,
       },
     })),
   };
@@ -238,7 +279,7 @@ function dockerFixture(options: {
       ],
     })),
     listContainers: vi.fn(async () => []),
-    listNetworks: vi.fn(async () => []),
+    listNetworks: vi.fn(async () => options.existingNetwork ? [{ Id: 'network-id' }] : []),
     createContainer,
     createNetwork,
     getContainer,
@@ -253,5 +294,7 @@ function dockerFixture(options: {
     getImage,
     containerRemove,
     networkRemove,
+    networkConnect,
+    networkDisconnect,
   };
 }

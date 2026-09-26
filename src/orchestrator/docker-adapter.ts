@@ -42,7 +42,9 @@ export class DockerOrchestrator {
     if (existing) {
       const network = await this.findNetwork(input.instanceId);
       if (!network) throw new Error('Managed container is missing its isolated network');
+      await assertManagedNetwork(network.network, input.instanceId, input.challengeId);
       try {
+        await this.ensureIngressConnected(network.network);
         await startContainer(existing.container);
         await this.router.upsert({
           instanceId: input.instanceId,
@@ -55,7 +57,7 @@ export class DockerOrchestrator {
       } catch (error) {
         await this.router.remove(input.instanceId).catch(() => undefined);
         await removeContainer(existing.container).catch(() => undefined);
-        await removeNetwork(network.network).catch(() => undefined);
+        await this.removeNetwork(network.network).catch(() => undefined);
         throw error;
       }
     }
@@ -63,16 +65,8 @@ export class DockerOrchestrator {
     let network: Docker.Network | undefined;
     let container: Docker.Container | undefined;
     try {
-      network = await this.docker.createNetwork({
-        Name: names.network,
-        Internal: true,
-        Attachable: false,
-        CheckDuplicate: true,
-        Labels: managedLabels(input.instanceId, input.challengeId),
-      });
-      if (this.ingressContainer) {
-        await network.connect({ Container: this.ingressContainer });
-      }
+      network = await this.ensureNetwork(input, names.network);
+      await this.ensureIngressConnected(network);
       container = await this.docker.createContainer(
         buildContainerOptions(input, names.container, names.network),
       );
@@ -91,7 +85,7 @@ export class DockerOrchestrator {
     } catch (error) {
       await this.router.remove(input.instanceId).catch(() => undefined);
       await removeContainer(container).catch(() => undefined);
-      await removeNetwork(network).catch(() => undefined);
+      if (network) await this.removeNetwork(network).catch(() => undefined);
       throw error;
     }
   }
@@ -105,7 +99,7 @@ export class DockerOrchestrator {
     const network = input.networkId
       ? await this.getManagedNetwork(input.networkId, input.instanceId)
       : (await this.findNetwork(input.instanceId))?.network;
-    if (network) await removeNetwork(network);
+    if (network) await this.removeNetwork(network);
   }
 
   async hasManagedContainer(instanceId: string): Promise<boolean> {
@@ -144,6 +138,61 @@ export class DockerOrchestrator {
       }
     }
     this.hostVerified = true;
+  }
+
+  private async ensureNetwork(input: SpawnTargetInput, name: string): Promise<Docker.Network> {
+    const existing = await this.findNetwork(input.instanceId);
+    if (existing) {
+      await assertManagedNetwork(existing.network, input.instanceId, input.challengeId);
+      return existing.network;
+    }
+
+    try {
+      return await this.docker.createNetwork({
+        Name: name,
+        Internal: true,
+        Attachable: false,
+        CheckDuplicate: true,
+        Labels: managedLabels(input.instanceId, input.challengeId),
+      });
+    } catch (error) {
+      if (!isDockerConflict(error)) throw error;
+      const recovered = await this.findNetwork(input.instanceId);
+      if (!recovered) throw error;
+      await assertManagedNetwork(recovered.network, input.instanceId, input.challengeId);
+      return recovered.network;
+    }
+  }
+
+  private async ensureIngressConnected(network: Docker.Network): Promise<void> {
+    if (!this.ingressContainer) return;
+    const attached = async () => {
+      const details = await network.inspect();
+      return Object.values(details.Containers ?? {}).some(
+        (container) => container.Name === this.ingressContainer,
+      );
+    };
+    if (await attached()) return;
+    try {
+      await network.connect({ Container: this.ingressContainer });
+    } catch (error) {
+      if (!(await attached())) throw error;
+    }
+  }
+
+  private async removeNetwork(network: Docker.Network): Promise<void> {
+    const details = await network.inspect().catch((error: unknown) => {
+      if (isDockerNotFound(error)) return null;
+      throw error;
+    });
+    if (!details) return;
+    if (this.ingressContainer) {
+      const attached = Object.entries(details.Containers ?? {}).find(
+        ([, container]) => container.Name === this.ingressContainer,
+      );
+      if (attached) await network.disconnect({ Container: attached[0], Force: true });
+    }
+    await removeDockerNetwork(network);
   }
 
   private async findContainer(instanceId: string) {
@@ -237,7 +286,8 @@ function buildContainerOptions(
       PidsLimit: input.manifest.resources.pids,
       Privileged: false,
       ReadonlyRootfs: true,
-      SecurityOpt: ['no-new-privileges:true', 'seccomp=default', 'apparmor=docker-default'],
+      // The verified host's built-in seccomp profile applies when no override is set.
+      SecurityOpt: ['no-new-privileges:true', 'apparmor=docker-default'],
       Tmpfs: {
         '/tmp': `rw,noexec,nosuid,nodev,size=${input.manifest.resources.tmpfsMb}m`,
       },
@@ -280,6 +330,21 @@ function assertManagedLabels(
   }
 }
 
+async function assertManagedNetwork(
+  network: Docker.Network,
+  instanceId: string,
+  challengeId: string,
+): Promise<void> {
+  const details = await network.inspect();
+  assertManagedLabels(details.Labels, instanceId);
+  if (details.Labels?.[CHALLENGE_LABEL] !== challengeId) {
+    throw new Error('Managed network challenge label does not match the requested challenge');
+  }
+  if (!details.Internal || details.Attachable) {
+    throw new Error('Managed network does not meet isolation requirements');
+  }
+}
+
 async function removeContainer(container: Docker.Container | undefined): Promise<void> {
   if (!container) return;
   await container.stop({ t: 10 }).catch((error: unknown) => {
@@ -296,8 +361,7 @@ async function startContainer(container: Docker.Container): Promise<void> {
   });
 }
 
-async function removeNetwork(network: Docker.Network | undefined): Promise<void> {
-  if (!network) return;
+async function removeDockerNetwork(network: Docker.Network): Promise<void> {
   await network.remove().catch((error: unknown) => {
     if (!isDockerNotFound(error)) throw error;
   });
@@ -314,4 +378,8 @@ function isDockerNotFoundOrStopped(error: unknown): boolean {
 
 function isDockerAlreadyStarted(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'statusCode' in error && error.statusCode === 304;
+}
+
+function isDockerConflict(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'statusCode' in error && error.statusCode === 409;
 }
