@@ -17,11 +17,18 @@ const jobRepository = new DrizzleLifecycleJobRepository(database.db);
 const stateRepository = new DrizzleLifecycleStateRepository(database.db);
 const manifests = await loadRuntimeManifestRegistry(config.RUNTIME_MANIFEST_PATH);
 const docker = await createWorkerDockerClient(config);
+const router = new FileTraefikRouter(config.TRAEFIK_DYNAMIC_DIRECTORY);
 const orchestrator = new DockerOrchestrator(
   docker,
-  new FileTraefikRouter(config.TRAEFIK_DYNAMIC_DIRECTORY),
+  router,
   config.LAB_INGRESS_CONTAINER,
 );
+await orchestrator.preflight(manifests.all());
+if (config.TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY) {
+  await router.verifyIngressVisibility(
+    docker, config.LAB_INGRESS_CONTAINER, config.TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY,
+  );
+}
 const nodeId = await stateRepository.registerNode(config.LAB_NODE_NAME, new Date());
 const handler = new DockerLifecycleHandler(
   stateRepository,

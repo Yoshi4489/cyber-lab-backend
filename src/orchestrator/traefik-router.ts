@@ -1,5 +1,7 @@
+import { randomBytes } from 'node:crypto';
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type Docker from 'dockerode';
 
 export type TraefikRoute = {
   instanceId: string;
@@ -19,6 +21,40 @@ const safeRouteKey = /^[A-Za-z0-9_-]{24,64}$/u;
 
 export class FileTraefikRouter implements TraefikRouter {
   constructor(private readonly directory: string) {}
+
+  async verifyIngressVisibility(docker: Docker, ingressContainer: string, containerDirectory: string): Promise<void> {
+    if (!/^\/(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+$/u.test(containerDirectory) ||
+      containerDirectory.split('/').includes('..')) {
+      throw new Error('Invalid ingress dynamic directory');
+    }
+    const markerName = `.cyber-range-preflight-${randomBytes(16).toString('hex')}`;
+    const marker = randomBytes(32).toString('hex');
+    await mkdir(this.directory, { recursive: true });
+    const markerPath = join(this.directory, markerName);
+    try {
+      await writeFile(markerPath, marker, { encoding: 'utf8', mode: 0o644, flag: 'wx' });
+      const archive = await docker.getContainer(ingressContainer).getArchive({
+        path: `${containerDirectory}/${markerName}`,
+      });
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of archive) {
+        const bytes = typeof chunk === 'string' ? Buffer.from(chunk) : Buffer.from(chunk as Uint8Array);
+        size += bytes.length;
+        if (size > 16_384) throw new Error('Ingress visibility response is too large');
+        chunks.push(bytes);
+      }
+      if (!Buffer.concat(chunks).includes(Buffer.from(marker))) {
+        throw new Error('Ingress cannot read the worker route directory');
+      }
+    } catch {
+      throw new Error('Ingress cannot read the worker route directory');
+    } finally {
+      await unlink(markerPath).catch((error: unknown) => {
+        if (!isFileNotFound(error)) throw error;
+      });
+    }
+  }
 
   async upsert(route: TraefikRoute): Promise<void> {
     validateRoute(route);

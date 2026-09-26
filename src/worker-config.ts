@@ -7,6 +7,7 @@ const workerEnvSchema = z.object({
   INSTANCE_FLAG_SECRET: z.string().min(32),
   RUNTIME_MANIFEST_PATH: z.string().min(1),
   TRAEFIK_DYNAMIC_DIRECTORY: z.string().min(1),
+  TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: z.string().min(1).optional(),
   LAB_INGRESS_CONTAINER: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/u),
   LAB_NODE_NAME: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/u).default('local-lab-node'),
   DOCKER_SOCKET_PATH: z.string().min(1).optional(),
@@ -32,6 +33,9 @@ const workerEnvSchema = z.object({
   }
   if (config.NODE_ENV === 'production' && config.DOCKER_SOCKET_PATH) {
     context.addIssue({ code: 'custom', message: 'Production workers require remote Docker mTLS' });
+  }
+  if (config.NODE_ENV === 'production' && !config.TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY) {
+    context.addIssue({ code: 'custom', message: 'Production workers must verify ingress route visibility' });
   }
 });
 

@@ -8,10 +8,17 @@ const base = {
   INSTANCE_FLAG_SECRET: 'worker-flag-secret-at-least-thirty-two-characters',
   RUNTIME_MANIFEST_PATH: '/run/config/manifests.json',
   TRAEFIK_DYNAMIC_DIRECTORY: '/run/traefik/dynamic',
+  TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: '/etc/traefik/dynamic',
   LAB_INGRESS_CONTAINER: 'traefik',
 };
 
 describe('worker configuration boundary', () => {
+  it('requires a route visibility probe in production', () => {
+    const { TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: _directory, ...withoutProbe } = base;
+    expect(() => loadWorkerConfig(withoutProbe)).toThrow(
+      'Production workers must verify ingress route visibility',
+    );
+  });
   it('requires complete remote Docker mTLS in production', () => {
     expect(() => loadWorkerConfig({ ...base, DOCKER_SOCKET_PATH: '/var/run/docker.sock' })).toThrow(
       'Production workers require remote Docker mTLS',
