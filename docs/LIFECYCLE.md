@@ -109,6 +109,27 @@ run the disposable target exit flow: create, poll until running, submit, extend,
 destroy or expire, and recover after a worker restart. Record the command
 output and lifecycle evidence as the final Phase 3 isolated-host check.
 
+The prepared `scripts/phase3-exit.js` runner uses a seeded disposable player
+account and the backend auth/session contract to obtain a scoped service token.
+It prints instance IDs and status only; it never prints credentials or flags.
+With the API, worker, PostgreSQL, Redis, and loopback ingress running, load an
+ignored environment file containing their disposable connection settings and
+run:
+
+```sh
+node --env-file=.env.phase3.windows scripts/phase3-exit.js full
+```
+
+The full mode checks create idempotency, readiness-only URL disclosure, ingress
+health, first and repeated flag submissions, extension bounds and idempotency,
+destroy and route removal. To check restart recovery, stop the worker, run
+`prepare-recovery` in place of `full`, record the printed instance ID, restart
+the worker, then run `resume-recovery <instance-id>`. The prepare mode confirms
+the instance remains pending while the worker is stopped. The runner's
+`PHASE3_ALLOW_LOCAL_SELF_SIGNED=true` setting permits Traefik's disposable
+self-signed certificate only for the loopback ingress checked by this script.
+These commands are prepared for the exit check but have not yet run on the VM.
+
 The verification Docker Desktop host lacked user namespaces and AppArmor. Its
 actual preflight failed at the user-namespace gate and left zero
 backend-managed containers or networks, so no real target was launched there.
