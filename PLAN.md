@@ -9,7 +9,7 @@ the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-The current local run passes 66 tests and skips 45 environment-gated cases on
+The current local run passes 69 tests and skips 45 environment-gated cases on
 Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
 and accept direct client operations. Remote CI has passed on `develop`. See
 README for current verification evidence.
@@ -113,11 +113,11 @@ A routing domain and certificates are prerequisites for remote deployment.
 - Implemented: the narrow Docker adapter, fixed runtime restrictions, trusted image
   manifests, isolated networks, generated Traefik routes, health polling and
   cleanup of partial failures.
-- Implemented: `npm run worker:preflight`, a read-only check of the Docker
+- Implemented: `npm run worker:preflight`, a check of the Docker
   isolation controls, ingress availability, and every reviewed pinned image
   before a worker receives lifecycle jobs.
 - Implemented: expiry/reconciliation jobs and backend polling integration tests.
-- Passed on the Ubuntu VM: read-only preflight with userns, seccomp, AppArmor,
+- Passed on the Ubuntu VM: preflight with userns, seccomp, AppArmor,
   running ingress and one reviewed pinned HTTP fixture image.
 - Passed on the Ubuntu VM: full create/poll/submit/extend/destroy target run and
   pending-operation recovery after a worker restart.
@@ -158,7 +158,9 @@ validated on the VM. Direct audit row mutation is blocked by migrations
 0003-0004. A restricted application-role grant script
 and separate-login disposable-database test now pass CI. A disposable mTLS
 handshake test passes, but the production roles and remote Engine connection are
-not provisioned. See the
+not provisioned. Worker startup now probes whether its route directory is
+visible inside ingress; the disposable VM passed the probe and rejected a wrong
+path. Authenticated separate-host route delivery remains open. See the
 [Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) for exact evidence and
 limits. **The gate remains open.**
 
@@ -174,8 +176,9 @@ target/control-plane trust-zone blocking; run two application instances across
 networks; repeat crash/retry with the separate-host worker; provision and verify
 separate production application and migration database roles; and finish
 frontend/operational launch controls. Remote Traefik route delivery also needs
-an implementation: the current file router writes beside the worker, while
-ingress is planned on the target host.
+an authenticated implementation: the current file router writes beside the
+worker, while ingress is planned on the target host. The visibility probe fails
+closed but does not deliver files.
 The single-node worker is serialized. Multi-worker scale-out needs a
 per-instance distributed lock and is deferred until it can be tested.
 

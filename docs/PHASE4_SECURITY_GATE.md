@@ -27,6 +27,7 @@ separate target trust zone.
 | Audit append-only | Migrations 0003-0004 rejected direct `UPDATE`/`DELETE` with SQLSTATE 55000 and retained audit rows while user references were anonymized by foreign keys. | Passed on disposable PostgreSQL |
 | Application database grants | CI created a temporary `cyber_range_app` group and separate login, applied `scripts/db-app-role.sql`, and connected as that login. Audit insert worked; audit update/delete/truncate, table creation/alteration, and user deletion failed with SQLSTATE 42501. Test writes rolled back and both roles were removed. | Passed in CI; production role pending |
 | Remote Docker mTLS | Production config requires HTTPS host, CA, client certificate, and key and rejects a local socket or URL credentials/path. Ubuntu CI completed a generated-certificate HTTPS handshake with the worker client, required its client certificate, and rejected an untrusted server CA. No remote Engine connection was exercised. | Local handshake passed; remote Engine pending |
+| Ingress route visibility | Worker startup and preflight write a random marker beside routes and read it through the Docker archive API inside ingress, then remove it. On the disposable VM, `/etc/traefik/dynamic` passed and an incorrect container path failed; no marker remained. Production requires the ingress directory setting. | Passed on disposable VM; authenticated remote delivery pending |
 
 The committed `scripts/phase4-probe.mjs` is the target-side pass/fail probe.
 Its private-host and Docker-gateway addresses are specific to this VM. The
@@ -45,7 +46,9 @@ running for future disposable checks.
    server-certificate verification and no target/control-plane credentials or
    management routes exposed to the target. Define and verify authenticated
    delivery of Traefik file-provider routes to that host: the current router
-   writes files beside the worker, not beside the remote ingress.
+   writes files beside the worker, not beside the remote ingress. The visibility
+   probe checks whether a file appears inside ingress; it neither transports
+   files nor proves Traefik loaded the provider configuration.
 2. Repeat egress, metadata, private-address, control-plane, and cross-instance
    probes in that topology, including an application-created second instance.
    The VM's separate peer network demonstrates only local Docker isolation.

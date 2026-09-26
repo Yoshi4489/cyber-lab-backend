@@ -16,7 +16,8 @@ This repository is
 ## Project status
 
 **Now:** Phase 3 passed; Phase 4 disposable-host hardening and isolation probes passed.
-**Next:** Verify separate trust zones, remote Docker mTLS, and remaining launch controls.
+**Next:** Implement authenticated remote route delivery, verify separate trust zones
+and remote Docker mTLS, and complete remaining launch controls.
 **Last updated:** 2026-09-27.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
@@ -35,7 +36,7 @@ manifest were used for the Phase 3 exit check. Dynamic submission scoring is
 active only for an owned, running, unexpired instance. Local development email
 is written only to the ignored `.local-mail` directory.
 
-Verification: 111 Vitest cases are defined; the current local run passes 66 and
+Verification: 114 Vitest cases are defined; the current local run passes 69 and
 skips 45 environment-gated cases. Lint, type checking, and build pass on Node
 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
@@ -158,7 +159,7 @@ Never commit credentials, `.env`, certificates, TLS material, or real flags.
 | `npm start` | Run the compiled server |
 | `npm run worker` | Run the lifecycle worker from TypeScript |
 | `npm run worker:start` | Run the compiled lifecycle worker |
-| `npm run worker:preflight` | Read-only isolated-host readiness check before starting a worker |
+| `npm run worker:preflight` | Isolated-host readiness check; optionally writes and removes an ingress visibility marker |
 | `npm run worker:preflight:start` | Run the compiled host preflight |
 | `npm run db:generate` | Generate a reviewed migration after schema changes |
 | `npm run db:migrate` | Apply committed PostgreSQL migrations |
@@ -200,7 +201,8 @@ contains separate worker settings. Docker credentials are parsed only by
 | `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
 | `REDIS_URL` | Worker | BullMQ connection; never sent to targets or frontend |
 | `RUNTIME_MANIFEST_PATH` | Worker/preflight | Reviewed JSON array of pinned runtime manifests |
-| `TRAEFIK_DYNAMIC_DIRECTORY`, `LAB_INGRESS_CONTAINER` | Worker/preflight | Isolated ingress file-provider path and container name |
+| `TRAEFIK_DYNAMIC_DIRECTORY`, `LAB_INGRESS_CONTAINER` | Worker/preflight | Worker route directory and isolated ingress container name |
+| `TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY` | Production worker/preflight | Ingress container directory; startup checks that a temporary worker file is visible there |
 | `LAB_NODE_NAME` | Worker/preflight | Non-secret scheduling identity stored in PostgreSQL |
 | `DOCKER_HOST`, `DOCKER_CA_PATH`, `DOCKER_CERT_PATH`, `DOCKER_KEY_PATH` | Production worker/preflight | Complete remote Docker mTLS configuration |
 | `DOCKER_SOCKET_PATH` | Development worker/preflight only | Local disposable testing; rejected in production |

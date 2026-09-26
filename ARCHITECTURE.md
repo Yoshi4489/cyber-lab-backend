@@ -116,7 +116,8 @@ intent with Docker resources labeled by backend-owned IDs and repairs drift.
 
 Before starting a worker on an isolated host, `npm run worker:preflight` uses
 the same Docker credential boundary to read the required host controls, inspect
-the ingress container, and confirm every trusted pinned image is present. It
+the ingress container, and confirm every trusted pinned image is present. When
+configured, it writes and removes a temporary ingress visibility marker. It
 does not create Docker resources or connect to PostgreSQL or Redis.
 
 Create/extend/destroy accept client idempotency keys. Repeated deliveries,
@@ -133,10 +134,13 @@ and audits stopped, unhealthy, OOM-killed, or missing targets.
 The queue owns its duplicated BullMQ Redis client and closes it on shutdown;
 the idle worker exited within five seconds of SIGTERM on the validation VM.
 
-The file router currently writes to the worker's local filesystem. In the
-planned separate-host topology, Traefik cannot read that directory by default.
-An authenticated route-delivery path to the target host is required before the
-remote lifecycle can pass the Phase 4 gate.
+The file router currently writes to the worker's local filesystem. Worker
+startup and preflight write a temporary marker and read it through the Docker
+archive API inside ingress. Production requires the ingress directory setting;
+startup fails if the file is not visible. This verifies path visibility, not
+authenticated transfer, Traefik provider configuration, or separate-host trust
+zones. An authenticated route-delivery path to the target host remains required
+before the remote lifecycle can pass the Phase 4 gate.
 
 ## Deployment boundaries
 
