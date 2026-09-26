@@ -22,7 +22,8 @@ describeDatabase('Docker lifecycle state machine', () => {
   let handler: DockerLifecycleHandler;
   const userId = randomUUID();
   const nodeName = `handler-node-${randomUUID()}`;
-  const now = new Date('2026-02-01T00:00:00.000Z');
+  // Other integration files run maintenance against the same database in parallel.
+  const now = new Date();
   const challenge = CHALLENGE_DEFINITIONS[0];
   const spawn = vi.fn(async () => ({ containerId: 'container-1', networkId: 'network-1' }));
   const destroy = vi.fn(async () => undefined);
