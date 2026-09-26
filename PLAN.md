@@ -154,7 +154,7 @@ filesystem/resource, egress, cross-network peer, and ingress checks. The
 adapter now bounds swap and logs, rejects disabled seccomp, and terminates
 stopped/unhealthy/OOM targets with an audit event. Direct audit row mutation
 is blocked by migrations 0003-0004. A restricted application-role grant script
-and disposable-database privilege test now pass CI; the production roles are
+and separate-login disposable-database test now pass CI; the production roles are
 not provisioned. See the
 [Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) for exact evidence and
 limits. **The gate remains open.**

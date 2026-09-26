@@ -115,7 +115,7 @@ reference anonymization. Automatic stopped-target cleanup and its audit event
 passed on the VM; OOM/unhealthy paths have automated tests. A production
 application role without table ownership, DDL, or audit mutation grants and
 full production-topology isolation evidence remain required. The reviewed
-`scripts/db-app-role.sql` grants and a disposable-PostgreSQL privilege test
+`scripts/db-app-role.sql` grants and a separate-login PostgreSQL privilege test
 passed CI; no production role has been provisioned.
 
 ## Launch evidence

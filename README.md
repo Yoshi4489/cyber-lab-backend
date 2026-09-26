@@ -70,11 +70,11 @@ Phase 4 VM probes additionally observed user-namespace remapping, seccomp,
 AppArmor, bounded resources, and `ENETUNREACH` to public, metadata, private,
 Docker-gateway, and separate-network peer destinations. A killed target was
 automatically removed and audited. Audit rows reject direct update/delete.
-The restricted application-role grants have a passing disposable-PostgreSQL
-integration test; production role provisioning remains open.
+The restricted application-role grants pass a disposable-PostgreSQL test through
+a separate login; production role provisioning remains open.
 See the [Phase 4 security gate record](docs/PHASE4_SECURITY_GATE.md) for exact
 evidence and open checks. Remote CI passed on `develop`
-([run 36251545049](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36251545049)).
+([run 36255480044](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36255480044)).
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup

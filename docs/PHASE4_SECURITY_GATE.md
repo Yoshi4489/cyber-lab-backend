@@ -22,7 +22,7 @@ tunnels. This is a validation topology, not a separate target trust zone.
 | Isolated ingress | HTTPS reached the live target through its unguessable Traefik route; target had no host port. After destruction, the route returned 404 and managed Docker resources were absent. | Passed on VM |
 | Automatic termination | Killing a labeled disposable target led to instance `failed` with `runtime_stopped`, an `instance.runtime_terminated` audit event, and removal of the container, network, and route. VM maintenance interval was 5 seconds; the default is 60 seconds. OOM and unhealthy paths have unit/integration tests but no live abuse drill. | Stopped path passed; other paths pending live proof |
 | Audit append-only | Migrations 0003-0004 rejected direct `UPDATE`/`DELETE` with SQLSTATE 55000 and retained audit rows while user references were anonymized by foreign keys. | Passed on disposable PostgreSQL |
-| Application database grants | CI created a temporary `cyber_range_app` role, applied `scripts/db-app-role.sql`, then verified audit insert works while audit update/delete/truncate, table creation, and user deletion fail with SQLSTATE 42501. The transaction rolled back. | Passed in CI; production role pending |
+| Application database grants | CI created a temporary `cyber_range_app` group and separate login, applied `scripts/db-app-role.sql`, and connected as that login. Audit insert worked; audit update/delete/truncate, table creation/alteration, and user deletion failed with SQLSTATE 42501. Test writes rolled back and both roles were removed. | Passed in CI; production role pending |
 | Remote Docker mTLS | Production config requires HTTPS host, CA, client certificate, and key and rejects a local socket or URL credentials/path. No remote Engine connection was exercised. | Pending |
 
 The committed `scripts/phase4-probe.mjs` is the target-side pass/fail probe.
@@ -49,7 +49,7 @@ or networks, and the dynamic route directory was empty.
 4. Provision the production application and migration-owner roles separately
    using [the database role procedure](DATABASE_ROLES.md). Apply the reviewed
    grants, verify direct and inherited privileges, and run the API and worker
-   with the application login. The CI privilege test does not prove production
+   with the application login. The CI login test does not prove production
    grants or prevent a database owner from disabling the audit trigger.
 5. Complete the remaining launch controls in `SECURITY.md`: frontend secure
    cookie/CSRF integration, production email handling, operational backup and
