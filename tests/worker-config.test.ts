@@ -32,4 +32,23 @@ describe('worker configuration boundary', () => {
       DOCKER_HOST: 'https://lab.example.test:2376',
     });
   });
+
+  it('rejects Docker endpoint credentials and paths before reading TLS material', () => {
+    const tls = {
+      ...base,
+      DOCKER_CA_PATH: '/run/secrets/docker-ca.pem',
+      DOCKER_CERT_PATH: '/run/secrets/docker-cert.pem',
+      DOCKER_KEY_PATH: '/run/secrets/docker-key.pem',
+    };
+    for (const DOCKER_HOST of [
+      'https://user:password@lab.example.test:2376',
+      'https://lab.example.test:2376/containers',
+      'https://lab.example.test:2376/?token=secret',
+      'http://lab.example.test:2375',
+    ]) {
+      expect(() => loadWorkerConfig({ ...tls, DOCKER_HOST })).toThrow(
+        'Docker endpoint must be an HTTPS host',
+      );
+    }
+  });
 });

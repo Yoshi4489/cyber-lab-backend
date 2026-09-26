@@ -10,7 +10,11 @@ const workerEnvSchema = z.object({
   LAB_INGRESS_CONTAINER: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/u),
   LAB_NODE_NAME: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/u).default('local-lab-node'),
   DOCKER_SOCKET_PATH: z.string().min(1).optional(),
-  DOCKER_HOST: z.url().startsWith('https://').optional(),
+  DOCKER_HOST: z.url().refine((value) => {
+    const endpoint = new URL(value);
+    return endpoint.protocol === 'https:' && !endpoint.username && !endpoint.password &&
+      endpoint.pathname === '/' && !endpoint.search && !endpoint.hash;
+  }, 'Docker endpoint must be an HTTPS host with no credentials, path, query, or fragment').optional(),
   DOCKER_CA_PATH: z.string().min(1).optional(),
   DOCKER_CERT_PATH: z.string().min(1).optional(),
   DOCKER_KEY_PATH: z.string().min(1).optional(),
