@@ -7,8 +7,8 @@ failures are required security boundaries.
 Phases 1 through 3 implement the database-backed authentication, catalog,
 scoring, dynamic-flag, progress, lifecycle, queue and restricted Docker adapter
 controls described below. Browser cookie/CSRF and frontend lifecycle integration,
-production email, operations, and Phase 4 isolation evidence remain launch
-requirements. A disposable target completed the Phase 3 lifecycle check on
+production email, operations, and production-topology isolation evidence remain
+launch requirements. A disposable target completed the Phase 3 lifecycle check on
 the Ubuntu VM; no production target has been launched.
 
 ## API and authorization
@@ -76,8 +76,10 @@ user namespaces, seccomp and AppArmor. `npm run worker:preflight` checks those
 controls, the configured ingress state, and local availability of every
 reviewed pinned image before operators start a worker on a target host. Phase 4
 records isolated-host evidence and hardens the boundary; it does not defer the
-basic restrictions. The Phase 3 VM lifecycle check passed, but runtime network
-blocking, storage limits, and remote mTLS are not yet verified.
+basic restrictions. The Phase 4 VM probe observed user-namespace remapping,
+seccomp filtering, AppArmor, zero effective capabilities, read-only root,
+bounded tmpfs/memory/swap/CPU/PIDs/logs, no mounts or host ports, and blocked
+egress. This evidence does not cover remote mTLS or production trust zones.
 
 ## Network boundary
 
@@ -107,8 +109,12 @@ blocking, storage limits, and remote mTLS are not yet verified.
 
 Phases 2 and 3 enforce the flag, solve uniqueness, audit content, subject-bound
 progress, verified-user rate limits, real owned-instance resolution, runtime-only
-flag derivation, idempotent lifecycle intent and reaping. Append-only production
-audit roles and full isolation evidence remain Phase 4 work.
+flag derivation, idempotent lifecycle intent and reaping. Phase 4 migrations
+reject direct audit `UPDATE` and `DELETE` while retaining rows during user
+reference anonymization. Automatic stopped-target cleanup and its audit event
+passed on the VM; OOM/unhealthy paths have automated tests. A production
+application role without table ownership, DDL, or audit mutation grants and
+full production-topology isolation evidence remain required.
 
 ## Launch evidence
 
@@ -116,6 +122,9 @@ Public signup remains closed until every required control is implemented and
 reviewed. Track evidence for token/session abuse, cross-user access, flag/log
 leakage, concurrent solves, retries/crash recovery, container restrictions,
 egress/private-range blocking and cross-instance isolation.
+
+The [Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) lists observed VM
+evidence and every open production-topology check. The gate is not complete.
 
 A completed security gate authorizes a separate launch decision; it never
 automatically flips signup open. Health endpoints, a passing mock suite,

@@ -15,8 +15,8 @@ This repository is
 
 ## Project status
 
-**Now:** Phase 3 disposable-host lifecycle and restart recovery passed on the Ubuntu VM.
-**Next:** Phase 4 isolation hardening and security verification.
+**Now:** Phase 3 passed; Phase 4 disposable-host hardening and isolation probes passed.
+**Next:** Verify separate trust zones, remote Docker mTLS, and remaining launch controls.
 **Last updated:** 2026-09-26.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
@@ -29,14 +29,14 @@ lifecycle state, BullMQ delivery/recovery, expiry/reconciliation, a separate
 worker, restricted Docker options, and generated Traefik file-provider routes.
 
 Not implemented yet: the frontend cookie/CSRF, scoring and lifecycle checkpoints,
-production email delivery, authored player challenges, Phase 4 isolation evidence,
-or deployment. A disposable HTTP target and runtime manifest were used for the
-Phase 3 exit check. Dynamic submission scoring is active only for
-an owned, running, unexpired instance. Local development email is written only
-to the ignored `.local-mail` directory.
+production email delivery, authored player challenges, production-topology
+isolation evidence, or deployment. A disposable HTTP target and runtime
+manifest were used for the Phase 3 exit check. Dynamic submission scoring is
+active only for an owned, running, unexpired instance. Local development email
+is written only to the ignored `.local-mail` directory.
 
-Verification: 101 Vitest cases are defined; the current local run passes 63 and
-skips 38 environment-gated cases. Lint, type checking, and build pass on Node
+Verification: 108 Vitest cases are defined; the current local run passes 66 and
+skips 42 environment-gated cases. Lint, type checking, and build pass on Node
 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
@@ -65,9 +65,14 @@ loopback SSH tunnels and the worker ran on Ubuntu. The disposable target reached
 points once and zero on replay, extended within the cap, stopped, and lost its
 route. A pending operation recovered after the worker restarted. Both runs left
 zero backend-managed containers, networks, and dynamic routes. This single-host
-validation topology does not establish Phase 4 network isolation or production
-trust-zone separation. Remote CI for the route fix passed on `develop`
-([run 36233883933](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36233883933)).
+validation topology does not establish production trust-zone separation.
+Phase 4 VM probes additionally observed user-namespace remapping, seccomp,
+AppArmor, bounded resources, and `ENETUNREACH` to public, metadata, private,
+Docker-gateway, and separate-network peer destinations. A killed target was
+automatically removed and audited. Audit rows reject direct update/delete.
+See the [Phase 4 security gate record](docs/PHASE4_SECURITY_GATE.md) for exact
+evidence and open checks. Remote CI passed on `develop`
+([run 36236046093](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36236046093)).
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
@@ -81,13 +86,14 @@ script is retained.
 | 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF contract | Implemented |
 | 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Implemented |
 | 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Implemented; Ubuntu VM lifecycle and restart recovery passed |
-| 4 | Isolation hardening and security review; required gate for public signup | In progress |
+| 4 | Isolation hardening and security review; required gate for public signup | VM controls passed; production gate open |
 | 5 | Admin tools, monitoring, backup/restore, operational deployment | Planned |
 | 6 | Browser terminal, TCP/VPN access, multi-node scheduling, advanced progression/auth | Deferred |
 
 See [PLAN.md](PLAN.md) for ordered tasks, dependencies, effort, and exit criteria.
 There is no fixed delivery deadline. The immediate milestone is Phase 4
-isolation evidence; the frontend lifecycle contract checkpoint remains open.
+production-topology verification; the frontend lifecycle contract checkpoint
+remains open.
 
 Public signup stays closed until every required control in
 [SECURITY.md](SECURITY.md) is implemented and reviewed.

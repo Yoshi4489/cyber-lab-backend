@@ -9,11 +9,12 @@ the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-The current local run passes 63 tests and skips 38 environment-gated cases on
+The current local run passes 66 tests and skips 42 environment-gated cases on
 Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
 and accept direct client operations. Remote CI has passed on `develop`. See
 README for current verification evidence.
-Nothing is deployed and public signup remains closed.
+Nothing is deployed and public signup remains closed. Phase 4 VM checks have
+passed, while production trust-zone and mTLS checks remain open.
 
 The Ubuntu 26.04 validation VM now advertises userns, seccomp and AppArmor.
 On 2026-09-26, preflight and the disposable HTTP lifecycle passed with a
@@ -148,12 +149,27 @@ from the production requirement for distinct control-plane and target trust zone
 
 Dependency: working Phase 3 lifecycle on isolated test infrastructure.
 
+The disposable Ubuntu VM passed user-namespace, seccomp/AppArmor, capability,
+filesystem/resource, egress, cross-network peer, and ingress checks. The
+adapter now bounds swap and logs, rejects disabled seccomp, and terminates
+stopped/unhealthy/OOM targets with an audit event. Direct audit row mutation
+is blocked by migrations 0003-0004. See the
+[Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) for exact evidence and
+limits. **The gate remains open.**
+
 - L: Verify user namespaces, capabilities, seccomp, AppArmor, immutable root
   filesystems, tmpfs, CPU/memory/PID/storage limits, and Docker mTLS.
 - L: Test default-deny egress, private/metadata/control-plane blocking,
   cross-instance isolation, and isolated ingress.
 - M: Add automatic abuse termination and append-only audit protections.
 - M: Review every required control in SECURITY.md with recorded evidence.
+
+Remaining work: validate a worker-to-separate-host Docker mTLS connection and
+target/control-plane trust-zone blocking; run two application instances across
+networks; exercise live OOM/unhealthy cleanup; separate production application
+and migration database roles; and finish frontend/operational launch controls.
+The single-node worker is serialized. Multi-worker scale-out needs a
+per-instance distributed lock and is deferred until it can be tested.
 
 Exit: complete security review. Public signup remains closed until this gate
 passes; passing it alone does not automatically enable signup.
@@ -196,5 +212,6 @@ belong to the frontend repo, coordinated through generated OpenAPI and phase
 checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
-Next task: execute the Phase 4 runtime isolation matrix on the Ubuntu VM and
-record gaps and hardening. Public signup remains closed.
+Next task: provision a separate target host and production-like application
+database role, then complete the open Phase 4 checks in the gate record.
+Public signup remains closed.

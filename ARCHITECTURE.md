@@ -124,6 +124,13 @@ partial creates, lost replies and worker restarts must not duplicate resources
 or points. One player has at most one active instance, a default 60-minute
 lifetime and a 2-hour absolute maximum. HTTP targets ship first.
 
+The current single-node worker serializes lifecycle jobs. Startup maintenance
+skips reconciliation while a spawn operation is active, so both jobs cannot
+race over the same Docker network. A second worker process requires a
+distributed per-instance lock; multi-node scheduling remains deferred. The
+adapter writes Traefik file-provider YAML, and runtime reconciliation destroys
+and audits stopped, unhealthy, OOM-killed, or missing targets.
+
 ## Deployment boundaries
 
 Local Compose runs PostgreSQL/Redis on loopback with named data volumes.

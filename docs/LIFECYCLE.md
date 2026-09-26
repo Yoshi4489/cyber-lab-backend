@@ -37,6 +37,10 @@ The maintenance sweep creates idempotent reaper intent for expired instances
 and minute-bucketed reconciliation intent for active instances. Stale running
 operations return to pending delivery. Docker resources carry backend-owned
 instance/challenge labels, and deletion verifies those labels before acting.
+The single-node worker processes lifecycle jobs one at a time and does not
+schedule reconciliation while a spawn operation is pending, queued, or running.
+This prevents startup maintenance from racing a pending spawn. Multiple worker
+processes require a distributed per-instance lock before scale-out.
 
 ## Trusted runtime manifests
 
@@ -79,8 +83,10 @@ port. It uses a non-root user, drops every capability, enables
 no-new-privileges, seccomp and AppArmor, makes the root filesystem read-only,
 and bounds tmpfs, memory, CPU and PIDs. It never sets privileged, host network,
 host PID/IPC, devices, bind mounts, or Docker socket mounts. Traefik routes are
-written atomically through its file provider and removed before resources are
-destroyed.
+written atomically as YAML through its file provider and removed before
+resources are destroyed. Phase 4 bounds memory and swap together, JSON logs,
+and IPC; reconciliation removes and audits a stopped, unhealthy, OOM-killed,
+or missing target.
 
 Production workers require remote Docker mTLS (`DOCKER_HOST` plus CA, client
 certificate and key paths). A local socket is accepted only outside production.
@@ -124,11 +130,14 @@ node --env-file=.env.phase3.windows scripts/phase3-exit.js full
 ```
 
 The full mode checks create idempotency, readiness-only URL disclosure, ingress
-health, first and repeated flag submissions, extension bounds and idempotency,
+health, correct and repeated flag submissions, extension bounds and idempotency,
 destroy and route removal. To check restart recovery, stop the worker, run
 `prepare-recovery` in place of `full`, record the printed instance ID, restart
 the worker, then run `resume-recovery <instance-id>`. The prepare mode confirms
-the instance remains pending while the worker is stopped. The runner's
+the instance remains pending while the worker is stopped. On a fresh seeded
+player the runner observed 10 points for the first correct submission; later
+repeat runs accept zero for an already-solved challenge and still require zero
+on replay. The runner's
 `PHASE3_ALLOW_LOCAL_SELF_SIGNED=true` setting permits Traefik's disposable
 self-signed certificate only for the loopback ingress checked by this script.
 The exit check passed on the disposable VM on 2026-09-26.
