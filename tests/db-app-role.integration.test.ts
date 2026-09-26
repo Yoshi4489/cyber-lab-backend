@@ -24,7 +24,7 @@ describeDatabase('restricted application database role', () => {
       await owner.query('create role cyber_range_app nologin');
       groupCreated = true;
       const createLogin = await owner.query<{ statement: string }>(
-        "select format('create role %I login password %L', $1, $2) as statement",
+        "select format('create role %I login password %L', $1::text, $2::text) as statement",
         [login, password],
       );
       if (!createLogin.rows[0]) throw new Error('Could not format test login statement');
