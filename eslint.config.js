@@ -13,7 +13,7 @@ import tseslint from 'typescript-eslint';
  * linter that is mostly suppressions stops being read.
  */
 export default tseslint.config(
-  { ignores: ['dist/', 'coverage/', 'node_modules/', 'drizzle/'] },
+  { ignores: ['dist/', 'coverage/', 'node_modules/', 'drizzle/', 'fixtures/'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
