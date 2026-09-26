@@ -25,6 +25,8 @@ export type DestroyTargetInput = {
   networkId: string | null;
 };
 
+export type RuntimeStatus = 'healthy' | 'missing' | 'stopped' | 'oom' | 'unhealthy';
+
 export class DockerOrchestrator {
   private hostVerified = false;
 
@@ -102,8 +104,19 @@ export class DockerOrchestrator {
     if (network) await this.removeNetwork(network);
   }
 
-  async hasManagedContainer(instanceId: string): Promise<boolean> {
-    return (await this.findContainer(instanceId)) !== null;
+  async runtimeStatus(instanceId: string): Promise<RuntimeStatus> {
+    const existing = await this.findContainer(instanceId);
+    if (!existing) return 'missing';
+    const details = await existing.container.inspect().catch((error: unknown) => {
+      if (isDockerNotFound(error)) return null;
+      throw error;
+    });
+    if (!details) return 'missing';
+    assertManagedLabels(details.Config?.Labels, instanceId);
+    if (details.State.OOMKilled) return 'oom';
+    if (!details.State.Running) return 'stopped';
+    if (details.State.Health?.Status === 'unhealthy') return 'unhealthy';
+    return 'healthy';
   }
 
   async preflight(manifests: readonly RuntimeManifest[]): Promise<void> {

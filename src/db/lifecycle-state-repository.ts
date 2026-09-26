@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from './client.js';
-import { instances, labNodes } from './schema.js';
+import { auditEvents, instances, labNodes } from './schema.js';
 import type {
   LifecycleStateRepository,
   RuntimeInstanceState,
@@ -119,15 +119,24 @@ export class DrizzleLifecycleStateRepository implements LifecycleStateRepository
   }
 
   async markInstanceFailed(instanceId: string, failureCode: string, now: Date): Promise<void> {
-    await this.database
-      .update(instances)
-      .set({ status: 'failed', failureCode, updatedAt: now, stoppedAt: now })
-      .where(
-        and(
+    await this.database.transaction(async (transaction) => {
+      const [failed] = await transaction
+        .update(instances)
+        .set({ status: 'failed', failureCode, updatedAt: now, stoppedAt: now })
+        .where(and(
           eq(instances.id, instanceId),
           inArray(instances.status, ['pending', 'provisioning', 'running']),
-        ),
-      );
+        ))
+        .returning({ userId: instances.userId });
+      if (failed) {
+        await transaction.insert(auditEvents).values({
+          targetUserId: failed.userId,
+          eventType: 'instance.runtime_terminated',
+          details: { instanceId, failureCode },
+          createdAt: now,
+        });
+      }
+    });
   }
 
   async findInstance(instanceId: string): Promise<RuntimeInstanceState | null> {

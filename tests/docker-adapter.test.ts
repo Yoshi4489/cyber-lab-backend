@@ -158,6 +158,13 @@ describe('Docker orchestrator', () => {
     expect(fixture.createNetwork).not.toHaveBeenCalled();
   });
 
+  it('reports an OOM-killed managed target for automatic cleanup', async () => {
+    const fixture = dockerFixture({ existingContainer: true, oomKilled: true });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture());
+
+    await expect(orchestrator.runtimeStatus(INSTANCE_ID)).resolves.toBe('oom');
+  });
+
   it('preflights host isolation, the ingress container, and trusted images', async () => {
     const fixture = dockerFixture();
     const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
@@ -227,6 +234,8 @@ function dockerFixture(options: {
   managedInstanceId?: string;
   managedChallengeId?: string;
   existingNetwork?: boolean;
+  existingContainer?: boolean;
+  oomKilled?: boolean;
   ingressAttached?: boolean;
   ingressRunning?: boolean;
   availableImages?: string[];
@@ -243,6 +252,7 @@ function dockerFixture(options: {
     inspect: vi.fn(async () => ({
       State: {
         Running: options.ingressRunning ?? true,
+        OOMKilled: options.oomKilled ?? false,
         Health: { Status: 'healthy' },
       },
       Config: {
@@ -291,7 +301,7 @@ function dockerFixture(options: {
         'name=apparmor',
       ],
     })),
-    listContainers: vi.fn(async () => []),
+    listContainers: vi.fn(async () => options.existingContainer ? [{ Id: 'container-id' }] : []),
     listNetworks: vi.fn(async () => options.existingNetwork ? [{ Id: 'network-id' }] : []),
     createContainer,
     createNetwork,

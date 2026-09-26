@@ -95,10 +95,14 @@ export class DockerLifecycleHandler implements LifecycleOperationHandler {
       return;
     }
     if (instance.status === 'running') {
-      const exists = await this.orchestrator.hasManagedContainer(instance.id);
-      if (!exists) {
-        await this.state.markInstanceFailed(instance.id, 'runtime_missing', this.clock());
-      }
+      const runtime = await this.orchestrator.runtimeStatus(instance.id);
+      if (runtime === 'healthy') return;
+      await this.orchestrator.destroy({
+        instanceId: instance.id,
+        containerId: instance.containerId,
+        networkId: instance.networkId,
+      });
+      await this.state.markInstanceFailed(instance.id, `runtime_${runtime}`, this.clock());
       return;
     }
     await this.orchestrator.destroy({

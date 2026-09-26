@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
 import { seedCatalog } from '../src/db/catalog-seed.js';
 import { createDatabase, type DatabaseClient } from '../src/db/client.js';
 import { DrizzleLifecycleStateRepository } from '../src/db/lifecycle-state-repository.js';
-import { instances, labNodes, users } from '../src/db/schema.js';
-import type { DockerOrchestrator } from '../src/orchestrator/docker-adapter.js';
+import { auditEvents, instances, labNodes, users } from '../src/db/schema.js';
+import type { DockerOrchestrator, RuntimeStatus } from '../src/orchestrator/docker-adapter.js';
 import { RuntimeManifestRegistry } from '../src/orchestrator/runtime-manifests.js';
 import type { ClaimedLifecycleOperation } from '../src/queue/contracts.js';
 import { DockerLifecycleHandler } from '../src/services/docker-lifecycle-handler.js';
@@ -26,6 +26,7 @@ describeDatabase('Docker lifecycle state machine', () => {
   const challenge = CHALLENGE_DEFINITIONS[0];
   const spawn = vi.fn(async () => ({ containerId: 'container-1', networkId: 'network-1' }));
   const destroy = vi.fn(async () => undefined);
+  const runtimeStatus = vi.fn(async (): Promise<RuntimeStatus> => 'healthy');
 
   beforeAll(async () => {
     if (!testDatabaseUrl) throw new Error('TEST_DATABASE_URL is required');
@@ -57,7 +58,7 @@ describeDatabase('Docker lifecycle state machine', () => {
     const orchestrator = {
       spawn,
       destroy,
-      hasManagedContainer: vi.fn(async () => true),
+      runtimeStatus,
     } as unknown as DockerOrchestrator;
     handler = new DockerLifecycleHandler(
       state,
@@ -132,6 +133,28 @@ describeDatabase('Docker lifecycle state machine', () => {
       containerId: null,
       networkId: null,
     });
+  });
+
+  it('destroys and audits an OOM-killed running target', async () => {
+    const instanceId = await insertInstance('pending');
+    await handler.handle(operation('spawn', instanceId, 'pending'));
+    runtimeStatus.mockResolvedValueOnce('oom');
+
+    await handler.handle(operation('reconcile', instanceId, 'running'));
+
+    expect(await database.db.query.instances.findFirst({
+      where: eq(instances.id, instanceId),
+    })).toMatchObject({ status: 'failed', failureCode: 'runtime_oom' });
+    expect(destroy).toHaveBeenCalledWith({
+      instanceId, containerId: 'container-1', networkId: 'network-1',
+    });
+    const audit = await database.db.query.auditEvents.findFirst({
+      where: and(
+        eq(auditEvents.eventType, 'instance.runtime_terminated'),
+        eq(auditEvents.targetUserId, userId),
+      ),
+    });
+    expect(audit?.details).toMatchObject({ instanceId, failureCode: 'runtime_oom' });
   });
 
   async function insertInstance(status: 'pending' | 'stopping'): Promise<string> {
