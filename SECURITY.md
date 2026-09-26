@@ -80,6 +80,9 @@ basic restrictions. The Phase 4 VM probe observed user-namespace remapping,
 seccomp filtering, AppArmor, zero effective capabilities, read-only root,
 bounded tmpfs/memory/swap/CPU/PIDs/logs, no mounts or host ports, and blocked
 egress. This evidence does not cover remote mTLS or production trust zones.
+CI verifies the worker's client certificate against a disposable HTTPS server
+and rejects an untrusted server CA. That test does not establish a real remote
+Docker Engine connection or a route-delivery path to remote Traefik.
 
 ## Network boundary
 

@@ -9,7 +9,7 @@ the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-The current local run passes 66 tests and skips 43 environment-gated cases on
+The current local run passes 66 tests and skips 44 environment-gated cases on
 Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
 and accept direct client operations. Remote CI has passed on `develop`. See
 README for current verification evidence.
@@ -154,7 +154,8 @@ filesystem/resource, egress, cross-network peer, and ingress checks. The
 adapter now bounds swap and logs, rejects disabled seccomp, and terminates
 stopped/unhealthy/OOM targets with an audit event. Direct audit row mutation
 is blocked by migrations 0003-0004. A restricted application-role grant script
-and separate-login disposable-database test now pass CI; the production roles are
+and separate-login disposable-database test now pass CI. A disposable mTLS
+handshake test passes, but the production roles and remote Engine connection are
 not provisioned. See the
 [Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) for exact evidence and
 limits. **The gate remains open.**
@@ -170,7 +171,9 @@ Remaining work: validate a worker-to-separate-host Docker mTLS connection and
 target/control-plane trust-zone blocking; run two application instances across
 networks; exercise live OOM/unhealthy cleanup; provision and verify separate
 production application and migration database roles; and finish
-frontend/operational launch controls.
+frontend/operational launch controls. Remote Traefik route delivery also needs
+an implementation: the current file router writes beside the worker, while
+ingress is planned on the target host.
 The single-node worker is serialized. Multi-worker scale-out needs a
 per-instance distributed lock and is deferred until it can be tested.
 

@@ -131,6 +131,11 @@ distributed per-instance lock; multi-node scheduling remains deferred. The
 adapter writes Traefik file-provider YAML, and runtime reconciliation destroys
 and audits stopped, unhealthy, OOM-killed, or missing targets.
 
+The file router currently writes to the worker's local filesystem. In the
+planned separate-host topology, Traefik cannot read that directory by default.
+An authenticated route-delivery path to the target host is required before the
+remote lifecycle can pass the Phase 4 gate.
+
 ## Deployment boundaries
 
 Local Compose runs PostgreSQL/Redis on loopback with named data volumes.
