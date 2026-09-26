@@ -87,10 +87,7 @@ try {
     report('running', { instanceId, status: running.status });
 
     if (mode === 'full') {
-      const health = await target(running.url, 'health');
-      if (health.status !== 200 || health.body !== 'ok\n') {
-        throw new Error('Ingress health request failed');
-      }
+      await waitForIngressHealth(running.url);
       const solve = await target(running.url, 'solve');
       const flag = solve.body.trim();
       if (solve.status !== 200 || !/^CTF\{v1_[A-Za-z0-9_-]+\}$/u.test(flag)) {
@@ -229,6 +226,18 @@ async function pollTargetGone(url) {
     await delay(500);
   }
   throw new Error('Ingress route remained after destruction');
+}
+
+async function waitForIngressHealth(url) {
+  const deadline = Date.now() + 15_000;
+  let lastStatus;
+  while (Date.now() < deadline) {
+    const health = await target(url, 'health');
+    if (health.status === 200 && health.body === 'ok\n') return;
+    lastStatus = health.status;
+    await delay(500);
+  }
+  throw new Error(`Ingress health request failed after 15 seconds (HTTP ${lastStatus})`);
 }
 
 async function target(instanceUrl, path) {

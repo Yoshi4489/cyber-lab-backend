@@ -85,7 +85,10 @@ destroyed.
 Production workers require remote Docker mTLS (`DOCKER_HOST` plus CA, client
 certificate and key paths). A local socket is accepted only outside production.
 The target host must advertise user namespaces, seccomp and AppArmor or spawn
-fails closed.
+fails closed. Docker applies its built-in seccomp profile; the adapter does not
+send `seccomp=default`, which Docker 29 treats as invalid profile JSON. It
+checks and reuses only matching labeled internal networks after partial failures
+and detaches trusted ingress before network removal.
 
 ## Isolated-host preflight
 
@@ -128,7 +131,7 @@ the worker, then run `resume-recovery <instance-id>`. The prepare mode confirms
 the instance remains pending while the worker is stopped. The runner's
 `PHASE3_ALLOW_LOCAL_SELF_SIGNED=true` setting permits Traefik's disposable
 self-signed certificate only for the loopback ingress checked by this script.
-These commands are prepared for the exit check but have not yet run on the VM.
+The exit check passed on the disposable VM on 2026-09-26.
 
 The verification Docker Desktop host lacked user namespaces and AppArmor. Its
 actual preflight failed at the user-namespace gate and left zero
@@ -143,6 +146,19 @@ advertised user namespaces, seccomp and AppArmor. Traefik was running as
 The worker-side manifest is at
 `fixtures/phase3-http/runtime-manifest.vm.json`. The actual preflight returned
 `{"status":"ready","manifestCount":1}` and left zero backend-managed
-containers and networks. The full API/queue/worker target lifecycle and
-control-plane separation checks remain pending; this result is only the
-read-only host gate.
+containers and networks. The full API/queue/worker target lifecycle then passed
+using disposable PostgreSQL 16 and Redis 7 Compose services, a Windows API
+through loopback SSH tunnels, and an Ubuntu worker. The `full` runner observed
+pending then running, HTTPS target health, a runtime-derived flag, 10 points
+for the first correct submission and zero on replay, a bounded extension,
+stopped state, and 404 after route removal. With the worker stopped,
+`prepare-recovery` left an instance pending; after restart,
+`resume-recovery` observed running, then destroyed it and observed route 404.
+Final Docker label queries and the dynamic route directory were empty.
+
+The first live spawn exposed a Docker 29 seccomp-option error and partial
+network cleanup gap; a later run exposed that Traefik's file provider ignored
+the generated JSON route. Those fixes and focused tests are committed. The
+successful disposable check validates Phase 3 behavior but does not prove
+default-deny egress, cross-instance isolation, Docker mTLS, or separate
+production trust zones; these remain Phase 4 gates.

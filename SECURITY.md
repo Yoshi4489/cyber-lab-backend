@@ -8,7 +8,8 @@ Phases 1 through 3 implement the database-backed authentication, catalog,
 scoring, dynamic-flag, progress, lifecycle, queue and restricted Docker adapter
 controls described below. Browser cookie/CSRF and frontend lifecycle integration,
 production email, operations, and Phase 4 isolation evidence remain launch
-requirements. No real target has been launched on the verification machine.
+requirements. A disposable target completed the Phase 3 lifecycle check on
+the Ubuntu VM; no production target has been launched.
 
 ## API and authorization
 
@@ -75,7 +76,8 @@ user namespaces, seccomp and AppArmor. `npm run worker:preflight` checks those
 controls, the configured ingress state, and local availability of every
 reviewed pinned image before operators start a worker on a target host. Phase 4
 records isolated-host evidence and hardens the boundary; it does not defer the
-basic restrictions.
+basic restrictions. The Phase 3 VM lifecycle check passed, but runtime network
+blocking, storage limits, and remote mTLS are not yet verified.
 
 ## Network boundary
 

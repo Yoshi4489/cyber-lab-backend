@@ -4,22 +4,24 @@
 
 This backend is the authorization, data, scoring, and lab lifecycle boundary
 for Cyber Range. Phases 0 through 2 and the Phase 3 implementation are complete.
-The next delivery is Phase 3 validation on a compliant isolated Docker host,
-followed by the Phase 4 security gate. This plan covers
+The Phase 3 disposable-host lifecycle check has passed. The next delivery is
+the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-The current local run passes 59 tests and skips 38 environment-gated cases on
+The current local run passes 63 tests and skips 38 environment-gated cases on
 Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
 and accept direct client operations. Remote CI has passed on `develop`. See
 README for current verification evidence.
 Nothing is deployed and public signup remains closed.
 
 The Ubuntu 26.04 validation VM now advertises userns, seccomp and AppArmor.
-On 2026-09-26, preflight passed with a running disposable Traefik ingress and
-one digest-pinned HTTP fixture. It left zero backend-managed containers and
-networks. The real lifecycle flow and separation from control-plane data
-services remain unverified.
+On 2026-09-26, preflight and the disposable HTTP lifecycle passed with a
+running Traefik ingress and one digest-pinned fixture. Create/poll, HTTPS
+access, once-only scoring, extension, destruction, route removal, and recovery
+after a worker restart passed. Both runs left zero backend-managed containers,
+networks, and routes. Control-plane/target trust-zone separation remains
+unverified.
 
 Effort: S is a focused change; M spans several modules; L requires several
 reviewable batches and integration/security checks. These are relative sizes,
@@ -97,7 +99,7 @@ published-only reads, solve uniqueness under eight concurrent requests,
 subject-bound progress, leaderboard privacy, and no flag/hash leakage. No real
 challenge authoring or content-management UI is included.
 
-## Phase 3: Asynchronous HTTP lab lifecycle (implemented; host validation pending)
+## Phase 3: Asynchronous HTTP lab lifecycle (implemented; disposable-host exit passed)
 
 Dependencies: Phases 1-2, Redis, Docker test environment, trusted manifests.
 A routing domain and certificates are prerequisites for remote deployment.
@@ -116,8 +118,9 @@ A routing domain and certificates are prerequisites for remote deployment.
 - Implemented: expiry/reconciliation jobs and backend polling integration tests.
 - Passed on the Ubuntu VM: read-only preflight with userns, seccomp, AppArmor,
   running ingress and one reviewed pinned HTTP fixture image.
-- Pending: frontend polling integration in the frontend repository and one full
-  create/poll/submit/extend/destroy/recovery target run on the Ubuntu VM.
+- Passed on the Ubuntu VM: full create/poll/submit/extend/destroy target run and
+  pending-operation recovery after a worker restart.
+- Pending in the frontend repository: frontend polling integration.
 
 Start with HTTP targets and a single node. One active instance per player,
 60-minute default lifetime, 2-hour absolute maximum. Extensions cannot exceed
@@ -132,15 +135,14 @@ hosts/trust zones and remote Docker mTLS.
 A preflight does not create a target or prove the runtime network boundary.
 Automated exit evidence covers start-state transitions, polling, submission
 ownership, extension caps, destroy, expiry, recovery, foreign-user denial,
-readiness-only URLs and partial-create cleanup. The remaining exit check is the
-same flow with a disposable pinned image on a compliant isolated host after
-`npm run worker:preflight` succeeds. Docker Desktop on the verification machine
+readiness-only URLs and partial-create cleanup. The disposable pinned-image run
+passed on the Ubuntu VM after `npm run worker:preflight` succeeded. Docker
+Desktop on the verification machine
 lacked userns and AppArmor, so its preflight correctly refused to run a target.
-The Ubuntu VM preflight passed and likewise left zero backend-managed containers
-or networks. The full target flow still needs PostgreSQL, Redis, the worker and
-API connected for the disposable run. Its validation topology must be recorded
-separately from the production requirement for distinct control-plane and
-target trust zones.
+The Ubuntu VM ran PostgreSQL and Redis in Compose, the worker locally, and the
+API through loopback SSH tunnels for validation. Both target runs left zero
+backend-managed containers, networks, and routes. This topology is separate
+from the production requirement for distinct control-plane and target trust zones.
 
 ## Phase 4: Isolation hardening and security gate (L)
 
@@ -194,7 +196,5 @@ belong to the frontend repo, coordinated through generated OpenAPI and phase
 checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
-Next task: connect disposable PostgreSQL, Redis, the API and worker to the
-Ubuntu validation VM; run and record the full Phase 3 target lifecycle exit
-check. Commit and push its evidence before beginning the Phase 4 isolation
-test matrix. Public signup remains closed.
+Next task: execute the Phase 4 runtime isolation matrix on the Ubuntu VM and
+record gaps and hardening. Public signup remains closed.
