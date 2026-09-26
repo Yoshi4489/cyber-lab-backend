@@ -9,7 +9,7 @@ the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-The current local run passes 66 tests and skips 44 environment-gated cases on
+The current local run passes 66 tests and skips 45 environment-gated cases on
 Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
 and accept direct client operations. Remote CI has passed on `develop`. See
 README for current verification evidence.
@@ -152,8 +152,10 @@ Dependency: working Phase 3 lifecycle on isolated test infrastructure.
 The disposable Ubuntu VM passed user-namespace, seccomp/AppArmor, capability,
 filesystem/resource, egress, cross-network peer, and ingress checks. The
 adapter now bounds swap and logs, rejects disabled seccomp, and terminates
-stopped/unhealthy/OOM targets with an audit event. Direct audit row mutation
-is blocked by migrations 0003-0004. A restricted application-role grant script
+stopped/unhealthy/OOM targets with an audit event. All three termination paths
+passed disposable VM drills, and a worker shutdown Redis leak was fixed and
+validated on the VM. Direct audit row mutation is blocked by migrations
+0003-0004. A restricted application-role grant script
 and separate-login disposable-database test now pass CI. A disposable mTLS
 handshake test passes, but the production roles and remote Engine connection are
 not provisioned. See the
@@ -169,8 +171,8 @@ limits. **The gate remains open.**
 
 Remaining work: validate a worker-to-separate-host Docker mTLS connection and
 target/control-plane trust-zone blocking; run two application instances across
-networks; exercise live OOM/unhealthy cleanup; provision and verify separate
-production application and migration database roles; and finish
+networks; repeat crash/retry with the separate-host worker; provision and verify
+separate production application and migration database roles; and finish
 frontend/operational launch controls. Remote Traefik route delivery also needs
 an implementation: the current file router writes beside the worker, while
 ingress is planned on the target host.

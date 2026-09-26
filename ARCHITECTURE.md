@@ -130,6 +130,8 @@ race over the same Docker network. A second worker process requires a
 distributed per-instance lock; multi-node scheduling remains deferred. The
 adapter writes Traefik file-provider YAML, and runtime reconciliation destroys
 and audits stopped, unhealthy, OOM-killed, or missing targets.
+The queue owns its duplicated BullMQ Redis client and closes it on shutdown;
+the idle worker exited within five seconds of SIGTERM on the validation VM.
 
 The file router currently writes to the worker's local filesystem. In the
 planned separate-host topology, Traefik cannot read that directory by default.

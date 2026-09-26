@@ -17,7 +17,7 @@ This repository is
 
 **Now:** Phase 3 passed; Phase 4 disposable-host hardening and isolation probes passed.
 **Next:** Verify separate trust zones, remote Docker mTLS, and remaining launch controls.
-**Last updated:** 2026-09-26.
+**Last updated:** 2026-09-27.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,
@@ -35,8 +35,8 @@ manifest were used for the Phase 3 exit check. Dynamic submission scoring is
 active only for an owned, running, unexpired instance. Local development email
 is written only to the ignored `.local-mail` directory.
 
-Verification: 110 Vitest cases are defined; the current local run passes 66 and
-skips 44 environment-gated cases. Lint, type checking, and build pass on Node
+Verification: 111 Vitest cases are defined; the current local run passes 66 and
+skips 45 environment-gated cases. Lint, type checking, and build pass on Node
 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
@@ -69,14 +69,17 @@ validation topology does not establish production trust-zone separation.
 Phase 4 VM probes additionally observed user-namespace remapping, seccomp,
 AppArmor, bounded resources, and `ENETUNREACH` to public, metadata, private,
 Docker-gateway, and separate-network peer destinations. A killed target was
-automatically removed and audited. Audit rows reject direct update/delete.
+automatically removed and audited. On 2026-09-27, live unhealthy and OOM target
+drills also reached failed/audited state and removed Docker resources and routes.
+The worker's Redis-connection shutdown fix exited within five seconds of
+SIGTERM on that VM. Audit rows reject direct update/delete.
 The restricted application-role grants pass a disposable-PostgreSQL test through
 a separate login. CI also verifies a disposable Docker mTLS handshake and rejects
 an untrusted server CA; no remote Docker Engine has been exercised.
 Production role provisioning remains open.
 See the [Phase 4 security gate record](docs/PHASE4_SECURITY_GATE.md) for exact
 evidence and open checks. Remote CI passed on `develop`
-([run 36255834271](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36255834271)).
+([run 36258033350](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36258033350)).
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup

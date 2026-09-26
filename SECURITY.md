@@ -114,8 +114,8 @@ Phases 2 and 3 enforce the flag, solve uniqueness, audit content, subject-bound
 progress, verified-user rate limits, real owned-instance resolution, runtime-only
 flag derivation, idempotent lifecycle intent and reaping. Phase 4 migrations
 reject direct audit `UPDATE` and `DELETE` while retaining rows during user
-reference anonymization. Automatic stopped-target cleanup and its audit event
-passed on the VM; OOM/unhealthy paths have automated tests. A production
+reference anonymization. Automatic stopped, unhealthy, and OOM-target cleanup,
+including matching audit events, passed live disposable-VM drills. A production
 application role without table ownership, DDL, or audit mutation grants and
 full production-topology isolation evidence remain required. The reviewed
 `scripts/db-app-role.sql` grants and a separate-login PostgreSQL privilege test

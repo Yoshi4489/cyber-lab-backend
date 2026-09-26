@@ -5,11 +5,13 @@ controls, but it is not a production layout. Public signup remains closed.
 This record distinguishes observed behavior from code-level tests and
 unverified production boundaries.
 
-## Disposable-host evidence (2026-09-26)
+## Disposable-host evidence (2026-09-26 to 2026-09-27)
 
 The same Ubuntu VM ran Docker Engine 29.8.1, the worker, Traefik, and disposable
-PostgreSQL 16 and Redis 7. The API ran on Windows through loopback-only SSH
-tunnels. This is a validation topology, not a separate target trust zone.
+PostgreSQL 16 and Redis 7. On 2026-09-26, the API ran on Windows through
+loopback-only SSH tunnels. For the 2026-09-27 drills, the API also ran on the VM
+and the Windows test runner used loopback SSH forwarding. Neither layout is a
+separate target trust zone.
 
 | Control | Evidence | Result |
 |---|---|---|
@@ -20,7 +22,8 @@ tunnels. This is a validation topology, not a separate target trust zone.
 | Egress and private ranges | The target's TCP probes to `1.1.1.1:80`, `169.254.169.254:80`, `10.0.2.15:5432`, and `172.17.0.1:2375` each returned `ENETUNREACH`. | Passed for these VM destinations |
 | Cross-network isolation | A labeled disposable peer container on a second internal Docker network had IP `172.20.0.2`. The target's probe to that IP returned `ENETUNREACH`. The peer was removed. | Passed for the disposable peer |
 | Isolated ingress | HTTPS reached the live target through its unguessable Traefik route; target had no host port. After destruction, the route returned 404 and managed Docker resources were absent. | Passed on VM |
-| Automatic termination | Killing a labeled disposable target led to instance `failed` with `runtime_stopped`, an `instance.runtime_terminated` audit event, and removal of the container, network, and route. VM maintenance interval was 5 seconds; the default is 60 seconds. OOM and unhealthy paths have unit/integration tests but no live abuse drill. | Stopped path passed; other paths pending live proof |
+| Automatic termination | Stopped, unhealthy, and OOM targets each became instance `failed` with the corresponding `runtime_stopped`, `runtime_unhealthy`, or `runtime_oom` failure code and `instance.runtime_terminated` audit event. On 2026-09-27, suspending the target's Node process made Docker report `unhealthy`; a memory-hungry exec made Docker report `OOMKilled=true` while the main container stayed healthy. The worker removed each container, network, and route file. The drill used a 5-second maintenance interval; default is 60 seconds. | All three paths passed on disposable VM |
+| Worker shutdown | With no active target, the worker remained alive 15 seconds after SIGTERM because its duplicated BullMQ Redis client stayed open. After `aa6a603`, a VM rebuild exited within 5 seconds; CI also checks that the duplicate reaches Redis `end` state. | Passed on disposable VM and CI |
 | Audit append-only | Migrations 0003-0004 rejected direct `UPDATE`/`DELETE` with SQLSTATE 55000 and retained audit rows while user references were anonymized by foreign keys. | Passed on disposable PostgreSQL |
 | Application database grants | CI created a temporary `cyber_range_app` group and separate login, applied `scripts/db-app-role.sql`, and connected as that login. Audit insert worked; audit update/delete/truncate, table creation/alteration, and user deletion failed with SQLSTATE 42501. Test writes rolled back and both roles were removed. | Passed in CI; production role pending |
 | Remote Docker mTLS | Production config requires HTTPS host, CA, client certificate, and key and rejects a local socket or URL credentials/path. Ubuntu CI completed a generated-certificate HTTPS handshake with the worker client, required its client certificate, and rejected an untrusted server CA. No remote Engine connection was exercised. | Local handshake passed; remote Engine pending |
@@ -30,8 +33,10 @@ Its private-host and Docker-gateway addresses are specific to this VM. The
 Phase 3 exit runner verifies create/poll/HTTPS/submission/extend/destroy and
 restart recovery. Do not use its self-signed-certificate allowance for a
 non-loopback ingress.
-Final Docker label queries found no backend-managed or Phase 4 peer containers
-or networks, and the dynamic route directory was empty.
+Final Docker label queries after both 2026-09-27 drills found no backend-managed
+containers or networks, and the dynamic route directory was empty. The API and
+worker validation processes were stopped; PostgreSQL, Redis, and Traefik stayed
+running for future disposable checks.
 
 ## Controls still needed to close the gate
 
@@ -44,10 +49,10 @@ or networks, and the dynamic route directory was empty.
 2. Repeat egress, metadata, private-address, control-plane, and cross-instance
    probes in that topology, including an application-created second instance.
    The VM's separate peer network demonstrates only local Docker isolation.
-3. Exercise the live OOM/unhealthy paths and verify bounded cleanup and audit
-   events. Test worker crash/retry with the production worker topology. Phase 3
-   supports one worker on one node; concurrent workers need a per-instance
-   distributed lock before scale-out.
+3. Repeat worker crash/retry with the production separate-host topology. The
+   disposable VM passed stopped, unhealthy, and OOM cleanup and audit drills,
+   but Phase 3 supports one worker on one node; concurrent workers need a
+   per-instance distributed lock before scale-out.
 4. Provision the production application and migration-owner roles separately
    using [the database role procedure](DATABASE_ROLES.md). Apply the reviewed
    grants, verify direct and inherited privileges, and run the API and worker
