@@ -29,6 +29,13 @@
       "when": 1790418800000,
       "tag": "0003_audit_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790418900000,
+      "tag": "0004_audit_fk_anonymization",
+      "breakpoints": true
     }
   ]
 }

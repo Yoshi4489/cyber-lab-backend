@@ -31,4 +31,31 @@ describeDatabase('audit event persistence', () => {
       await client.end();
     }
   });
+
+  it('retains an audit row when a referenced test account is deleted', async () => {
+    if (!testDatabaseUrl) throw new Error('TEST_DATABASE_URL is required');
+    const client = new Client({ connectionString: testDatabaseUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      const userId = randomUUID();
+      const eventId = randomUUID();
+      await client.query(
+        'insert into users (id, email, password_hash) values ($1, $2, $3)',
+        [userId, `audit-${userId}@example.test`, 'test-only-placeholder-hash'],
+      );
+      await client.query(
+        'insert into audit_events (id, actor_user_id, target_user_id, event_type) values ($1, $2, $2, $3)',
+        [eventId, userId, 'test.audit_account_deleted'],
+      );
+      await client.query('delete from users where id = $1', [userId]);
+      const result = await client.query(
+        'select actor_user_id, target_user_id from audit_events where id = $1', [eventId],
+      );
+      expect(result.rows).toEqual([{ actor_user_id: null, target_user_id: null }]);
+    } finally {
+      await client.query('rollback');
+      await client.end();
+    }
+  });
 });
