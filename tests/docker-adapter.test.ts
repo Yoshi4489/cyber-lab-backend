@@ -80,12 +80,15 @@ describe('Docker orchestrator', () => {
         AutoRemove: false,
         CapDrop: ['ALL'],
         Memory: 128 * 1_024 * 1_024,
+        MemorySwap: 128 * 1_024 * 1_024,
         NanoCpus: 500_000_000,
         NetworkMode: `crn-${INSTANCE_ID.replaceAll('-', '')}`,
+        IpcMode: 'none',
         PidsLimit: 64,
         Privileged: false,
         ReadonlyRootfs: true,
         SecurityOpt: ['no-new-privileges:true', 'apparmor=docker-default'],
+        LogConfig: { Type: 'json-file', Config: { 'max-size': '10m', 'max-file': '2' } },
       },
     });
     expect(options?.HostConfig).not.toHaveProperty('PortBindings');
@@ -143,6 +146,16 @@ describe('Docker orchestrator', () => {
       'Docker host is missing required userns isolation',
     );
     expect(fixture.createContainer).not.toHaveBeenCalled();
+  });
+
+  it('rejects a Docker host with seccomp disabled', async () => {
+    const fixture = dockerFixture({ securityOptions: [
+      'name=userns', 'name=apparmor', 'name=seccomp,profile=unconfined',
+    ] });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture());
+
+    await expect(orchestrator.spawn(spawnInput())).rejects.toThrow('seccomp isolation');
+    expect(fixture.createNetwork).not.toHaveBeenCalled();
   });
 
   it('preflights host isolation, the ingress container, and trusted images', async () => {

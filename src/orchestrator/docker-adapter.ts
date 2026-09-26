@@ -132,10 +132,14 @@ export class DockerOrchestrator {
       ? rawOptions.filter((option): option is string => typeof option === 'string')
           .map((option) => option.toLowerCase())
       : [];
-    for (const required of ['userns', 'seccomp', 'apparmor']) {
-      if (!options.some((option) => option.includes(required))) {
-        throw new Error(`Docker host is missing required ${required} isolation`);
-      }
+    if (!options.some((option) => option.startsWith('name=userns'))) {
+      throw new Error('Docker host is missing required userns isolation');
+    }
+    if (!options.some((option) => /^name=seccomp,profile=(builtin|default)$/u.test(option))) {
+      throw new Error('Docker host is missing required seccomp isolation');
+    }
+    if (!options.some((option) => option.startsWith('name=apparmor'))) {
+      throw new Error('Docker host is missing required apparmor isolation');
     }
     this.hostVerified = true;
   }
@@ -281,8 +285,10 @@ function buildContainerOptions(
       CapDrop: ['ALL'],
       Init: true,
       Memory: input.manifest.resources.memoryMb * 1_024 * 1_024,
+      MemorySwap: input.manifest.resources.memoryMb * 1_024 * 1_024,
       NanoCpus: Math.round(input.manifest.resources.cpuCores * 1_000_000_000),
       NetworkMode: networkName,
+      IpcMode: 'none',
       PidsLimit: input.manifest.resources.pids,
       Privileged: false,
       ReadonlyRootfs: true,
@@ -291,6 +297,7 @@ function buildContainerOptions(
       Tmpfs: {
         '/tmp': `rw,noexec,nosuid,nodev,size=${input.manifest.resources.tmpfsMb}m`,
       },
+      LogConfig: { Type: 'json-file', Config: { 'max-size': '10m', 'max-file': '2' } },
     },
     NetworkingConfig: {
       EndpointsConfig: {
