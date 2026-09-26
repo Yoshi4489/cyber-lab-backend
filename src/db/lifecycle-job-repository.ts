@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, inArray, lt, lte, sql } from 'drizzle-orm';
+import { and, eq, inArray, lt, lte, notExists, sql } from 'drizzle-orm';
 import type { Database } from './client.js';
 import { instanceOperations, instances } from './schema.js';
 import type {
@@ -183,7 +183,19 @@ export class DrizzleLifecycleJobRepository implements LifecycleJobRepository {
       const active = await transaction
         .select({ id: instances.id, userId: instances.userId })
         .from(instances)
-        .where(inArray(instances.status, ['pending', 'provisioning', 'running', 'stopping']));
+        .where(and(
+          inArray(instances.status, ['pending', 'provisioning', 'running', 'stopping']),
+          notExists(
+            transaction
+              .select({ id: instanceOperations.id })
+              .from(instanceOperations)
+              .where(and(
+                eq(instanceOperations.instanceId, instances.id),
+                eq(instanceOperations.type, 'spawn'),
+                inArray(instanceOperations.status, ['pending', 'queued', 'running']),
+              )),
+          ),
+        ));
       for (const instance of active) {
         const idempotencyKey = `reconcile-${reconciliationBucket}`;
         await transaction

@@ -54,10 +54,7 @@ export class LifecycleQueue {
     await this.dispatchPending();
   }
 
-  createWorker(
-    handler: LifecycleOperationHandler,
-    options: { concurrency?: number } = {},
-  ): Worker<LifecycleJobData, void, LifecycleOperationType> {
+  createWorker(handler: LifecycleOperationHandler): Worker<LifecycleJobData, void, LifecycleOperationType> {
     const workerConnection = this.connection.duplicate();
     const worker = new Worker<LifecycleJobData, void, LifecycleOperationType>(
       this.queue.name,
@@ -69,7 +66,8 @@ export class LifecycleQueue {
       },
       {
         connection: workerConnection,
-        concurrency: options.concurrency ?? 4,
+        // The Phase 3 single-node worker must not overlap spawn and destroy for one instance.
+        concurrency: 1,
       },
     );
     worker.on('failed', (job) => {

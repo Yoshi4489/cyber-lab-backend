@@ -67,7 +67,7 @@ describeInfrastructure('durable lifecycle queue', () => {
       handle: async (operation) => {
         if (operation.type === 'reconcile') throw new Error('deliberate test failure');
       },
-    }, { concurrency: 1 });
+    });
     await worker.waitUntilReady();
   }, 30_000);
 
@@ -131,6 +131,42 @@ describeInfrastructure('durable lifecycle queue', () => {
     expect(
       operations.filter(({ idempotencyKey }) => idempotencyKey === 'reconcile-2026-01-01T00:00'),
     ).toHaveLength(1);
+  });
+
+  it('does not reconcile an instance while its spawn operation is active', async () => {
+    const challenge = CHALLENGE_DEFINITIONS[0];
+    if (!challenge) throw new Error('Challenge definitions must not be empty');
+    const anotherUserId = randomUUID();
+    await database.db.insert(users).values({
+      id: anotherUserId,
+      email: `queue-spawn-${anotherUserId}@example.test`,
+      passwordHash: 'test-only-placeholder-hash',
+    });
+    try {
+      const now = new Date();
+      const [anotherInstance] = await database.db.insert(instances).values({
+        userId: anotherUserId,
+        challengeId: challenge.id,
+        expiresAt: new Date(now.getTime() + 60 * 60_000),
+        absoluteExpiresAt: new Date(now.getTime() + 2 * 60 * 60_000),
+      }).returning({ id: instances.id });
+      if (!anotherInstance) throw new Error('Instance insert returned no id');
+      await database.db.insert(instanceOperations).values({
+        instanceId: anotherInstance.id,
+        userId: anotherUserId,
+        type: 'spawn',
+        idempotencyKey: 'queue-active-spawn',
+        requestHash: 'a'.repeat(64),
+      });
+
+      await repository.createMaintenanceIntents(now, '2026-01-01T00:01');
+      const operations = await database.db.select({ type: instanceOperations.type })
+        .from(instanceOperations)
+        .where(eq(instanceOperations.instanceId, anotherInstance.id));
+      expect(operations.map(({ type }) => type)).toEqual(['spawn']);
+    } finally {
+      await database.db.delete(users).where(eq(users.id, anotherUserId));
+    }
   });
 
   async function insertOperation(type: LifecycleOperationType, idempotencyKey: string) {
