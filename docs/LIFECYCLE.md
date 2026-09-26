@@ -114,3 +114,14 @@ actual preflight failed at the user-namespace gate and left zero
 backend-managed containers or networks, so no real target was launched there.
 A successful preflight alone does not verify target egress, cross-instance
 isolation, or other Phase 4 controls.
+
+On 2026-09-26, the disposable Ubuntu 26.04 VM with Docker Engine 29.8.1
+advertised user namespaces, seccomp and AppArmor. Traefik was running as
+`phase3-traefik`; the reviewed `sample-web-a` fixture image ID was
+`sha256:8c09818ab9097f4dbbb962d0869b5207f394d71c5f9ced5d743d449145674c0e`.
+The worker-side manifest is at
+`fixtures/phase3-http/runtime-manifest.vm.json`. The actual preflight returned
+`{"status":"ready","manifestCount":1}` and left zero backend-managed
+containers and networks. The full API/queue/worker target lifecycle and
+control-plane separation checks remain pending; this result is only the
+read-only host gate.

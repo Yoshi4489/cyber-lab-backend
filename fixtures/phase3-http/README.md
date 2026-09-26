@@ -18,5 +18,8 @@ docker build -t cyber-range-phase3-http:local fixtures/phase3-http
 docker image inspect cyber-range-phase3-http:local --format '{{.Id}}'
 ```
 
-Use the limits and health check documented in `docs/LIFECYCLE.md`, with port
-`8080` and `GET /health`. Keep this fixture on disposable validation hosts.
+`runtime-manifest.vm.json` records the image ID built on the Ubuntu validation
+VM on 2026-09-26. Rebuilds may produce a different ID; inspect the new image
+and update the manifest before running preflight. The manifest uses port
+`8080`, a `GET /health` check, and the bounded resources described in
+`docs/LIFECYCLE.md`. Keep this fixture on disposable validation hosts.

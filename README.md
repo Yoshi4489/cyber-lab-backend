@@ -15,9 +15,9 @@ This repository is
 
 ## Project status
 
-**Now:** Phase 3 host preflight is implemented; compliant-host target validation is pending.
+**Now:** Phase 3 host preflight passed on the Ubuntu VM; full target validation is pending.
 **Next:** Run the isolated-host Phase 3 exit check, then begin Phase 4 security verification.
-**Last updated:** 2026-09-22.
+**Last updated:** 2026-09-26.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,
@@ -29,8 +29,9 @@ lifecycle state, BullMQ delivery/recovery, expiry/reconciliation, a separate
 worker, restricted Docker options, and generated Traefik file-provider routes.
 
 Not implemented yet: the frontend cookie/CSRF, scoring and lifecycle checkpoints,
-production email delivery, authored target images/manifests, compliant-host
-target validation, or deployment. Dynamic submission scoring is active only for
+production email delivery, authored player challenges, full compliant-host
+target validation, or deployment. A disposable HTTP target and runtime manifest
+now exist for the Phase 3 exit check. Dynamic submission scoring is active only for
 an owned, running, unexpired instance. Local development email is written only
 to the ignored `.local-mail` directory.
 
@@ -53,6 +54,14 @@ networks after the command. Run `npm run worker:preflight` on the intended
 isolated host before starting a worker; it verifies host isolation, ingress,
 and reviewed images without creating a target.
 
+On 2026-09-26, the Ubuntu 26.04 VM with Docker Engine 29.8.1 advertised
+AppArmor, seccomp and user namespaces. The disposable Traefik ingress was
+running, and the pinned `sample-web-a` validation image was present. The actual
+`worker:preflight` command returned `{"status":"ready","manifestCount":1}`;
+zero backend-managed containers and networks existed afterward. PostgreSQL,
+Redis, the worker, and the full target lifecycle have not yet run on this VM.
+This preflight does not prove the Phase 3 exit flow or Phase 4 isolation.
+
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup
 script is retained.
@@ -64,7 +73,7 @@ script is retained.
 | 0 | API foundation, Node 22 alignment, local services, generated OpenAPI, agreed docs | Implemented |
 | 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF contract | Implemented |
 | 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Implemented |
-| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Implemented; isolated-host validation pending (preflight available) |
+| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Implemented; Ubuntu VM preflight passed, full lifecycle validation pending |
 | 4 | Isolation hardening and security review; required gate for public signup | Planned |
 | 5 | Admin tools, monitoring, backup/restore, operational deployment | Planned |
 | 6 | Browser terminal, TCP/VPN access, multi-node scheduling, advanced progression/auth | Deferred |

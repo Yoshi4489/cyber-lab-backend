@@ -15,6 +15,12 @@ and accept direct client operations. Remote CI has passed on `develop`. See
 README for current verification evidence.
 Nothing is deployed and public signup remains closed.
 
+The Ubuntu 26.04 validation VM now advertises userns, seccomp and AppArmor.
+On 2026-09-26, preflight passed with a running disposable Traefik ingress and
+one digest-pinned HTTP fixture. It left zero backend-managed containers and
+networks. The real lifecycle flow and separation from control-plane data
+services remain unverified.
+
 Effort: S is a focused change; M spans several modules; L requires several
 reviewable batches and integration/security checks. These are relative sizes,
 not time estimates.
@@ -108,8 +114,10 @@ A routing domain and certificates are prerequisites for remote deployment.
   isolation controls, ingress availability, and every reviewed pinned image
   before a worker receives lifecycle jobs.
 - Implemented: expiry/reconciliation jobs and backend polling integration tests.
+- Passed on the Ubuntu VM: read-only preflight with userns, seccomp, AppArmor,
+  running ingress and one reviewed pinned HTTP fixture image.
 - Pending: frontend polling integration in the frontend repository and one full
-  target run on a separate host that advertises userns, seccomp and AppArmor.
+  create/poll/submit/extend/destroy/recovery target run on the Ubuntu VM.
 
 Start with HTTP targets and a single node. One active instance per player,
 60-minute default lifetime, 2-hour absolute maximum. Extensions cannot exceed
@@ -127,8 +135,12 @@ ownership, extension caps, destroy, expiry, recovery, foreign-user denial,
 readiness-only URLs and partial-create cleanup. The remaining exit check is the
 same flow with a disposable pinned image on a compliant isolated host after
 `npm run worker:preflight` succeeds. Docker Desktop on the verification machine
-lacked userns and AppArmor, so the actual preflight correctly refused to run a
-target there and left zero backend-managed containers or networks.
+lacked userns and AppArmor, so its preflight correctly refused to run a target.
+The Ubuntu VM preflight passed and likewise left zero backend-managed containers
+or networks. The full target flow still needs PostgreSQL, Redis, the worker and
+API connected for the disposable run. Its validation topology must be recorded
+separately from the production requirement for distinct control-plane and
+target trust zones.
 
 ## Phase 4: Isolation hardening and security gate (L)
 
@@ -182,8 +194,7 @@ belong to the frontend repo, coordinated through generated OpenAPI and phase
 checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
-Next task: provision or select a disposable isolated Docker host with userns,
-seccomp and AppArmor enabled; make the reviewed target image available; run
-`npm run worker:preflight`; then run and record the Phase 3 target lifecycle
-exit check before beginning the Phase 4 isolation test matrix. Public signup
-remains closed.
+Next task: connect disposable PostgreSQL, Redis, the API and worker to the
+Ubuntu validation VM; run and record the full Phase 3 target lifecycle exit
+check. Commit and push its evidence before beginning the Phase 4 isolation
+test matrix. Public signup remains closed.
