@@ -158,9 +158,11 @@ validated on the VM. Direct audit row mutation is blocked by migrations
 0003-0004. A restricted application-role grant script
 and separate-login disposable-database test now pass CI. A disposable mTLS
 handshake test passes, but the production roles and remote Engine connection are
-not provisioned. Worker startup now probes whether its route directory is
-visible inside ingress; the disposable VM passed the probe and rejected a wrong
-path. Authenticated separate-host route delivery remains open. See the
+not provisioned. Worker startup now verifies route delivery and fails closed:
+under `file` delivery it probes whether its route directory is visible inside
+ingress, and under `ingress` delivery it round-trips a marker through the Docker
+channel. The disposable VM passed the visibility probe and rejected a wrong path.
+Delivery against a real separate host remains open. See the
 [Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) for exact evidence and
 limits. **The gate remains open.**
 
@@ -175,10 +177,13 @@ Remaining work: validate a worker-to-separate-host Docker mTLS connection and
 target/control-plane trust-zone blocking; run two application instances across
 networks; repeat crash/retry with the separate-host worker; provision and verify
 separate production application and migration database roles; and finish
-frontend/operational launch controls. Remote Traefik route delivery also needs
-an authenticated implementation: the current file router writes beside the
-worker, while ingress is planned on the target host. The visibility probe fails
-closed but does not deliver files.
+frontend/operational launch controls. Authenticated remote route delivery is now
+implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` extracts each rendered route into
+the ingress container over the worker's own authenticated Docker connection and
+removes it with an argument vector, so the target host holds no control-plane
+credential. Production configuration requires that mode. It is covered by unit
+tests against a mocked Docker fixture and still needs a real remote Engine plus a
+live target reached through a delivered route.
 The single-node worker is serialized. Multi-worker scale-out needs a
 per-instance distributed lock and is deferred until it can be tested.
 

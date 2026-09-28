@@ -27,7 +27,8 @@ separate target trust zone.
 | Audit append-only | Migrations 0003-0004 rejected direct `UPDATE`/`DELETE` with SQLSTATE 55000 and retained audit rows while user references were anonymized by foreign keys. | Passed on disposable PostgreSQL |
 | Application database grants | CI created a temporary `cyber_range_app` group and separate login, applied `scripts/db-app-role.sql`, and connected as that login. Audit insert worked; audit update/delete/truncate, table creation/alteration, and user deletion failed with SQLSTATE 42501. Test writes rolled back and both roles were removed. | Passed in CI; production role pending |
 | Remote Docker mTLS | Production config requires HTTPS host, CA, client certificate, and key and rejects a local socket or URL credentials/path. Ubuntu CI completed a generated-certificate HTTPS handshake with the worker client, required its client certificate, and rejected an untrusted server CA. No remote Engine connection was exercised. | Local handshake passed; remote Engine pending |
-| Ingress route visibility | Worker startup and preflight write a random marker beside routes and read it through the Docker archive API inside ingress, then remove it. On the disposable VM, `/etc/traefik/dynamic` passed and an incorrect container path failed; no marker remained. Production requires the ingress directory setting. | Passed on disposable VM; authenticated remote delivery pending |
+| Ingress route visibility | Worker startup and preflight write a random marker beside routes and read it through the Docker archive API inside ingress, then remove it. On the disposable VM, `/etc/traefik/dynamic` passed and an incorrect container path failed; no marker remained. | Passed on disposable VM |
+| Authenticated remote route delivery | `TRAEFIK_ROUTE_DELIVERY=ingress` extracts the rendered route into the ingress container over the worker's existing authenticated Docker connection and removes it with an argument vector, never a shell. Production configuration requires that mode. Startup and preflight verify a marker round trip: write, read back, delete, confirm absent. Unit tests cover the delivered document, the USTAR entry and checksum, the removal argv, rejected route input, a traversing ingress directory, a non-zero removal exit code, and both fail-closed probe paths. | Code and unit tests only; no separate-host delivery exercised |
 
 The committed `scripts/phase4-probe.mjs` is the target-side pass/fail probe.
 Its private-host and Docker-gateway addresses are specific to this VM. The
@@ -44,11 +45,14 @@ running for future disposable checks.
 1. Put the worker and data services in a control-plane trust zone and the
    target Docker Engine on a separate host. Exercise real Docker mTLS with
    server-certificate verification and no target/control-plane credentials or
-   management routes exposed to the target. Define and verify authenticated
-   delivery of Traefik file-provider routes to that host: the current router
-   writes files beside the worker, not beside the remote ingress. The visibility
-   probe checks whether a file appears inside ingress; it neither transports
-   files nor proves Traefik loaded the provider configuration.
+   management routes exposed to the target. Route delivery for that topology is
+   now implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` pushes each rendered route
+   into the ingress container over the same authenticated Docker connection, so
+   the target host holds no control-plane credential and exposes no inbound
+   management route. That delivery path has only been exercised against a mocked
+   Docker fixture. It still has to run against a real remote Engine, and a live
+   target reached through HTTPS ingress is what proves Traefik loaded the
+   delivered provider configuration.
 2. Repeat egress, metadata, private-address, control-plane, and cross-instance
    probes in that topology, including an application-created second instance.
    The VM's separate peer network demonstrates only local Docker isolation.

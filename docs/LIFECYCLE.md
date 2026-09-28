@@ -88,6 +88,22 @@ resources are destroyed. Phase 4 bounds memory and swap together, JSON logs,
 and IPC; reconciliation removes and audits a stopped, unhealthy, OOM-killed,
 or missing target.
 
+`TRAEFIK_ROUTE_DELIVERY` selects how a route reaches the file provider. `file`
+writes it beside the worker and suits one disposable host. `ingress` extracts the
+same rendered document into the ingress container over the worker's existing
+authenticated Docker connection, and removes it with an argument vector rather
+than a shell. Production requires `ingress`, because ingress runs on the separate
+target host where a worker-local file would never be read. Delivery is one-way
+from control plane to target: the target host holds no control-plane credential
+and exposes no inbound management route. Both modes render byte-identical
+documents from the same validated route, and both are idempotent, so a retried
+spawn or destroy is safe. One difference is deliberate: the file router renames a
+temporary file into place, while ingress delivery is a single tar extraction, so
+Traefik can briefly observe an incomplete file and converges on the following
+change event. Removal is the only step that needs a command in the container, and
+it is exercised by the startup delivery check, so a container without a usable
+`rm` fails closed before any target is accepted.
+
 Production workers require remote Docker mTLS (`DOCKER_HOST` plus CA, client
 certificate and key paths). A local socket is accepted only outside production.
 The target host must advertise user namespaces, seccomp and AppArmor or spawn
@@ -112,6 +128,15 @@ container is running, and inspects every pinned image in the manifest. It does
 not create a target, network, route, database connection, or Redis connection.
 It fails closed when user namespaces, seccomp, or AppArmor are absent; ingress
 is stopped; no manifest is supplied; or a reviewed image is unavailable.
+
+Preflight and worker startup then verify route delivery with a random marker and
+fail closed. With `file` delivery and an ingress directory configured, the marker
+is written beside the routes and read back through the Docker archive API inside
+ingress. With `ingress` delivery, the marker is extracted into ingress, read
+back, deleted, and confirmed absent, which exercises the same write and remove
+calls a real route uses. Neither check leaves a marker behind, and neither proves
+that Traefik loaded the provider configuration; a live target reached through
+HTTPS ingress is what proves that.
 
 After a successful preflight, start the worker with the same configuration and
 run the disposable target exit flow: create, poll until running, submit, extend,
