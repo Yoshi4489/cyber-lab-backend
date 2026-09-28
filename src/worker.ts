@@ -5,7 +5,7 @@ import { DrizzleLifecycleStateRepository } from './db/lifecycle-state-repository
 import { createWorkerDockerClient } from './orchestrator/docker-client.js';
 import { DockerOrchestrator } from './orchestrator/docker-adapter.js';
 import { loadRuntimeManifestRegistry } from './orchestrator/runtime-manifests.js';
-import { FileTraefikRouter } from './orchestrator/traefik-router.js';
+import { createRouteDelivery } from './orchestrator/route-delivery.js';
 import { createRedisConnection, LifecycleQueue } from './queue/lifecycle-queue.js';
 import { DockerLifecycleHandler } from './services/docker-lifecycle-handler.js';
 import { HmacInstanceFlagService } from './services/instance-flags.js';
@@ -17,18 +17,14 @@ const jobRepository = new DrizzleLifecycleJobRepository(database.db);
 const stateRepository = new DrizzleLifecycleStateRepository(database.db);
 const manifests = await loadRuntimeManifestRegistry(config.RUNTIME_MANIFEST_PATH);
 const docker = await createWorkerDockerClient(config);
-const router = new FileTraefikRouter(config.TRAEFIK_DYNAMIC_DIRECTORY);
+const delivery = createRouteDelivery(docker, config);
 const orchestrator = new DockerOrchestrator(
   docker,
-  router,
+  delivery.router,
   config.LAB_INGRESS_CONTAINER,
 );
 await orchestrator.preflight(manifests.all());
-if (config.TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY) {
-  await router.verifyIngressVisibility(
-    docker, config.LAB_INGRESS_CONTAINER, config.TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY,
-  );
-}
+await delivery.verify();
 const nodeId = await stateRepository.registerNode(config.LAB_NODE_NAME, new Date());
 const handler = new DockerLifecycleHandler(
   stateRepository,

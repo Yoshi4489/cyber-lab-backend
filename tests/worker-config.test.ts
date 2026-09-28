@@ -7,18 +7,37 @@ const base = {
   REDIS_URL: 'redis://example.test:6379',
   INSTANCE_FLAG_SECRET: 'worker-flag-secret-at-least-thirty-two-characters',
   RUNTIME_MANIFEST_PATH: '/run/config/manifests.json',
-  TRAEFIK_DYNAMIC_DIRECTORY: '/run/traefik/dynamic',
+  TRAEFIK_ROUTE_DELIVERY: 'ingress',
   TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: '/etc/traefik/dynamic',
   LAB_INGRESS_CONTAINER: 'traefik',
 };
 
 describe('worker configuration boundary', () => {
-  it('requires a route visibility probe in production', () => {
-    const { TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: _directory, ...withoutProbe } = base;
-    expect(() => loadWorkerConfig(withoutProbe)).toThrow(
-      'Production workers must verify ingress route visibility',
+  it('requires ingress route delivery in production', () => {
+    const { TRAEFIK_ROUTE_DELIVERY: _mode, ...withoutMode } = base;
+    expect(() => loadWorkerConfig(withoutMode)).toThrow(
+      'Production workers must deliver routes into the ingress container',
     );
+    expect(() => loadWorkerConfig({
+      ...base,
+      TRAEFIK_ROUTE_DELIVERY: 'file',
+      TRAEFIK_DYNAMIC_DIRECTORY: '/run/traefik/dynamic',
+    })).toThrow('Production workers must deliver routes into the ingress container');
   });
+
+  it('requires the directory each delivery mode actually writes to', () => {
+    const { TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: _directory, ...withoutIngress } = base;
+    expect(() => loadWorkerConfig(withoutIngress)).toThrow(
+      'Ingress route delivery requires the ingress route directory',
+    );
+    expect(() => loadWorkerConfig({
+      ...withoutIngress,
+      NODE_ENV: 'development',
+      TRAEFIK_ROUTE_DELIVERY: 'file',
+      DOCKER_SOCKET_PATH: '/var/run/docker.sock',
+    })).toThrow('File route delivery requires a worker route directory');
+  });
+
   it('requires complete remote Docker mTLS in production', () => {
     expect(() => loadWorkerConfig({ ...base, DOCKER_SOCKET_PATH: '/var/run/docker.sock' })).toThrow(
       'Production workers require remote Docker mTLS',

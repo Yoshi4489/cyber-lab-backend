@@ -57,7 +57,8 @@ describeTls('remote Docker mTLS', () => {
         REDIS_URL: 'redis://example.test:6379',
         INSTANCE_FLAG_SECRET: 'worker-flag-secret-at-least-thirty-two-characters',
         RUNTIME_MANIFEST_PATH: '/run/config/manifests.json',
-        TRAEFIK_DYNAMIC_DIRECTORY: '/run/traefik/dynamic',
+        TRAEFIK_ROUTE_DELIVERY: 'ingress',
+        TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: '/etc/traefik/dynamic',
         LAB_INGRESS_CONTAINER: 'traefik',
         DOCKER_HOST: `https://127.0.0.1:${address.port}`,
       };
