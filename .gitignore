@@ -7,3 +7,15 @@ coverage/
 .local-mail/
 *.log
 .DS_Store
+
+# TLS material. Docker mTLS keys and certificates belong outside the repository
+# entirely; these patterns are a safety net, not the intended location.
+*.pem
+*.crt
+*.cer
+*.csr
+*.key
+*.p12
+*.pfx
+certs/
+tls/
