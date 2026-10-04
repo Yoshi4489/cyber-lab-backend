@@ -9,10 +9,10 @@
 // there. That is the property under test, and it is why any other outcome
 // fails: ECONNREFUSED or a completed connection both mean a route exists.
 //
-// To rule out a vacuous result, confirm from the target HOST that each
-// supplied address is reachable there before running this. If the host cannot
-// reach the control plane either, the target's ENETUNREACH says nothing about
-// container isolation specifically.
+// Confirm management destinations are reachable from the target HOST and peer
+// services are reachable from ingress before trusting a pass. Inspect address
+// ownership: isolated gateway mode can assign the former gateway IP to ingress.
+// A refused SSH connection to ingress is not a host-management probe.
 import { strict as assert } from 'node:assert';
 import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { connect } from 'node:net';
@@ -46,8 +46,8 @@ async function canConnect(host, port) {
   });
 }
 
-// A public resolver and the cloud metadata address exist on every network this
-// could run on, so they need no topology knowledge to be meaningful.
+// Fixed public and metadata destinations test absence of an egress route.
+// A disposable VM is not evidence of a live cloud metadata service.
 const builtIn = {
   publicIpv4: ['1.1.1.1', 80],
   cloudMetadata: ['169.254.169.254', 80],
@@ -95,6 +95,7 @@ const result = {
   fields,
   rootWritable: await canWrite('/app/phase4-check'),
   tmpWritable: await canWrite('/tmp/phase4-check'),
+  targetIpv6Disabled: (await readFile('/proc/sys/net/ipv6/conf/eth0/disable_ipv6', 'utf8')).trim(),
   // Recorded so the evidence states which addresses were asserted, rather than
   // leaving a reader to infer them from whichever revision was committed.
   probed: Object.fromEntries(
@@ -109,6 +110,7 @@ assert.equal(fields.NoNewPrivs, '1');
 assert.equal(fields.Seccomp, '2');
 assert.equal(result.rootWritable, false);
 assert.equal(result.tmpWritable, true);
+assert.equal(result.targetIpv6Disabled, '1');
 for (const [name, outcome] of Object.entries(connections)) {
   assert.ok(
     ['ENETUNREACH', 'EHOSTUNREACH'].includes(outcome),
