@@ -141,8 +141,11 @@ copies and removes each rendered route inside the ingress container over the
 worker's authenticated Docker connection. Startup and preflight round-trip a
 temporary marker through that channel and fail closed if delivery fails. Unit
 tests cover this path. Real Engine mTLS and remote delivery preflight passed on
-the two-VM validation setup on 2026-10-04; live Traefik routing and the
-separate-host trust boundary still need Phase 4 validation.
+the two-VM validation setup on 2026-10-04. Live HTTPS lifecycle, two-instance
+isolation, network-drift termination, and mid-spawn crash recovery also passed.
+Targets require Docker 28+ isolated bridge gateway modes with IPv6 disabled;
+ordinary internal bridges permit access to host bridge services. Production
+firewall, domain/TLS, and deployment evidence remain Phase 4 requirements.
 
 ## Deployment boundaries
 

@@ -3,7 +3,11 @@
 Phase 4 requires a migration/table owner and a separate API/worker login.
 `scripts/db-app-role.sql` is the reviewed application grant list. CI connects
 through a separate disposable application login to verify it, but no production
-role has been provisioned.
+role has been provisioned. On 2026-10-04, the disposable two-VM environment
+also passed effective privilege checks with separate migration-owner and
+application logins, and ran seeding and the live API/worker lifecycle through
+the application login. These results do not substitute for managed production
+role provisioning; see the Phase 4 gate record.
 
 After applying the committed Drizzle migrations as the migration owner, a
 database administrator must create `cyber_range_app` as a `NOLOGIN` role and

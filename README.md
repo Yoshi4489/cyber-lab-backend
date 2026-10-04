@@ -19,8 +19,9 @@ This repository is
 Authenticated remote route delivery is implemented and unit-tested. Both VMs
 are running. Real remote Engine mTLS, fail-closed route delivery preflight, and
 separate validation database logins passed on 2026-10-04.
-**Next:** Run live HTTPS targets, isolation probes, and crash/retry on the
-two-VM topology, then finish production and frontend launch controls.
+Live HTTPS lifecycle, two-player isolation, network-drift cleanup, and mid-spawn
+worker crash recovery also passed on that topology.
+**Next:** Finish production deployment, frontend, email, and operational launch controls.
 **Blocked/waiting:** domain and production email.
 **Last updated:** 2026-10-04.
 
@@ -42,8 +43,8 @@ manifest were used for the Phase 3 exit check. Dynamic submission scoring is
 active only for an owned, running, unexpired instance. Local development email
 is written only to the ignored `.local-mail` directory.
 
-Verification: 127 Vitest cases are defined; the local run on 2026-09-28 passes
-83 and skips 44 environment-gated cases, across 18 passed and 13 skipped files.
+Verification: 137 Vitest cases are defined; the local run on 2026-10-04 passes
+91 and skips 46 environment-gated cases, across 17 passed and 14 skipped files.
 Lint, type checking, and build pass on Node 22.23.2.
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
@@ -82,14 +83,18 @@ The worker's Redis-connection shutdown fix exited within five seconds of
 SIGTERM on that VM. Audit rows reject direct update/delete.
 The restricted application-role grants pass a disposable-PostgreSQL test through
 a separate login. CI also verifies a disposable Docker mTLS handshake and rejects
-an untrusted server CA; no remote Docker Engine has been exercised.
-Remote route delivery into ingress is covered by unit tests against a mocked
-Docker fixture only; it has not run against a real remote Engine, and no live
-target has been reached through a remotely delivered route.
+an untrusted server CA. On 2026-10-04, real remote Engine mTLS and delivered
+HTTPS routes passed on two Ubuntu VMs. Live probes exposed host SSH access
+through ordinary internal bridge gateways; isolated gateway modes now remove
+host bridge IPv4 addresses, and both application-created targets passed the
+corrected probes with target IPv6 disabled. Network drift was terminated and
+audited. A mid-spawn SIGKILL recovered on attempt two using the same container
+and network. Final cleanup found zero managed targets, networks, or routes.
 Production role provisioning remains open.
 See the [Phase 4 security gate record](docs/PHASE4_SECURITY_GATE.md) for exact
 evidence and open checks. Remote CI passed on `develop`
-([run 36258033350](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/36258033350)).
+for the isolated-network fix
+([run 37182974294](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37182974294)).
 
 The earlier Phase 0 finishing script is absent from the current repository.
 Use reviewed commands and focused commits; no automatic commit/push cleanup

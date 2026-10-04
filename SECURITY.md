@@ -79,7 +79,8 @@ records isolated-host evidence and hardens the boundary; it does not defer the
 basic restrictions. The Phase 4 VM probe observed user-namespace remapping,
 seccomp filtering, AppArmor, zero effective capabilities, read-only root,
 bounded tmpfs/memory/swap/CPU/PIDs/logs, no mounts or host ports, and blocked
-egress. This evidence does not cover remote mTLS or production trust zones.
+egress. Two-VM remote mTLS and live isolation checks passed on 2026-10-04;
+this disposable topology does not establish production deployment controls.
 CI verifies the worker's client certificate against a disposable HTTPS server
 and rejects an untrusted server CA. Production worker configuration requires
 authenticated delivery into the ingress container over the Docker connection;
@@ -89,7 +90,11 @@ route-directory visibility probe and rejected an incorrect path. Neither test
 establishes Traefik reload of a delivered route or separate-host trust-zone
 isolation. On 2026-10-04 the two-VM setup separately passed a real Engine mTLS
 connection, no-client/untrusted-CA/wrong-IP rejection checks, and remote
-delivery preflight. Live routing and network probes remain open.
+delivery preflight. Live HTTPS routing and both application-created targets'
+network probes then passed after fixing host access through internal bridges.
+Isolated gateway modes removed host bridge IPv4 addresses, and target IPv6 was
+disabled. Network drift triggered audited cleanup; a worker killed mid-spawn
+recovered without duplicate resources. See the gate record for probe scope.
 
 ## Network boundary
 

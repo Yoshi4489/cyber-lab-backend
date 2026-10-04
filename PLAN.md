@@ -9,13 +9,14 @@ the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-The current local run passes 83 tests and skips 45 environment-gated cases on
+The current local run passes 91 tests and skips 46 environment-gated cases on
 Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
 and accept direct client operations. Remote CI has passed on `develop`. See
 README for current verification evidence.
 Nothing is deployed and public signup remains closed. Phase 4 VM checks have
 passed. Real Engine mTLS and remote route-delivery preflight passed on the
-two-VM topology on 2026-10-04; live separate-host isolation and production
+two-VM topology on 2026-10-04. Live HTTPS lifecycle, two-instance isolation,
+network-drift termination, and mid-spawn crash recovery also passed. Production
 deployment checks remain open.
 
 The Ubuntu 26.04 validation VM now advertises userns, seccomp and AppArmor.
@@ -23,8 +24,8 @@ On 2026-09-26, preflight and the disposable HTTP lifecycle passed with a
 running Traefik ingress and one digest-pinned fixture. Create/poll, HTTPS
 access, once-only scoring, extension, destruction, route removal, and recovery
 after a worker restart passed. Both runs left zero backend-managed containers,
-networks, and routes. Control-plane/target trust-zone separation remains
-unverified.
+networks, and routes. Separate-host isolation was subsequently validated on
+two disposable VMs; production trust-zone controls remain unverified.
 
 Effort: S is a focused change; M spans several modules; L requires several
 reviewable batches and integration/security checks. These are relative sizes,
@@ -166,7 +167,11 @@ ingress, and under `ingress` delivery it round-trips a marker through the Docker
 channel. The disposable VM passed the visibility probe and rejected a wrong path.
 Delivery preflight against a real separate VM passed on 2026-10-04, after
 replacing ingress's read-only route mount with a writable dedicated volume.
-Live routing and isolation on that topology remain open. See the
+Live routing and two-player isolation passed after fixing ordinary internal
+bridges' access to host services. The adapter now requires Docker 28+ isolated
+gateway modes, rejects legacy networks, and terminates network drift. Target
+IPv6 is disabled. A real mid-spawn SIGKILL recovered on attempt two with the
+same container and network; final cleanup left zero managed resources. See the
 [Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) for exact evidence and
 limits. **The gate remains open.**
 
@@ -177,17 +182,17 @@ limits. **The gate remains open.**
 - M: Add automatic abuse termination and append-only audit protections.
 - M: Review every required control in SECURITY.md with recorded evidence.
 
-Remaining work: exercise live targets through the validated separate-host mTLS
-connection and verify target/control-plane trust-zone blocking; run two application instances across
-networks; repeat crash/retry with the separate-host worker; provision and verify
-separate production application and migration database roles; and finish
-frontend/operational launch controls. Authenticated remote route delivery is now
+Remaining work: review the deployed production firewall and domain/TLS layout;
+provision and verify separate production application and migration database
+roles; and finish frontend, production email, and operational launch controls.
+Repeat the validated probes and recovery drill on the actual deployment.
+Authenticated remote route delivery is now
 implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` extracts each rendered route into
 the ingress container over the worker's own authenticated Docker connection and
 removes it with an argument vector, so the target host holds no control-plane
 credential. Production configuration requires that mode. It is covered by unit
-tests and a real remote Engine preflight, and still needs a live target reached
-through a delivered route. Separate database owner/application logins passed
+tests, real remote Engine preflight, and live HTTPS target lifecycle. Separate
+database owner/application logins passed
 effective privilege checks on the disposable control-plane database; production
 role provisioning remains open.
 The single-node worker is serialized. Multi-worker scale-out needs a
@@ -234,6 +239,7 @@ belong to the frontend repo, coordinated through generated OpenAPI and phase
 checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
-Next task: provision a separate target host and production-like application
-database role, then complete the open Phase 4 checks in the gate record.
+Next task: complete the frontend secure-cookie/CSRF checkpoint and production
+email delivery, then provision the production topology and database roles and
+record the remaining deployment and operational checks in the gate record.
 Public signup remains closed.

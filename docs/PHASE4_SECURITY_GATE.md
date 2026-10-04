@@ -34,10 +34,10 @@ The committed `scripts/phase4-probe.mjs` is the target-side pass/fail probe. It
 requires `PHASE4_TARGETS` to name this topology's control-plane and Docker API
 addresses as `name=host:port` pairs, records them in its output, and fails on
 any outcome other than a missing route, because `ECONNREFUSED` or a completed
-connection both mean a route exists. Confirm every supplied address is reachable
-from the target host before trusting a pass: if the host cannot reach the control
-plane either, the target's `ENETUNREACH` says nothing about container isolation
-in particular. The Phase 3 exit runner verifies
+connection both mean a route exists. Confirm management destinations are reachable
+from the target host and peer services are reachable from ingress before trusting
+a pass. Record loopback-only services separately, and inspect address ownership
+instead of assuming `.1` belongs to the host. The Phase 3 exit runner verifies
 create/poll/HTTPS/submission/extend/destroy and restart recovery. Do not use its
 self-signed-certificate allowance for a non-loopback ingress.
 Final Docker label queries after both 2026-09-27 drills found no backend-managed
@@ -45,7 +45,7 @@ containers or networks, and the dynamic route directory was empty. The API and
 worker validation processes were stopped; PostgreSQL, Redis, and Traefik stayed
 running for future disposable checks.
 
-## Two-VM setup evidence (2026-10-04)
+## Two-VM live evidence (2026-10-04)
 
 The worker source and control-plane services are now on NongBuntu2
 (`192.168.56.107`), with Docker Engine 29.8.1 and ingress on NongBuntu
@@ -65,7 +65,8 @@ environment; production deployment and its firewall/domain controls remain open.
   dedicated writable route volume replaced that mount, while the stopped
   original ingress was retained for rollback. Remote preflight now reports
   `status=ready`, `manifestCount=1`, and `routeDelivery=ingress`. The marker was
-  absent afterwards. A live route has not yet been exercised in this topology.
+  absent afterwards. Live HTTPS targets subsequently passed through remotely
+  delivered routes.
 - PostgreSQL and Redis are healthy and published only on control-plane
   loopback. Migrations ran as the separate non-superuser migration owner.
   The application login has no owner membership, superuser, role-creation,
@@ -79,16 +80,55 @@ environment; production deployment and its firewall/domain controls remain open.
   The validation CA key remains on the control plane; production requires
   separate offline signing-key custody.
 
-Live target routing, two application instances, network probes, and crash/retry
-still need to run in this topology. The API validation environment uses the
-development mailer; production email remains a launch requirement.
+- Live probes initially connected to host SSH through each ordinary internal
+  bridge gateway. Both targets were destroyed before changing the adapter.
+  The fix requires Docker 28+ isolated IPv4/IPv6 gateway modes, a bridge driver,
+  and disabled target IPv6; newly created networks are inspected, legacy
+  networks are refused, and reconciliation terminates unsafe network drift.
+- Two application-created player instances then passed probes with UID 65532,
+  zero capabilities, seccomp mode 2, no-new-privileges, read-only root, writable
+  tmpfs, and target interface IPv6 disabled. Inspect confirmed bounded resources,
+  no mounts, and no published target ports. Neither isolated bridge had a host
+  IPv4 address. The former gateway `.1` addresses belonged to ingress, so an
+  SSH refusal there was not treated as proof of host isolation. Target probes
+  to the host bridge IPv6 link-local addresses returned `ENETUNREACH`.
+- Both targets returned `ENETUNREACH` for public `1.1.1.1:80`, metadata
+  `169.254.169.254:80`, target host SSH `.106:22`, Docker `.106:2376`, control
+  plane SSH `.107:22`, API `.107:4000`, PostgreSQL `.107:5432`, Redis `.107:6379`,
+  and the other instance's `172.19.0.2:8080` or `172.20.0.2:8080`. Here `.106`
+  and `.107` mean `192.168.56.106` and `192.168.56.107`. Host-side positive
+  baselines reached Docker and control-plane SSH; ingress reached both healthy
+  peer services. API/database/Redis bound loopback, so those probes establish
+  absence of a route to the control-plane address, not reachable non-loopback
+  services. This VM does not contain a real cloud metadata service.
+- Cross-player reads and destruction returned 404. Disconnecting one target
+  from its owned network produced `runtime_unsafe_network`, an
+  `instance.runtime_terminated` audit event, and container/network/route cleanup;
+  the other player remained healthy. The drill used a 5-second maintenance
+  interval rather than the 60-second default.
+- Full HTTPS create/poll/submission/extend/destroy passed, with once-only scoring
+  and a 404 after route removal. A controlled SIGKILL during provisioning
+  recovered on spawn attempt two, reusing the original container and network
+  with exactly one of each. A separate paused-start drill recovered after the
+  bounded startup timeout; it is not evidence of a worker crash.
+- Final label queries found zero managed containers or networks, and the
+  ingress route directory was empty. API, worker, and validation SSH tunnels
+  were stopped; disposable PostgreSQL, Redis, and ingress remain available.
+  Local lint/typecheck/build passed with 91 tests and 46 environment skips.
+  Focused Ubuntu suites passed 7 TLS/configuration, 22 adapter, and 3 lifecycle
+  database integration cases. CI passed for the isolated-network fix at
+  [run 37182974294](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37182974294).
+
+The API validation environment uses the development mailer and loopback
+self-signed HTTPS allowance. Production email, public domain/TLS, firewall
+policy, and offline CA signing-key custody remain launch requirements.
 
 ## Controls still needed to close the gate
 
-1. Complete live lifecycle validation on the separate-host layout and review
+1. Repeat the validated live lifecycle checks on the deployed production layout and review
    production trust-zone/firewall controls. The two-VM setup passed real Docker
-   mTLS with server-certificate verification on 2026-10-04; targets must still
-   prove they cannot reach control-plane credentials or management routes.
+   mTLS, live routing, and target management-route blocking on 2026-10-04;
+   production firewall and trust-zone controls still need deployment evidence.
    [The Docker mTLS
    procedure](DOCKER_MTLS.md) covers issuing the certificate set, configuring
    the Engine, and the negative checks that prove client authentication is
@@ -97,12 +137,12 @@ development mailer; production email remains a launch requirement.
    into the ingress container over the same authenticated Docker connection, so
    the target host holds no control-plane credential and exposes no inbound
    management route. Remote delivery preflight passed against the real Engine;
-   a live target reached through HTTPS ingress is what proves Traefik loaded the
-   delivered provider configuration.
-2. Repeat egress, metadata, private-address, control-plane, and cross-instance
-   probes in that topology, including an application-created second instance.
-   The VM's separate peer network demonstrates only local Docker isolation.
+   live HTTPS lifecycle also proved Traefik loaded the delivered configuration.
+2. Repeat egress, metadata, private-address, control-plane, IPv6, and cross-instance
+   probes on the actual production topology. Two application-created instances
+   passed on the disposable two-VM layout after the bridge isolation fix.
 3. Repeat worker crash/retry with the production separate-host topology. The
+   two-VM setup passed a mid-spawn SIGKILL with resource reuse, and the earlier
    disposable VM passed stopped, unhealthy, and OOM cleanup and audit drills,
    but Phase 3 supports one worker on one node; concurrent workers need a
    per-instance distributed lock before scale-out.
