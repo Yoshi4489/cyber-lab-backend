@@ -29,7 +29,7 @@ extensions as a backstop, but that is a safety net, not the intended location.
 
 ## Addresses
 
-Substitute your own throughout. The planned validation topology is two VirtualBox
+Substitute your own throughout. The validation topology is two VirtualBox
 guests on a host-only network:
 
 | Role | Host | Address |
@@ -230,6 +230,12 @@ LAB_NODE_NAME=nongbuntu-target
 fragment. Production additionally requires `ingress` route delivery, because a
 route written beside the worker would land on the control plane while Traefik
 reads from the target host.
+
+The ingress route directory must be a writable mount for this delivery mode,
+and its runtime user must be able to remove files there. The previous local
+file-provider setup mounted that directory read-only; remote preflight rejects
+that mount. The two-VM validation uses a dedicated writable volume owned by
+ingress UID 1000. Keep the rest of the ingress root filesystem read-only.
 
 Use `DOCKER_CLIENT_CERT_PATH` for the client certificate file. Earlier worker
 configuration used `DOCKER_CERT_PATH`, which Docker tooling interprets as a

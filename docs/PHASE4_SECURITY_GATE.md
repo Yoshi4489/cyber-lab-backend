@@ -45,21 +45,59 @@ containers or networks, and the dynamic route directory was empty. The API and
 worker validation processes were stopped; PostgreSQL, Redis, and Traefik stayed
 running for future disposable checks.
 
+## Two-VM setup evidence (2026-10-04)
+
+The worker source and control-plane services are now on NongBuntu2
+(`192.168.56.107`), with Docker Engine 29.8.1 and ingress on NongBuntu
+(`192.168.56.106`). This is a disposable VirtualBox host-only validation
+environment; production deployment and its firewall/domain controls remain open.
+
+- The control plane completed a real Engine mTLS request. No client certificate
+  was rejected with a TLS certificate-required alert, an untrusted server CA
+  failed verification, and a mismatched IP failed the server SAN check.
+- The first worker run exposed Docker tooling's directory interpretation of
+  `DOCKER_CERT_PATH`. The worker now uses `DOCKER_CLIENT_CERT_PATH`, rejects the
+  old setting with migration guidance, and passes an actual-process-environment
+  TLS regression test on Ubuntu. Local lint, typecheck, build, and 83 tests
+  passed; 45 environment-gated cases were skipped. The Ubuntu focused suite
+  passed all seven TLS/configuration tests.
+- Remote preflight then rejected the existing read-only ingress mount. A
+  dedicated writable route volume replaced that mount, while the stopped
+  original ingress was retained for rollback. Remote preflight now reports
+  `status=ready`, `manifestCount=1`, and `routeDelivery=ingress`. The marker was
+  absent afterwards. A live route has not yet been exercised in this topology.
+- PostgreSQL and Redis are healthy and published only on control-plane
+  loopback. Migrations ran as the separate non-superuser migration owner.
+  The application login has no owner membership, superuser, role-creation,
+  database-creation, or RLS-bypass privilege. Audit insert passed; eight checks
+  denied audit mutation, user deletion, schema changes, migration-journal
+  reads, and assuming the owner role with SQLSTATE 42501. Owner DDL passed in a
+  rolled-back transaction, and seeding passed using the application login.
+  These are disposable-database results, not production role provisioning.
+- The target received only its server material. Its server private key staging
+  copies were removed from the control plane and Windows transfer directory.
+  The validation CA key remains on the control plane; production requires
+  separate offline signing-key custody.
+
+Live target routing, two application instances, network probes, and crash/retry
+still need to run in this topology. The API validation environment uses the
+development mailer; production email remains a launch requirement.
+
 ## Controls still needed to close the gate
 
-1. Put the worker and data services in a control-plane trust zone and the
-   target Docker Engine on a separate host. Exercise real Docker mTLS with
-   server-certificate verification and no target/control-plane credentials or
-   management routes exposed to the target. [The Docker mTLS
+1. Complete live lifecycle validation on the separate-host layout and review
+   production trust-zone/firewall controls. The two-VM setup passed real Docker
+   mTLS with server-certificate verification on 2026-10-04; targets must still
+   prove they cannot reach control-plane credentials or management routes.
+   [The Docker mTLS
    procedure](DOCKER_MTLS.md) covers issuing the certificate set, configuring
    the Engine, and the negative checks that prove client authentication is
    enforced. Route delivery for that topology is
    now implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` pushes each rendered route
    into the ingress container over the same authenticated Docker connection, so
    the target host holds no control-plane credential and exposes no inbound
-   management route. That delivery path has only been exercised against a mocked
-   Docker fixture. It still has to run against a real remote Engine, and a live
-   target reached through HTTPS ingress is what proves Traefik loaded the
+   management route. Remote delivery preflight passed against the real Engine;
+   a live target reached through HTTPS ingress is what proves Traefik loaded the
    delivered provider configuration.
 2. Repeat egress, metadata, private-address, control-plane, and cross-instance
    probes in that topology, including an application-created second instance.

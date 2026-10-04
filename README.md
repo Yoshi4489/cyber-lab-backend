@@ -17,12 +17,12 @@ This repository is
 
 **Now:** Phase 3 passed; Phase 4 disposable-host hardening and isolation probes passed.
 Authenticated remote route delivery is implemented and unit-tested. Both VMs
-are running and the remote Docker mTLS procedure is documented. The remote
-Engine connection and route delivery have not been exercised yet.
-**Next:** Issue the Engine certificate set, run preflight against the remote
-Engine, then repeat the isolation probes on that topology.
+are running. Real remote Engine mTLS, fail-closed route delivery preflight, and
+separate validation database logins passed on 2026-10-04.
+**Next:** Run live HTTPS targets, isolation probes, and crash/retry on the
+two-VM topology, then finish production and frontend launch controls.
 **Blocked/waiting:** domain and production email.
-**Last updated:** 2026-10-03.
+**Last updated:** 2026-10-04.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,

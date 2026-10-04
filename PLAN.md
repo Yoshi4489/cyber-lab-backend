@@ -9,12 +9,14 @@ the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-The current local run passes 69 tests and skips 45 environment-gated cases on
+The current local run passes 83 tests and skips 45 environment-gated cases on
 Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
 and accept direct client operations. Remote CI has passed on `develop`. See
 README for current verification evidence.
 Nothing is deployed and public signup remains closed. Phase 4 VM checks have
-passed, while production trust-zone and mTLS checks remain open.
+passed. Real Engine mTLS and remote route-delivery preflight passed on the
+two-VM topology on 2026-10-04; live separate-host isolation and production
+deployment checks remain open.
 
 The Ubuntu 26.04 validation VM now advertises userns, seccomp and AppArmor.
 On 2026-09-26, preflight and the disposable HTTP lifecycle passed with a
@@ -157,12 +159,14 @@ passed disposable VM drills, and a worker shutdown Redis leak was fixed and
 validated on the VM. Direct audit row mutation is blocked by migrations
 0003-0004. A restricted application-role grant script
 and separate-login disposable-database test now pass CI. A disposable mTLS
-handshake test passes, but the production roles and remote Engine connection are
-not provisioned. Worker startup now verifies route delivery and fails closed:
+handshake test passes, but production deployment and database roles remain
+unprovisioned. Worker startup now verifies route delivery and fails closed:
 under `file` delivery it probes whether its route directory is visible inside
 ingress, and under `ingress` delivery it round-trips a marker through the Docker
 channel. The disposable VM passed the visibility probe and rejected a wrong path.
-Delivery against a real separate host remains open. See the
+Delivery preflight against a real separate VM passed on 2026-10-04, after
+replacing ingress's read-only route mount with a writable dedicated volume.
+Live routing and isolation on that topology remain open. See the
 [Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) for exact evidence and
 limits. **The gate remains open.**
 
@@ -173,8 +177,8 @@ limits. **The gate remains open.**
 - M: Add automatic abuse termination and append-only audit protections.
 - M: Review every required control in SECURITY.md with recorded evidence.
 
-Remaining work: validate a worker-to-separate-host Docker mTLS connection and
-target/control-plane trust-zone blocking; run two application instances across
+Remaining work: exercise live targets through the validated separate-host mTLS
+connection and verify target/control-plane trust-zone blocking; run two application instances across
 networks; repeat crash/retry with the separate-host worker; provision and verify
 separate production application and migration database roles; and finish
 frontend/operational launch controls. Authenticated remote route delivery is now
@@ -182,8 +186,10 @@ implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` extracts each rendered route into
 the ingress container over the worker's own authenticated Docker connection and
 removes it with an argument vector, so the target host holds no control-plane
 credential. Production configuration requires that mode. It is covered by unit
-tests against a mocked Docker fixture and still needs a real remote Engine plus a
-live target reached through a delivered route.
+tests and a real remote Engine preflight, and still needs a live target reached
+through a delivered route. Separate database owner/application logins passed
+effective privilege checks on the disposable control-plane database; production
+role provisioning remains open.
 The single-node worker is serialized. Multi-worker scale-out needs a
 per-instance distributed lock and is deferred until it can be tested.
 

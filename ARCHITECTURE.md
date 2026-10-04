@@ -140,7 +140,8 @@ ingress. Production instead requires `TRAEFIK_ROUTE_DELIVERY=ingress`, which
 copies and removes each rendered route inside the ingress container over the
 worker's authenticated Docker connection. Startup and preflight round-trip a
 temporary marker through that channel and fail closed if delivery fails. Unit
-tests cover this path, but a real remote Engine, Traefik reload, and the
+tests cover this path. Real Engine mTLS and remote delivery preflight passed on
+the two-VM validation setup on 2026-10-04; live Traefik routing and the
 separate-host trust boundary still need Phase 4 validation.
 
 ## Deployment boundaries

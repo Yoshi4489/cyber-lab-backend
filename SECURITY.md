@@ -86,8 +86,10 @@ authenticated delivery into the ingress container over the Docker connection;
 startup round-trips a temporary marker and fails closed if delivery fails.
 Unit tests cover that delivery path, while the disposable VM passed the local
 route-directory visibility probe and rejected an incorrect path. Neither test
-establishes a real remote Engine connection, Traefik reload of a delivered
-route, or separate-host trust-zone isolation.
+establishes Traefik reload of a delivered route or separate-host trust-zone
+isolation. On 2026-10-04 the two-VM setup separately passed a real Engine mTLS
+connection, no-client/untrusted-CA/wrong-IP rejection checks, and remote
+delivery preflight. Live routing and network probes remain open.
 
 ## Network boundary
 
