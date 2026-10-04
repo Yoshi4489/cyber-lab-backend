@@ -16,12 +16,13 @@ This repository is
 ## Project status
 
 **Now:** Phase 3 passed; Phase 4 disposable-host hardening and isolation probes passed.
-Authenticated remote route delivery is implemented and unit-tested.
-**Next:** Verify separate trust zones, remote Docker mTLS, and remote route
-delivery against a real second host, then complete remaining launch controls.
-**Blocked/waiting:** a second host for the target trust zone; domain and
-production email.
-**Last updated:** 2026-09-28.
+Authenticated remote route delivery is implemented and unit-tested. Both VMs
+are running and the remote Docker mTLS procedure is documented. The remote
+Engine connection and route delivery have not been exercised yet.
+**Next:** Issue the Engine certificate set, run preflight against the remote
+Engine, then repeat the isolation probes on that topology.
+**Blocked/waiting:** domain and production email.
+**Last updated:** 2026-10-03.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,
@@ -133,7 +134,9 @@ The [authentication contract](docs/AUTHENTICATION.md) defines the implemented
 backend trust boundary and the remaining frontend checkpoint. The
 [scoring contract](docs/SCORING.md) defines Phase 2 behavior and the Phase 3
 instance dependency. The [lifecycle contract](docs/LIFECYCLE.md) defines the
-Phase 3 API, worker, manifest, recovery, and deployment boundaries.
+Phase 3 API, worker, manifest, recovery, and deployment boundaries. The
+[Docker mTLS procedure](docs/DOCKER_MTLS.md) covers issuing the worker's remote
+Engine credentials and verifying that the Engine enforces them.
 
 ## Quick start
 

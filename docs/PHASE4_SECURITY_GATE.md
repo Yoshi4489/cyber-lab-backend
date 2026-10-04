@@ -30,11 +30,16 @@ separate target trust zone.
 | Ingress route visibility | Worker startup and preflight write a random marker beside routes and read it through the Docker archive API inside ingress, then remove it. On the disposable VM, `/etc/traefik/dynamic` passed and an incorrect container path failed; no marker remained. | Passed on disposable VM |
 | Authenticated remote route delivery | `TRAEFIK_ROUTE_DELIVERY=ingress` extracts the rendered route into the ingress container over the worker's existing authenticated Docker connection and removes it with an argument vector, never a shell. Production configuration requires that mode. Startup and preflight verify a marker round trip: write, read back, delete, confirm absent. Unit tests cover the delivered document, the USTAR entry and checksum, the removal argv, rejected route input, a traversing ingress directory, a non-zero removal exit code, and both fail-closed probe paths. | Code and unit tests only; no separate-host delivery exercised |
 
-The committed `scripts/phase4-probe.mjs` is the target-side pass/fail probe.
-Its private-host and Docker-gateway addresses are specific to this VM. The
-Phase 3 exit runner verifies create/poll/HTTPS/submission/extend/destroy and
-restart recovery. Do not use its self-signed-certificate allowance for a
-non-loopback ingress.
+The committed `scripts/phase4-probe.mjs` is the target-side pass/fail probe. It
+requires `PHASE4_TARGETS` to name this topology's control-plane and Docker API
+addresses as `name=host:port` pairs, records them in its output, and fails on
+any outcome other than a missing route, because `ECONNREFUSED` or a completed
+connection both mean a route exists. Confirm every supplied address is reachable
+from the target host before trusting a pass: if the host cannot reach the control
+plane either, the target's `ENETUNREACH` says nothing about container isolation
+in particular. The Phase 3 exit runner verifies
+create/poll/HTTPS/submission/extend/destroy and restart recovery. Do not use its
+self-signed-certificate allowance for a non-loopback ingress.
 Final Docker label queries after both 2026-09-27 drills found no backend-managed
 containers or networks, and the dynamic route directory was empty. The API and
 worker validation processes were stopped; PostgreSQL, Redis, and Traefik stayed
@@ -45,7 +50,10 @@ running for future disposable checks.
 1. Put the worker and data services in a control-plane trust zone and the
    target Docker Engine on a separate host. Exercise real Docker mTLS with
    server-certificate verification and no target/control-plane credentials or
-   management routes exposed to the target. Route delivery for that topology is
+   management routes exposed to the target. [The Docker mTLS
+   procedure](DOCKER_MTLS.md) covers issuing the certificate set, configuring
+   the Engine, and the negative checks that prove client authentication is
+   enforced. Route delivery for that topology is
    now implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` pushes each rendered route
    into the ingress container over the same authenticated Docker connection, so
    the target host holds no control-plane credential and exposes no inbound

@@ -105,7 +105,9 @@ it is exercised by the startup delivery check, so a container without a usable
 `rm` fails closed before any target is accepted.
 
 Production workers require remote Docker mTLS (`DOCKER_HOST` plus CA, client
-certificate and key paths). A local socket is accepted only outside production.
+certificate and key paths); [the Docker mTLS procedure](DOCKER_MTLS.md) covers
+issuing that certificate set and configuring both ends. A local socket is
+accepted only outside production.
 The target host must advertise user namespaces, seccomp and AppArmor or spawn
 fails closed. Docker applies its built-in seccomp profile; the adapter does not
 send `seccomp=default`, which Docker 29 treats as invalid profile JSON. It
