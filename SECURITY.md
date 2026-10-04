@@ -81,12 +81,13 @@ seccomp filtering, AppArmor, zero effective capabilities, read-only root,
 bounded tmpfs/memory/swap/CPU/PIDs/logs, no mounts or host ports, and blocked
 egress. This evidence does not cover remote mTLS or production trust zones.
 CI verifies the worker's client certificate against a disposable HTTPS server
-and rejects an untrusted server CA. That test does not establish a real remote
-Docker Engine connection or a route-delivery path to remote Traefik. Production
-worker startup now requires an ingress route-directory visibility probe. It
-passed against the disposable VM ingress and failed for a wrong container path;
-it does not establish authenticated remote delivery or prove Traefik consumed
-the route.
+and rejects an untrusted server CA. Production worker configuration requires
+authenticated delivery into the ingress container over the Docker connection;
+startup round-trips a temporary marker and fails closed if delivery fails.
+Unit tests cover that delivery path, while the disposable VM passed the local
+route-directory visibility probe and rejected an incorrect path. Neither test
+establishes a real remote Engine connection, Traefik reload of a delivered
+route, or separate-host trust-zone isolation.
 
 ## Network boundary
 

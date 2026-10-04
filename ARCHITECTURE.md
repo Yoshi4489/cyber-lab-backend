@@ -134,13 +134,14 @@ and audits stopped, unhealthy, OOM-killed, or missing targets.
 The queue owns its duplicated BullMQ Redis client and closes it on shutdown;
 the idle worker exited within five seconds of SIGTERM on the validation VM.
 
-The file router currently writes to the worker's local filesystem. Worker
-startup and preflight write a temporary marker and read it through the Docker
-archive API inside ingress. Production requires the ingress directory setting;
-startup fails if the file is not visible. This verifies path visibility, not
-authenticated transfer, Traefik provider configuration, or separate-host trust
-zones. An authenticated route-delivery path to the target host remains required
-before the remote lifecycle can pass the Phase 4 gate.
+The file router writes to the worker's local filesystem for disposable local
+setups; startup and preflight check that the directory is visible inside
+ingress. Production instead requires `TRAEFIK_ROUTE_DELIVERY=ingress`, which
+copies and removes each rendered route inside the ingress container over the
+worker's authenticated Docker connection. Startup and preflight round-trip a
+temporary marker through that channel and fail closed if delivery fails. Unit
+tests cover this path, but a real remote Engine, Traefik reload, and the
+separate-host trust boundary still need Phase 4 validation.
 
 ## Deployment boundaries
 
