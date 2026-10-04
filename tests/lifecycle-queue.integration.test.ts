@@ -87,7 +87,7 @@ describeInfrastructure('durable lifecycle queue', () => {
 
     const operation = await readOperation(operationId);
     expect(operation).toMatchObject({ status: 'succeeded', attempts: 1 });
-  });
+  }, 15_000);
 
   it('bounds retries and retains failed jobs for inspection', async () => {
     const operationId = await insertOperation('reconcile', 'queue-reconcile-001');
@@ -103,7 +103,7 @@ describeInfrastructure('durable lifecycle queue', () => {
     });
     const failed = await queue.getFailed();
     expect(failed.some((job) => job.id === operationId)).toBe(true);
-  });
+  }, 15_000);
 
   it('creates idempotent reaper and reconciliation intent from persisted state', async () => {
     const expiredAt = new Date(Date.now() - 1_000);
@@ -182,9 +182,9 @@ describeInfrastructure('durable lifecycle queue', () => {
     try {
       await shutdownWorker.close();
       await shutdownQueue.close();
-      const status = workerClient.status;
-      if (status !== 'end') workerClient.disconnect();
-      expect(status).toBe('end');
+      // QUIT resolves before ioredis necessarily emits its socket-close event.
+      // Observe natural shutdown; only force disconnect in cleanup on failure.
+      await expect.poll(() => workerClient.status, { timeout: 2_000 }).toBe('end');
     } finally {
       if (workerClient.status !== 'end') workerClient.disconnect();
     }

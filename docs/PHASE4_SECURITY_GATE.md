@@ -118,6 +118,13 @@ environment; production deployment and its firewall/domain controls remain open.
   Focused Ubuntu suites passed 7 TLS/configuration, 22 adapter, and 3 lifecycle
   database integration cases. CI passed for the isolated-network fix at
   [run 37182974294](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37182974294).
+- A later CI run exposed queue test timing failures: the default 5-second test
+  deadline was shorter than its 10-second operation poll, and the shutdown
+  assertion read Redis status before its close event. Tests now allow the
+  bounded operation poll to finish and wait for natural Redis `end` without
+  forcing disconnect before the assertion. All five queue integration cases
+  passed against the disposable VM's PostgreSQL and Redis; lint, typecheck,
+  and build passed. Runtime shutdown behavior was unchanged.
 
 The API validation environment uses the development mailer and loopback
 self-signed HTTPS allowance. Production email, public domain/TLS, firewall
