@@ -4,7 +4,7 @@ import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import type { TLSSocket } from 'node:tls';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { createWorkerDockerClient } from '../src/orchestrator/docker-client.js';
 import { loadWorkerConfig } from '../src/worker-config.js';
 
@@ -13,6 +13,8 @@ const describeTls = opensslAvailable ? describe : describe.skip;
 
 describeTls('remote Docker mTLS', () => {
   let directory: string;
+
+  afterEach(() => vi.unstubAllEnvs());
 
   afterAll(async () => {
     if (!directory) return;
@@ -48,7 +50,7 @@ describeTls('remote Docker mTLS', () => {
       if (!address || typeof address === 'string') throw new Error('TLS fixture has no port');
       const paths = {
         DOCKER_CA_PATH: join(directory, 'ca.crt'),
-        DOCKER_CERT_PATH: join(directory, 'client.crt'),
+        DOCKER_CLIENT_CERT_PATH: join(directory, 'client.crt'),
         DOCKER_KEY_PATH: join(directory, 'client.key'),
       };
       const base = {
@@ -62,7 +64,13 @@ describeTls('remote Docker mTLS', () => {
         LAB_INGRESS_CONTAINER: 'traefik',
         DOCKER_HOST: `https://127.0.0.1:${address.port}`,
       };
-      const docker = await createWorkerDockerClient(loadWorkerConfig({ ...base, ...paths }));
+      // Docker's library also reads process.env before applying client options.
+      for (const [name, value] of Object.entries({ ...base, ...paths })) {
+        vi.stubEnv(name, value);
+      }
+      vi.stubEnv('DOCKER_SOCKET_PATH', undefined);
+      vi.stubEnv('DOCKER_CERT_PATH', undefined);
+      const docker = await createWorkerDockerClient(loadWorkerConfig());
       await expect(docker.ping()).resolves.toBeDefined();
       expect(authorizedRequests).toBe(1);
 

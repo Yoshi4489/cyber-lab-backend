@@ -218,7 +218,7 @@ alongside remote settings in any environment.
 NODE_ENV=production
 DOCKER_HOST=https://192.168.56.106:2376
 DOCKER_CA_PATH=/home/vboxuser/cyber-range-certs/ca.pem
-DOCKER_CERT_PATH=/home/vboxuser/cyber-range-certs/client-cert.pem
+DOCKER_CLIENT_CERT_PATH=/home/vboxuser/cyber-range-certs/client-cert.pem
 DOCKER_KEY_PATH=/home/vboxuser/cyber-range-certs/client-key.pem
 TRAEFIK_ROUTE_DELIVERY=ingress
 TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY=/etc/traefik/dynamic
@@ -230,6 +230,12 @@ LAB_NODE_NAME=nongbuntu-target
 fragment. Production additionally requires `ingress` route delivery, because a
 route written beside the worker would land on the control plane while Traefik
 reads from the target host.
+
+Use `DOCKER_CLIENT_CERT_PATH` for the client certificate file. Earlier worker
+configuration used `DOCKER_CERT_PATH`, which Docker tooling interprets as a
+directory and reads before applying explicit connection options. Rename that
+setting and remove `DOCKER_CERT_PATH` from the worker environment; startup
+rejects it with migration guidance.
 
 One split is easy to miss. The worker reads `RUNTIME_MANIFEST_PATH` from its own
 filesystem, so the manifest belongs on the **control plane**. Every image the

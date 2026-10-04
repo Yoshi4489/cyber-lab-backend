@@ -13,6 +13,16 @@ const base = {
 };
 
 describe('worker configuration boundary', () => {
+  it('rejects the Docker tooling certificate variable with migration guidance', () => {
+    expect(() => loadWorkerConfig({
+      ...base,
+      DOCKER_HOST: 'https://lab.example.test:2376',
+      DOCKER_CA_PATH: '/run/secrets/docker-ca.pem',
+      DOCKER_CERT_PATH: '/run/secrets/docker-cert.pem',
+      DOCKER_KEY_PATH: '/run/secrets/docker-key.pem',
+    })).toThrow('use DOCKER_CLIENT_CERT_PATH for the worker certificate file');
+  });
+
   it('requires ingress route delivery in production', () => {
     const { TRAEFIK_ROUTE_DELIVERY: _mode, ...withoutMode } = base;
     expect(() => loadWorkerConfig(withoutMode)).toThrow(
@@ -51,7 +61,7 @@ describe('worker configuration boundary', () => {
       ...base,
       DOCKER_HOST: 'https://lab.example.test:2376',
       DOCKER_CA_PATH: '/run/secrets/docker-ca.pem',
-      DOCKER_CERT_PATH: '/run/secrets/docker-cert.pem',
+      DOCKER_CLIENT_CERT_PATH: '/run/secrets/docker-cert.pem',
       DOCKER_KEY_PATH: '/run/secrets/docker-key.pem',
     })).toMatchObject({
       LAB_NODE_NAME: 'local-lab-node',
@@ -63,7 +73,7 @@ describe('worker configuration boundary', () => {
     const tls = {
       ...base,
       DOCKER_CA_PATH: '/run/secrets/docker-ca.pem',
-      DOCKER_CERT_PATH: '/run/secrets/docker-cert.pem',
+      DOCKER_CLIENT_CERT_PATH: '/run/secrets/docker-cert.pem',
       DOCKER_KEY_PATH: '/run/secrets/docker-key.pem',
     };
     for (const DOCKER_HOST of [

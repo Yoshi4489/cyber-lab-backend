@@ -18,12 +18,12 @@ const workerEnvSchema = z.object({
       endpoint.pathname === '/' && !endpoint.search && !endpoint.hash;
   }, 'Docker endpoint must be an HTTPS host with no credentials, path, query, or fragment').optional(),
   DOCKER_CA_PATH: z.string().min(1).optional(),
-  DOCKER_CERT_PATH: z.string().min(1).optional(),
+  DOCKER_CLIENT_CERT_PATH: z.string().min(1).optional(),
   DOCKER_KEY_PATH: z.string().min(1).optional(),
   LIFECYCLE_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(250).max(30_000).default(2_000),
   LIFECYCLE_MAINTENANCE_INTERVAL_MS: z.coerce.number().int().min(5_000).max(300_000).default(60_000),
 }).superRefine((config, context) => {
-  const tlsPaths = [config.DOCKER_CA_PATH, config.DOCKER_CERT_PATH, config.DOCKER_KEY_PATH];
+  const tlsPaths = [config.DOCKER_CA_PATH, config.DOCKER_CLIENT_CERT_PATH, config.DOCKER_KEY_PATH];
   const completeRemote = config.DOCKER_HOST && tlsPaths.every(Boolean);
   const anyRemote = config.DOCKER_HOST || tlsPaths.some(Boolean);
   if (config.DOCKER_SOCKET_PATH && anyRemote) {
@@ -55,5 +55,8 @@ const workerEnvSchema = z.object({
 export type WorkerConfig = z.infer<typeof workerEnvSchema>;
 
 export function loadWorkerConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
+  if (env.DOCKER_CERT_PATH !== undefined) {
+    throw new Error('DOCKER_CERT_PATH is reserved by Docker tooling; use DOCKER_CLIENT_CERT_PATH for the worker certificate file');
+  }
   return workerEnvSchema.parse(env);
 }

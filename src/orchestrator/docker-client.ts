@@ -9,7 +9,7 @@ export async function createWorkerDockerClient(config: WorkerConfig): Promise<Do
   if (
     !config.DOCKER_HOST ||
     !config.DOCKER_CA_PATH ||
-    !config.DOCKER_CERT_PATH ||
+    !config.DOCKER_CLIENT_CERT_PATH ||
     !config.DOCKER_KEY_PATH
   ) {
     throw new Error('Remote Docker mTLS configuration is incomplete');
@@ -17,7 +17,7 @@ export async function createWorkerDockerClient(config: WorkerConfig): Promise<Do
   const endpoint = new URL(config.DOCKER_HOST);
   const [ca, cert, key] = await Promise.all([
     readFile(config.DOCKER_CA_PATH),
-    readFile(config.DOCKER_CERT_PATH),
+    readFile(config.DOCKER_CLIENT_CERT_PATH),
     readFile(config.DOCKER_KEY_PATH),
   ]);
   return new Docker({

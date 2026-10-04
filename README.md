@@ -217,7 +217,7 @@ contains separate worker settings. Docker credentials are parsed only by
 | `LAB_INGRESS_CONTAINER` | Worker/preflight | Isolated ingress container name |
 | `TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY` | Worker/preflight | Route directory inside ingress; required for `ingress` delivery, and with `file` delivery it enables the startup visibility probe |
 | `LAB_NODE_NAME` | Worker/preflight | Non-secret scheduling identity stored in PostgreSQL |
-| `DOCKER_HOST`, `DOCKER_CA_PATH`, `DOCKER_CERT_PATH`, `DOCKER_KEY_PATH` | Production worker/preflight | Complete remote Docker mTLS configuration |
+| `DOCKER_HOST`, `DOCKER_CA_PATH`, `DOCKER_CLIENT_CERT_PATH`, `DOCKER_KEY_PATH` | Production worker/preflight | Complete remote Docker mTLS configuration |
 | `DOCKER_SOCKET_PATH` | Development worker/preflight only | Local disposable testing; rejected in production |
 
 Seed variables are consumed only by `npm run db:seed`; normal repeated seeding
