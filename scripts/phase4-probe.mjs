@@ -37,7 +37,9 @@ async function canWrite(path) {
 
 async function canConnect(host, port) {
   return new Promise((resolve) => {
-    const socket = connect({ host, port, timeout: 1500 });
+    // An absent address on the local bridge may need an ARP timeout before
+    // Linux reports EHOSTUNREACH. A short timer would hide that result.
+    const socket = connect({ host, port, timeout: 10000 });
     socket.once('connect', () => { socket.destroy(); resolve('connected'); });
     socket.once('timeout', () => { socket.destroy(); resolve('timeout'); });
     socket.once('error', (error) => resolve(error.code ?? 'error'));

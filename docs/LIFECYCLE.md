@@ -78,15 +78,22 @@ manifest.
 
 ## Runtime boundary
 
-The adapter creates an internal network per instance and publishes no host
-port. It uses a non-root user, drops every capability, enables
+The adapter creates an internal bridge network per instance with isolated IPv4
+and IPv6 gateway modes and IPv6 disabled, and publishes no host port. Docker
+Engine 28 or newer is required. An ordinary internal bridge still exposes host
+services through its bridge address, so the adapter verifies the isolated
+options after creation and before reusing a network. It uses a non-root user,
+drops every capability, enables
 no-new-privileges, seccomp and AppArmor, makes the root filesystem read-only,
 and bounds tmpfs, memory, CPU and PIDs. It never sets privileged, host network,
 host PID/IPC, devices, bind mounts, or Docker socket mounts. Traefik routes are
-written atomically as YAML through its file provider and removed before
+written as YAML through its file provider and removed before
 resources are destroyed. Phase 4 bounds memory and swap together, JSON logs,
 and IPC; reconciliation removes and audits a stopped, unhealthy, OOM-killed,
-or missing target.
+or missing target. Network drift or a legacy host-accessible gateway causes
+`runtime_unsafe_network` termination and an audit event. Drain existing targets
+before deploying this network-policy change; networks are recreated rather
+than modified in place.
 
 `TRAEFIK_ROUTE_DELIVERY` selects how a route reaches the file provider. `file`
 writes it beside the worker and suits one disposable host. `ingress` extracts the

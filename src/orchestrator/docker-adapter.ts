@@ -5,6 +5,10 @@ import type { TraefikRouter } from './traefik-router.js';
 const MANAGED_LABEL = 'cyber-range.managed';
 const INSTANCE_LABEL = 'cyber-range.instance-id';
 const CHALLENGE_LABEL = 'cyber-range.challenge-id';
+const ISOLATED_GATEWAY_OPTIONS = {
+  'com.docker.network.bridge.gateway_mode_ipv4': 'isolated',
+  'com.docker.network.bridge.gateway_mode_ipv6': 'isolated',
+};
 
 export type SpawnTargetInput = {
   instanceId: string;
@@ -25,7 +29,7 @@ export type DestroyTargetInput = {
   networkId: string | null;
 };
 
-export type RuntimeStatus = 'healthy' | 'missing' | 'stopped' | 'oom' | 'unhealthy';
+export type RuntimeStatus = 'healthy' | 'missing' | 'stopped' | 'oom' | 'unhealthy' | 'unsafe_network';
 
 export class DockerOrchestrator {
   private hostVerified = false;
@@ -116,6 +120,21 @@ export class DockerOrchestrator {
     if (details.State.OOMKilled) return 'oom';
     if (!details.State.Running) return 'stopped';
     if (details.State.Health?.Status === 'unhealthy') return 'unhealthy';
+    const network = await this.findNetwork(instanceId);
+    if (!network) return 'unsafe_network';
+    const networkDetails = await network.network.inspect().catch((error: unknown) => {
+      if (isDockerNotFound(error)) return null;
+      throw error;
+    });
+    if (!networkDetails) return 'unsafe_network';
+    assertManagedLabels(networkDetails.Labels, instanceId);
+    const attachedNetworks = Object.keys(details.NetworkSettings?.Networks ?? {});
+    if (!meetsNetworkIsolation(networkDetails) ||
+        !details.Config?.Labels?.[CHALLENGE_LABEL] ||
+        details.Config.Labels[CHALLENGE_LABEL] !== networkDetails.Labels?.[CHALLENGE_LABEL] ||
+        attachedNetworks.length !== 1 || attachedNetworks[0] !== networkDetails.Name) {
+      return 'unsafe_network';
+    }
     return 'healthy';
   }
 
@@ -154,6 +173,11 @@ export class DockerOrchestrator {
     if (!options.some((option) => option.startsWith('name=apparmor'))) {
       throw new Error('Docker host is missing required apparmor isolation');
     }
+    const major = typeof info.ServerVersion === 'string'
+      ? Number(/^(\d+)\./u.exec(info.ServerVersion)?.[1]) : NaN;
+    if (!Number.isInteger(major) || major < 28) {
+      throw new Error('Docker Engine 28 or newer is required for isolated bridge gateways');
+    }
     this.hostVerified = true;
   }
 
@@ -165,13 +189,23 @@ export class DockerOrchestrator {
     }
 
     try {
-      return await this.docker.createNetwork({
+      const created = await this.docker.createNetwork({
         Name: name,
+        Driver: 'bridge',
+        EnableIPv6: false,
         Internal: true,
         Attachable: false,
         CheckDuplicate: true,
         Labels: managedLabels(input.instanceId, input.challengeId),
+        Options: { ...ISOLATED_GATEWAY_OPTIONS },
       });
+      try {
+        await assertManagedNetwork(created, input.instanceId, input.challengeId);
+      } catch (error) {
+        await removeDockerNetwork(created).catch(() => undefined);
+        throw error;
+      }
+      return created;
     } catch (error) {
       if (!isDockerConflict(error)) throw error;
       const recovered = await this.findNetwork(input.instanceId);
@@ -360,9 +394,15 @@ async function assertManagedNetwork(
   if (details.Labels?.[CHALLENGE_LABEL] !== challengeId) {
     throw new Error('Managed network challenge label does not match the requested challenge');
   }
-  if (!details.Internal || details.Attachable) {
+  if (!meetsNetworkIsolation(details)) {
     throw new Error('Managed network does not meet isolation requirements');
   }
+}
+
+function meetsNetworkIsolation(details: Docker.NetworkInspectInfo): boolean {
+  return details.Driver === 'bridge' && details.EnableIPv6 === false &&
+    details.Internal && !details.Attachable &&
+    Object.entries(ISOLATED_GATEWAY_OPTIONS).every(([key, value]) => details.Options?.[key] === value);
 }
 
 async function removeContainer(container: Docker.Container | undefined): Promise<void> {

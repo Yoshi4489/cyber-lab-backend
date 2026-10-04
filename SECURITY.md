@@ -97,6 +97,11 @@ delivery preflight. Live routing and network probes remain open.
 - Deny target access to private ranges, metadata services, database, Redis,
   Docker Engine, backend and frontend control-plane addresses.
 - Default-deny target egress and cross-instance traffic.
+- Use isolated bridge gateway modes, not only an internal network: ordinary
+  internal bridges can still reach host services bound to their bridge address.
+  Require Docker Engine 28+, verify driver/gateway options and disabled IPv6,
+  reject legacy networks on retries, and terminate network drift during
+  reconciliation. Drain active targets before deploying a changed network policy.
 - Route player HTTP traffic through isolated ingress, never through a host
   management endpoint. Use unguessable instance routes and owner-only URL reads.
 - Never attach targets to the local development Compose network or publish

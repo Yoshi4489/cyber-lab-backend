@@ -68,8 +68,14 @@ describe('Docker orchestrator', () => {
     });
 
     expect(fixture.createNetwork).toHaveBeenCalledWith(expect.objectContaining({
+      Driver: 'bridge',
+      EnableIPv6: false,
       Internal: true,
       Attachable: false,
+      Options: {
+        'com.docker.network.bridge.gateway_mode_ipv4': 'isolated',
+        'com.docker.network.bridge.gateway_mode_ipv6': 'isolated',
+      },
     }));
     const options = fixture.createContainer.mock.calls[0]?.[0];
     expect(options).toMatchObject({
@@ -136,6 +142,48 @@ describe('Docker orchestrator', () => {
     await expect(orchestrator.spawn(spawnInput())).rejects.toThrow('challenge label');
     expect(fixture.createContainer).not.toHaveBeenCalled();
     expect(fixture.networkRemove).not.toHaveBeenCalled();
+  });
+
+  it('removes a newly created network if Engine inspection fails isolation checks', async () => {
+    const fixture = dockerFixture({ networkOptions: {} });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.spawn(spawnInput())).rejects.toThrow('network does not meet isolation');
+    expect(fixture.createContainer).not.toHaveBeenCalled();
+    expect(fixture.networkConnect).not.toHaveBeenCalled();
+    expect(fixture.networkRemove).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to reuse a legacy internal network with a host-accessible gateway', async () => {
+    const fixture = dockerFixture({ existingNetwork: true, networkOptions: {} });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.spawn(spawnInput())).rejects.toThrow('network does not meet isolation');
+    expect(fixture.createContainer).not.toHaveBeenCalled();
+    expect(fixture.networkConnect).not.toHaveBeenCalled();
+    expect(fixture.networkRemove).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { networkOptions: {} },
+    { extraNetwork: true },
+    { networkDriver: 'macvlan' },
+    { enableIPv6: true },
+  ])('reports network isolation drift for automatic termination: %j', async (options) => {
+    const fixture = dockerFixture({ existingContainer: true, existingNetwork: true, ...options });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture());
+    await expect(orchestrator.runtimeStatus(INSTANCE_ID)).resolves.toBe('unsafe_network');
+  });
+
+  it('keeps a healthy target only on its verified isolated network', async () => {
+    const fixture = dockerFixture({ existingContainer: true, existingNetwork: true });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture());
+    await expect(orchestrator.runtimeStatus(INSTANCE_ID)).resolves.toBe('healthy');
+  });
+
+  it('rejects older Engines before creating a target network', async () => {
+    const fixture = dockerFixture({ serverVersion: '27.5.1' });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture());
+    await expect(orchestrator.spawn(spawnInput())).rejects.toThrow('Docker Engine 28 or newer');
+    expect(fixture.createNetwork).not.toHaveBeenCalled();
   });
 
   it('fails closed when the Docker host lacks a required isolation control', async () => {
@@ -239,6 +287,11 @@ function dockerFixture(options: {
   ingressAttached?: boolean;
   ingressRunning?: boolean;
   availableImages?: string[];
+  serverVersion?: string;
+  networkOptions?: Record<string, string>;
+  networkDriver?: string;
+  enableIPv6?: boolean;
+  extraNetwork?: boolean;
 } = {}) {
   const containerRemove = vi.fn(async () => undefined);
   const networkRemove = vi.fn(async () => undefined);
@@ -259,6 +312,13 @@ function dockerFixture(options: {
         Labels: {
           'cyber-range.managed': 'true',
           'cyber-range.instance-id': options.managedInstanceId ?? INSTANCE_ID,
+          'cyber-range.challenge-id': options.managedChallengeId ?? CHALLENGE_ID,
+        },
+      },
+      NetworkSettings: {
+        Networks: {
+          [`crn-${INSTANCE_ID.replaceAll('-', '')}`]: {},
+          ...(options.extraNetwork ? { bridge: {} } : {}),
         },
       },
     })),
@@ -272,8 +332,15 @@ function dockerFixture(options: {
     disconnect: networkDisconnect,
     remove: networkRemove,
     inspect: vi.fn(async () => ({
+      Name: `crn-${INSTANCE_ID.replaceAll('-', '')}`,
+      Driver: options.networkDriver ?? 'bridge',
+      EnableIPv6: options.enableIPv6 ?? false,
       Internal: true,
       Attachable: false,
+      Options: options.networkOptions ?? {
+        'com.docker.network.bridge.gateway_mode_ipv4': 'isolated',
+        'com.docker.network.bridge.gateway_mode_ipv6': 'isolated',
+      },
       Containers: ingressAttached ? { 'ingress-id': { Name: 'traefik' } } : {},
       Labels: {
         'cyber-range.managed': 'true',
@@ -295,6 +362,7 @@ function dockerFixture(options: {
   }));
   const docker = {
     info: vi.fn(async () => ({
+      ServerVersion: options.serverVersion ?? '29.8.1',
       SecurityOptions: options.securityOptions ?? [
         'name=userns',
         'name=seccomp,profile=default',

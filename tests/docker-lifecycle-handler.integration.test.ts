@@ -136,26 +136,28 @@ describeDatabase('Docker lifecycle state machine', () => {
     });
   });
 
-  it('destroys and audits an OOM-killed running target', async () => {
+  it.each(['oom', 'unsafe_network'] as const)('destroys and audits a running target reported as %s', async (runtime) => {
     const instanceId = await insertInstance('pending');
     await handler.handle(operation('spawn', instanceId, 'pending'));
-    runtimeStatus.mockResolvedValueOnce('oom');
+    runtimeStatus.mockResolvedValueOnce(runtime);
 
     await handler.handle(operation('reconcile', instanceId, 'running'));
 
     expect(await database.db.query.instances.findFirst({
       where: eq(instances.id, instanceId),
-    })).toMatchObject({ status: 'failed', failureCode: 'runtime_oom' });
+    })).toMatchObject({ status: 'failed', failureCode: `runtime_${runtime}` });
     expect(destroy).toHaveBeenCalledWith({
       instanceId, containerId: 'container-1', networkId: 'network-1',
     });
-    const audit = await database.db.query.auditEvents.findFirst({
+    const audits = await database.db.query.auditEvents.findMany({
       where: and(
         eq(auditEvents.eventType, 'instance.runtime_terminated'),
         eq(auditEvents.targetUserId, userId),
       ),
     });
-    expect(audit?.details).toMatchObject({ instanceId, failureCode: 'runtime_oom' });
+    expect(audits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ details: { instanceId, failureCode: `runtime_${runtime}` } }),
+    ]));
   });
 
   async function insertInstance(status: 'pending' | 'stopping'): Promise<string> {
