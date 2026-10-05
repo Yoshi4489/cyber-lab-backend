@@ -119,4 +119,7 @@ On 2026-10-05, 33 focused frontend unit tests passed for cookies, CSRF, session
 resolution, authorization, auth adapters and BFF routes. That review made no
 frontend source changes and did not repeat live browser acceptance. Production
 HTTPS cookies/CSRF, live verification/reset links and deployment error handling
-still require end-to-end validation on the deployed frontend.
+still require end-to-end validation on the deployed frontend. Local browser
+verification/reset, replay denial, reset revocation and cookie/CSRF acceptance
+subsequently passed on 2026-10-05 against a restored disposable database; see
+[email evidence](EMAIL.md) and [local runners](LOCAL_DEVELOPMENT.md).

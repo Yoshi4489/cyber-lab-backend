@@ -15,7 +15,9 @@ containers previously became healthy and accepted direct operations; this
 machine now also has a working native PostgreSQL 18.3 demo database.
 Remote CI has passed on `develop`. See
 README for current verification evidence.
-Nothing is deployed and public signup remains closed. Phase 4 VM checks have
+The backend is not deployed and public signup remains closed. A protected
+Vercel frontend URL has been supplied; deployed integration is unverified.
+Phase 4 VM checks have
 passed. Real Engine mTLS and remote route-delivery preflight passed on the
 two-VM topology on 2026-10-04. Live HTTPS lifecycle, two-instance isolation,
 network-drift termination, and mid-spawn crash recovery also passed. Production
@@ -128,7 +130,8 @@ A routing domain and certificates are prerequisites for remote deployment.
 - Passed on the Ubuntu VM: full create/poll/submit/extend/destroy target run and
   pending-operation recovery after a worker restart.
 - Implemented in the frontend repository: polling and learner lifecycle controls
-  with fixture tests; actual worker/ingress UI acceptance remains pending.
+  with fixture tests; local real-worker/ingress browser acceptance passed on
+  2026-10-05. Deployed acceptance remains pending.
 
 Start with HTTP targets and a single node. One active instance per player,
 60-minute default lifetime, 2-hour absolute maximum. Extensions cannot exceed
@@ -190,6 +193,12 @@ Remaining work: review the deployed production firewall and domain/TLS layout;
 provision and verify separate production application and migration database
 roles; and finish frontend, production email, and operational launch controls.
 Repeat the validated probes and recovery drill on the actual deployment.
+Current user-approved scope is a local Gmail demo; production domain/email
+provisioning is deferred. Local verification/reset browser flows, real-worker
+start/refresh/extend/stop and route removal, and an isolated 12-table restore
+drill passed on 2026-10-05. See the gate record and
+[operations runbook](docs/OPERATIONS.md). The supplied Vercel deployment needs
+connector team access and a reachable HTTPS backend before integration.
 Authenticated remote route delivery is now
 implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` extracts each rendered route into
 the ingress container over the worker's own authenticated Docker connection and

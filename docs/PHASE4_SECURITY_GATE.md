@@ -134,8 +134,9 @@ policy, and offline CA signing-key custody remain launch requirements.
 
 Local-demo update (2026-10-05): Gmail SMTP authentication and one approved setup
 email passed through verified TLS. The adapter supports verification/reset
-links but rejects production use. Inbox receipt and the actual frontend email
-flows are not yet verified. This does not close the production-email gate;
+links but rejects production use. Actual frontend email flows subsequently
+passed locally below; inbox receipt remains unconfirmed. This does not close
+the production-email gate;
 see [email delivery](EMAIL.md).
 
 Follow-up (2026-10-05): Resend production adapter contract tests and Node 22 CI
@@ -150,6 +151,29 @@ local PostgreSQL 18.3 database, removed afterward. This supplements the CI
 PostgreSQL 16 checks and does not establish production database privileges.
 The email failure security fix passed Node 22/PostgreSQL/Redis CI at
 [run 37268528702](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268528702).
+
+Local acceptance follow-up (2026-10-05): the sibling built frontend passed
+Gmail verification/reset, token replay rejection, reset session revocation,
+HttpOnly/SameSite, refresh, foreign-origin rejection and logout against an
+isolated database copy. Both approved messages were accepted; inbox receipt
+remains unconfirmed. A snapshot restore matched all 12 table fingerprints and
+its failure-path cleanup passed. The source demo database was preserved.
+
+The real two-VM worker browser check passed start, readiness-only target URL,
+HTTPS health, refresh recovery, extension within the absolute cap, stop,
+terminal browser-storage removal and ingress route removal. The first attempt
+failed before completion; its owned spawn and destroy later succeeded. Two
+subsequent full browser runs passed. VM preflight reported ready with one
+manifest and ingress route delivery. No additional emails were sent by these
+lifecycle checks. These disposable checks do not close production requirements.
+
+The supplied https://cyber-lab-frontend.vercel.app/ deployment is READY but
+Vercel-authenticated. The connector cannot read this team's environment or
+protection bypass (403). Deployed integration needs authorized team access and
+a reachable HTTPS backend; Vercel cannot reach local loopback/private VM
+addresses. No deployment settings or environment values were changed.
+Production email/domain work is deferred by the current local-demo scope.
+See [the operations runbook](OPERATIONS.md) for remaining operational drills.
 
 1. Repeat the validated live lifecycle checks on the deployed production layout and review
    production trust-zone/firewall controls. The two-VM setup passed real Docker

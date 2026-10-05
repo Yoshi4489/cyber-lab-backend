@@ -98,3 +98,12 @@ An additional 16 authentication service/repository/route integration tests passe
 against a freshly created disposable PostgreSQL 18.3 database on this machine.
 The database was removed after the run; the local demo database was preserved.
 No external mail was sent in these tests.
+
+Local browser follow-up (2026-10-05): both approved Gmail verification and
+password-reset messages were accepted. The actual sibling frontend completed
+verification, rejected token replay, reset the password, revoked the old
+session, rejected the old password and accepted the new password. HttpOnly,
+SameSite, refresh, foreign-origin rejection and logout passed. The disposable
+restored database and test processes were removed; the main demo account was
+preserved. Inbox receipt needs operator confirmation. This is local evidence,
+not Vercel deployment or production-domain evidence.

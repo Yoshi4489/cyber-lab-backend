@@ -21,9 +21,12 @@ were running during validation. Real remote Engine mTLS, fail-closed route deliv
 separate validation database logins passed on 2026-10-04.
 Live HTTPS lifecycle, two-player isolation, network-drift cleanup, and mid-spawn
 worker crash recovery also passed on that topology.
-**Next:** Finish production deployment, frontend, email, and operational launch controls.
-**Blocked/waiting:** production domain/TLS, verified email domain/credentials,
-and deployed topology/operational evidence.
+Local Gmail verification/reset and real VM worker lifecycle browser acceptance
+passed on 2026-10-05. An isolated database restore drill matched all 12 tables.
+**Next:** Finish deployed frontend integration and operational launch controls.
+**Blocked/waiting:** Vercel team access and reachable HTTPS backend for deployed
+integration. Production domain/email and topology evidence are deferred under
+the current local-demo scope.
 **Last updated:** 2026-10-05.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
@@ -38,7 +41,8 @@ delivered either beside the worker or into the ingress container over the
 worker's authenticated Docker connection.
 
 Frontend cookie/CSRF, catalog and learner lifecycle controls are implemented;
-production browser and real worker acceptance remain open. Submissions/progress
+local real-worker browser acceptance passed; deployed acceptance remains open.
+Submissions/progress
 and leaderboard UI integration, authored player challenges, production-topology
 evidence and deployment remain unfinished. The Resend delivery adapter is
 implemented, but verified-domain live sending is unverified. A disposable HTTP target and runtime

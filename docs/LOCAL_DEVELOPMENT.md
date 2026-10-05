@@ -87,7 +87,8 @@ Use unique development credentials and keep them out of source and logs.
 Verification and reset requests write JSON messages to
 `LOCAL_MAIL_DIRECTORY` (default `.local-mail`). This directory is ignored by
 Git. Treat its links as credentials and remove stale files when no longer
-needed. The local mailer refuses production mode; Resend is not configured yet.
+needed. The local mailer refuses production mode. Gmail supports opt-in local
+demos; the production Resend adapter needs separate verified-domain setup.
 
 ## Verification
 
@@ -108,3 +109,28 @@ hosts in a separate trust zone.
 It also requires separate application and migration database roles; see
 [DATABASE_ROLES.md](DATABASE_ROLES.md). The local Compose owner credential is
 for development and integration testing, not the production runtime login.
+
+## Repeatable local acceptance checks
+
+After building both repositories, run `npm run db:restore:drill` with a local
+PostgreSQL URL and matching `pg_dump`/`pg_restore` on PATH. The development
+operator login needs CREATE DATABASE. It exports a consistent snapshot,
+restores a random disposable database, compares table counts/fingerprints,
+and removes the copy and archive. This does not retain a backup.
+
+`node scripts/local-auth-browser-check.mjs` tests the sibling frontend on
+localhost:3201 against a restored copy on API port 4001. Email links are captured
+in memory by default. `LOCAL_AUTH_SEND_EMAILS=true` sends two Gmail messages
+to the configured sender; obtain recipient authorization first. The source
+demo account is preserved.
+
+`node scripts/local-lifecycle-browser-check.mjs` uses localhost:3202 and
+operator-established SSH tunnels: loopback port 4002 for the VM API and 8443
+for disposable ingress. Set `LOCAL_LIFECYCLE_ENV_FILE` to a private VM API
+configuration copy outside Git. It uses the seeded player and sample-web-a,
+creates one owned target, tests refresh/extension/destruction, and verifies
+route removal. Only BFF credentials reach the frontend process. The explicitly
+checked loopback health request permits the fixture's self-signed certificate;
+Docker TLS remains verified. Keep the worker available until cleanup is
+verified, including after any cleanup timeout. These checks do not deploy or
+publicly expose services. See [operations](OPERATIONS.md).
