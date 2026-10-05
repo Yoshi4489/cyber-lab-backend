@@ -200,8 +200,10 @@ drill passed on 2026-10-05. See the gate record and
 [operations runbook](docs/OPERATIONS.md). The supplied Vercel deployment needs
 connector team access and a reachable HTTPS backend before integration.
 Render browser provisioning is now accessible, and its `develop` API Blueprint
-has been planned successfully. Service creation remains pending hosted database
-budget selection, restricted runtime roles and verified Resend setup; no Render
+has been planned successfully. The operator requires free tiers only; Render
+rejected database creation because its active free-database quota is occupied.
+Service creation needs an alternative free hosted database, restricted runtime
+roles and Resend setup; no Render
 resource has been created. See [Render checkpoint](docs/RENDER.md).
 Render API hosting preparation now includes a Docker Blueprint, a secret-free
 build-context allowlist and committed migrations in the runtime image. Actual

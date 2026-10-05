@@ -104,17 +104,27 @@ The unsaved form is named `cyber-range-production`; issuer/audience are prepared
 as `cyber-range-frontend` and `cyber-range-backend`. The required application
 database URL, Resend key and sender address remain empty. Deploy was not clicked.
 
-A separate unsaved PostgreSQL form is prepared for `cyber-range-db`, database
-`cyber_range`, owner `cyber_range_owner`, Singapore, PostgreSQL 18, minimum
-paid compute and 1 GB storage. The dashboard quotes $6.30/month ($6 compute
-plus $0.30 storage), with autoscaling and high availability disabled. No database
-has been purchased or created; this quote needs explicit budget approval.
+A separate PostgreSQL form was prepared for `cyber-range-db`, database
+`cyber_range`, owner `cyber_range_owner`, Singapore, PostgreSQL 18 and 1 GB
+storage. The operator requires free tiers only. After selecting Free, Render
+showed a $0/month total. Creation was attempted but rejected with
+`cannot have more than one active free tier database`. No database or paid
+resource was created. The existing unrelated database must not be deleted or
+repurposed to free the quota. Use a separate free hosted PostgreSQL provider
+such as Neon, subject to its current limits and operator account setup.
 The owner is for migrations only; a restricted runtime login must be provisioned
 and verified before populating the API's `DATABASE_URL`.
 
 The current Blueprint still selects a free API preview. Render advises against
 free services for production, and its free PostgreSQL expires after 30 days
-without backups. Choose an appropriate paid API/database plan before calling
-the deployment production-ready. The existing unrelated workspace resources
+without backups. This free-only deployment is a hosted demo, not a completed
+production launch. The existing unrelated workspace resources
 were not changed. A verified sender domain and backend-only Resend key remain
 required; do not substitute local Gmail credentials or bypass production mode.
+
+For a no-domain demo, Resend's `onboarding@resend.dev` test sender can deliver
+only to the email associated with the operator's Resend account. It requires
+the operator's account and backend-only API key but avoids buying a domain for
+this restricted test. It does not enable email delivery to other players or
+close the production-email gate. See
+[Resend test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
