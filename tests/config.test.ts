@@ -15,6 +15,16 @@ const validEnvironment = {
 };
 
 describe('authentication configuration', () => {
+  it('requires Resend credentials and a public HTTPS origin in production', () => {
+    const production = { ...validEnvironment, NODE_ENV: 'production', MAIL_PROVIDER: 'resend' };
+    expect(() => loadConfig(production)).toThrow('requires RESEND_API_KEY');
+    const configured = { ...production, RESEND_API_KEY: 'test-only', EMAIL_FROM: 'noreply@example.test' };
+    expect(() => loadConfig(configured)).toThrow('public HTTPS');
+    expect(() => loadConfig({ ...configured, FRONTEND_ORIGIN: 'https://localhost' })).toThrow('public HTTPS');
+    expect(loadConfig({ ...configured, FRONTEND_ORIGIN: 'https://learn.example.test' }).MAIL_PROVIDER).toBe('resend');
+    expect(() => loadConfig({ ...configured, FRONTEND_ORIGIN: 'https://learn.example.test/path' })).toThrow('without a path');
+    expect(() => loadConfig({ ...configured, MAIL_PROVIDER: 'local' })).toThrow('requires Resend');
+  });
   it('keeps local mail delivery as the default', () => {
     expect(loadConfig(validEnvironment).MAIL_PROVIDER).toBe('local');
   });

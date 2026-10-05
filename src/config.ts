@@ -21,9 +21,11 @@ const envSchema = z.object({
   INSTANCE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(5),
   INSTANCE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
   LOCAL_MAIL_DIRECTORY: z.string().min(1).default('.local-mail'),
-  MAIL_PROVIDER: z.enum(['local', 'gmail']).default('local'),
+  MAIL_PROVIDER: z.enum(['local', 'gmail', 'resend']).default('local'),
   SMTP_USER: z.email().optional(),
   SMTP_APP_PASSWORD: z.string().trim().min(1).optional(),
+  RESEND_API_KEY: z.string().trim().min(1).optional(),
+  EMAIL_FROM: z.email().optional(),
   EMAIL_SENDER_NAME: z.string().trim().min(1).max(100).regex(/^[^\r\n]+$/u).default('Cyber Range'),
 });
 
@@ -38,10 +40,26 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (config.NODE_ENV === 'production') {
       throw new Error('Gmail demo delivery is disabled in production');
     }
+  }
+  if (config.MAIL_PROVIDER === 'resend' && (!config.RESEND_API_KEY || !config.EMAIL_FROM)) {
+    throw new Error('Resend delivery requires RESEND_API_KEY and EMAIL_FROM');
+  }
+  if (config.MAIL_PROVIDER !== 'local') {
     const frontend = new URL(config.FRONTEND_ORIGIN);
     if (!['http:', 'https:'].includes(frontend.protocol) || frontend.username || frontend.password) {
       throw new Error('Email links require an HTTP(S) frontend origin without credentials');
     }
+    if (frontend.search || frontend.hash || frontend.pathname !== '/') {
+      throw new Error('Email links require a frontend origin without a path, query or fragment');
+    }
+    if (config.NODE_ENV === 'production' && (
+      frontend.protocol !== 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(frontend.hostname)
+    )) {
+      throw new Error('Production email links require a public HTTPS frontend origin');
+    }
+  }
+  if (config.NODE_ENV === 'production' && config.MAIL_PROVIDER !== 'resend') {
+    throw new Error('Production authentication requires Resend email delivery');
   }
   if (config.BACKEND_SERVICE_TOKEN_SECRET.startsWith('replace-with-')) {
     throw new Error('Set a generated BACKEND_SERVICE_TOKEN_SECRET before starting the server');
