@@ -21,12 +21,28 @@ const envSchema = z.object({
   INSTANCE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(5),
   INSTANCE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
   LOCAL_MAIL_DIRECTORY: z.string().min(1).default('.local-mail'),
+  MAIL_PROVIDER: z.enum(['local', 'gmail']).default('local'),
+  SMTP_USER: z.email().optional(),
+  SMTP_APP_PASSWORD: z.string().trim().min(1).optional(),
+  EMAIL_SENDER_NAME: z.string().trim().min(1).max(100).regex(/^[^\r\n]+$/u).default('Cyber Range'),
 });
 
 export type Config = z.infer<typeof envSchema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const config = envSchema.parse(env);
+  if (config.MAIL_PROVIDER === 'gmail') {
+    if (!config.SMTP_USER || !config.SMTP_APP_PASSWORD) {
+      throw new Error('Gmail delivery requires SMTP_USER and SMTP_APP_PASSWORD');
+    }
+    if (config.NODE_ENV === 'production') {
+      throw new Error('Gmail demo delivery is disabled in production');
+    }
+    const frontend = new URL(config.FRONTEND_ORIGIN);
+    if (!['http:', 'https:'].includes(frontend.protocol) || frontend.username || frontend.password) {
+      throw new Error('Email links require an HTTP(S) frontend origin without credentials');
+    }
+  }
   if (config.BACKEND_SERVICE_TOKEN_SECRET.startsWith('replace-with-')) {
     throw new Error('Set a generated BACKEND_SERVICE_TOKEN_SECRET before starting the server');
   }

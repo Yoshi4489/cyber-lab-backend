@@ -15,6 +15,30 @@ const validEnvironment = {
 };
 
 describe('authentication configuration', () => {
+  it('keeps local mail delivery as the default', () => {
+    expect(loadConfig(validEnvironment).MAIL_PROVIDER).toBe('local');
+  });
+
+  it('requires complete credentials for Gmail delivery', () => {
+    expect(() => loadConfig({ ...validEnvironment, MAIL_PROVIDER: 'gmail' })).toThrow('requires SMTP_USER');
+    expect(loadConfig({
+      ...validEnvironment, MAIL_PROVIDER: 'gmail', SMTP_USER: 'sender@gmail.com', SMTP_APP_PASSWORD: 'test-only',
+    }).MAIL_PROVIDER).toBe('gmail');
+  });
+
+  it('refuses Gmail demo delivery in production', () => {
+    expect(() => loadConfig({
+      ...validEnvironment, NODE_ENV: 'production', MAIL_PROVIDER: 'gmail',
+      SMTP_USER: 'sender@gmail.com', SMTP_APP_PASSWORD: 'test-only',
+    })).toThrow('disabled in production');
+  });
+
+  it('rejects unsafe email origins and sender header injection', () => {
+    const gmail = { ...validEnvironment, MAIL_PROVIDER: 'gmail', SMTP_USER: 'sender@gmail.com', SMTP_APP_PASSWORD: 'test-only' };
+    expect(() => loadConfig({ ...gmail, FRONTEND_ORIGIN: 'javascript:alert(1)' })).toThrow('HTTP(S)');
+    expect(() => loadConfig({ ...gmail, FRONTEND_ORIGIN: 'https://user:password@example.test' })).toThrow('without credentials');
+    expect(() => loadConfig({ ...gmail, EMAIL_SENDER_NAME: 'Sender\r\nBcc: attacker@example.test' })).toThrow();
+  });
   it('loads with signup closed and bounded auth rate limits', () => {
     expect(loadConfig(validEnvironment)).toMatchObject({
       SIGNUPS_OPEN: false,

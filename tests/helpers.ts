@@ -21,6 +21,8 @@ export const testConfig: Config = {
   INSTANCE_RATE_LIMIT_MAX: 5,
   INSTANCE_RATE_LIMIT_WINDOW_MS: 60_000,
   LOCAL_MAIL_DIRECTORY: '.local-mail',
+  MAIL_PROVIDER: 'local',
+  EMAIL_SENDER_NAME: 'Cyber Range',
 };
 
 export const TEST_SESSION_ID = '00000000-0000-4000-8000-000000000002';
