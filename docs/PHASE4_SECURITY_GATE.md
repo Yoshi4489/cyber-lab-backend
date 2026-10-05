@@ -132,6 +132,12 @@ policy, and offline CA signing-key custody remain launch requirements.
 
 ## Controls still needed to close the gate
 
+Local-demo update (2026-10-05): Gmail SMTP authentication and one approved setup
+email passed through verified TLS. The adapter supports verification/reset
+links but rejects production use. Inbox receipt and the actual frontend email
+flows are not yet verified. This does not close the production-email gate;
+see [email delivery](EMAIL.md).
+
 1. Repeat the validated live lifecycle checks on the deployed production layout and review
    production trust-zone/firewall controls. The two-VM setup passed real Docker
    mTLS, live routing, and target management-route blocking on 2026-10-04;

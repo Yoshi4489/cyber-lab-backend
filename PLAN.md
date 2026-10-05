@@ -243,3 +243,11 @@ Next task: complete the frontend secure-cookie/CSRF checkpoint and production
 email delivery, then provision the production topology and database roles and
 record the remaining deployment and operational checks in the gate record.
 Public signup remains closed.
+
+Local-demo email update (2026-10-05): opt-in Gmail SMTP delivery is implemented
+for verification/reset links, with backend-only credentials and verified TLS.
+Gmail authentication and one operator-approved setup email passed; inbox receipt
+and actual frontend email-link flows remain unverified. Lint, typecheck, build,
+and 100 tests passed on local Node 24.19.0; 46 environment-gated tests skipped.
+Node 22 remains the supported runtime. Gmail is rejected in production and does
+not close the production email gate. See [email setup](docs/EMAIL.md).

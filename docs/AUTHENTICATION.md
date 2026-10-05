@@ -88,7 +88,10 @@ backend session ID returned by session resolution.
 
 The mailer is a replaceable dependency. Development writes JSON messages to the
 ignored `LOCAL_MAIL_DIRECTORY` (default `.local-mail`) and refuses to run as a
-production mailer. Resend follows after a domain is verified. Local links do not
+production mailer. An opt-in Gmail SMTP adapter now delivers local-demo auth
+email with a backend-only app password and verified TLS; it also refuses
+production use. See [email setup and validation](EMAIL.md).
+Resend follows after a domain is verified. Local links do not
 enter normal request or audit logs; captured-log tests cover password, session,
 and email-token field names.
 

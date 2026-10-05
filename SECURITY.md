@@ -50,7 +50,10 @@ the Ubuntu VM; no production target has been launched.
 - Public signup remains closed. Seeded/operator-created accounts are the initial
   path; account seeds must not overwrite credentials on a normal retry.
 - Development email links use an explicit local-only delivery path and never
-  production request/audit logs. Production delivery uses Resend after domain
+  production request/audit logs. Opt-in Gmail delivery for local demos uses a
+  backend-only app password, verified TLS, no protocol logging, and sanitized
+  provider failures; it is disabled in production. See [email setup](docs/EMAIL.md).
+  Production delivery uses Resend after domain
   verification. Test captured logs for password, session and email-token leaks.
 
 The backend now enforces these Phase 1 rules, including captured-log redaction

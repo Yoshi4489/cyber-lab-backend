@@ -213,6 +213,9 @@ contains separate worker settings. Docker credentials are parsed only by
 | `INSTANCE_RATE_LIMIT_MAX`, `INSTANCE_RATE_LIMIT_WINDOW_MS` | API | Instance-create limits keyed by verified user identity |
 | `LAB_PUBLIC_BASE_URL` | API | Base URL used only when a target is running and has an unguessable route |
 | `LOCAL_MAIL_DIRECTORY` | Development API | Ignored local verification/reset delivery directory |
+| `MAIL_PROVIDER` | API | `local` by default; `gmail` opts into local-demo SMTP delivery; both reject production use |
+| `SMTP_USER`, `SMTP_APP_PASSWORD` | Development API | Gmail sender and backend-only app password; required when `MAIL_PROVIDER=gmail` |
+| `EMAIL_SENDER_NAME` | Development API | Custom sender display name; defaults to Cyber Range |
 | `DEV_POSTGRES_PASSWORD` | Local Compose | Required to initialize local PostgreSQL |
 | `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
 | `REDIS_URL` | Worker | BullMQ connection; never sent to targets or frontend |
@@ -227,6 +230,11 @@ contains separate worker settings. Docker credentials are parsed only by
 
 Seed variables are consumed only by `npm run db:seed`; normal repeated seeding
 does not replace an existing password hash or profile.
+
+For Gmail local-demo delivery, see [email setup](docs/EMAIL.md). Gmail accepted
+one operator-approved setup message on 2026-10-05. Inbox receipt and frontend
+verification/reset completion remain unverified; production delivery remains
+an open launch requirement.
 
 ## Current API
 
