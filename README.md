@@ -29,6 +29,10 @@ integration. Production domain/email and topology evidence are deferred under
 the current local-demo scope.
 **Last updated:** 2026-10-05.
 
+Render API deployment configuration is prepared, not deployed. Account access,
+hosted PostgreSQL and production email setup are pending; see
+[Render deployment steps](docs/RENDER.md).
+
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,
 verification/reset flows, player/admin roles, BFF auth routes, session-bound

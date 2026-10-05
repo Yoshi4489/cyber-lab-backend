@@ -199,6 +199,12 @@ start/refresh/extend/stop and route removal, and an isolated 12-table restore
 drill passed on 2026-10-05. See the gate record and
 [operations runbook](docs/OPERATIONS.md). The supplied Vercel deployment needs
 connector team access and a reachable HTTPS backend before integration.
+Render API hosting preparation now includes a Docker Blueprint, a secret-free
+build-context allowlist and committed migrations in the runtime image. Actual
+deployment waits for Render access, hosted PostgreSQL with restricted roles,
+and verified-domain Resend setup, which the operator confirmed are absent.
+See [Render deployment](docs/RENDER.md). Remote worker networking and ingress
+remain separate prerequisites for hosted lab acceptance.
 Authenticated remote route delivery is now
 implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` extracts each rendered route into
 the ingress container over the worker's own authenticated Docker connection and
