@@ -204,12 +204,15 @@ has been planned successfully. The operator requires free tiers only; Render
 rejected database creation because its active free-database quota is occupied.
 The alternative free Neon project is now provisioned: migrations, restricted
 runtime role privileges, fresh account/catalog seed and login/session/logout
-checks passed. Service creation still needs Resend setup; no Render resource
+checks passed. The approved sending-only Resend key is created and deployment
+configuration validation passed. Free API credential submission and public
+endpoint creation await confirmation; no Render resource
 has been created. See [Render checkpoint](docs/RENDER.md).
 Render API hosting preparation now includes a Docker Blueprint, a secret-free
 build-context allowlist and committed migrations in the runtime image. Actual
-deployment waits for Resend configuration,
-and verified-domain Resend setup, which the operator confirmed are absent.
+deployment waits for Render credential submission/API creation and frontend
+integration. Verified-domain delivery remains deferred; the hosted demo can
+use the restricted Resend test sender for the operator's own account email.
 See [Render deployment](docs/RENDER.md). Remote worker networking and ingress
 remain separate prerequisites for hosted lab acceptance.
 Authenticated remote route delivery is now

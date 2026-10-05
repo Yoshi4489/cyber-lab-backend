@@ -1,9 +1,10 @@
 # Render API deployment
 
-Status (2026-10-05): configuration prepared, not deployed. Render browser access
+Status (2026-10-06): configuration prepared, not deployed. Render browser access
 is now working in My Workspace, and the backend GitHub repository is already
 available through the existing connection. A free Neon database is now
-provisioned and checked; the Resend key is still missing. Public signup remains
+provisioned and checked; the approved Resend sending-only key now exists.
+Render credential submission and API creation await confirmation. Public signup remains
 closed. This delivery
 changes hosting preparation within Phase 4; it does not close the security gate.
 
@@ -101,9 +102,10 @@ local browser/VM results do not substitute for this deployment acceptance.
 ## Dashboard provisioning checkpoint
 
 Render successfully planned the `develop` Blueprint for `cyber-range-api`.
-The unsaved form is named `cyber-range-production`; issuer/audience are prepared
+The unsaved form is named `cyber-range-demo`; issuer/audience are prepared
 as `cyber-range-frontend` and `cyber-range-backend`. The required application
-database URL, Resend key and sender address remain empty. Deploy was not clicked.
+database URL and Resend key remain empty; sender is `onboarding@resend.dev`.
+Deploy was not clicked.
 
 A separate PostgreSQL form was prepared for `cyber-range-db`, database
 `cyber_range`, owner `cyber_range_owner`, Singapore, PostgreSQL 18 and 1 GB
@@ -161,3 +163,21 @@ The owner credential must remain outside runtime service configuration. The
 application connection is ready for Render once email configuration is ready.
 API deployment, frontend integration, hosted lifecycle/worker networking and
 production privilege acceptance across all application paths remain open.
+
+## Resend key checkpoint (2026-10-06)
+
+The operator signed in and explicitly approved creating `cyber-range-render-demo`
+with Sending access. Creation succeeded; the provider lists Sending access and
+no activity. The key was copied privately into ignored backend configuration,
+the clipboard cleared, and the one-time display closed. No email was sent.
+No domains have been added, so the test sender remains restricted to the Resend
+account's own email address, not arbitrary demo players.
+
+Production configuration validation passed with the actual restricted database
+connection and Resend key, explicit database `sslmode=verify-full`, the HTTPS
+frontend origin, closed signup and independently generated validation keys.
+This is a configuration check, not provider delivery or deployment acceptance.
+The Render Blueprint generates its own independent backend keys on creation.
+Credential submission to Render and creation of its public HTTPS API are
+prepared but awaiting browser-action confirmation. No owner/Docker credential
+will be given to the API or frontend.
