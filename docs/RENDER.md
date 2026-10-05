@@ -1,8 +1,9 @@
 # Render API deployment
 
-Status (2026-10-05): configuration prepared, not deployed. There is no connected
-Render browser/account access yet. The operator confirmed hosted PostgreSQL
-and Resend are not configured. Public signup remains closed. This delivery
+Status (2026-10-05): configuration prepared, not deployed. Render browser access
+is now working in My Workspace, and the backend GitHub repository is already
+available through the existing connection. The operator confirmed hosted
+PostgreSQL and Resend are not configured. Public signup remains closed. This delivery
 changes hosting preparation within Phase 4; it does not close the security gate.
 
 ## What the Blueprint creates
@@ -90,7 +91,30 @@ real-worker lifecycle, ownership, expiry and route removal on the hosted layout.
 Record evidence in [the Phase 4 gate](PHASE4_SECURITY_GATE.md).
 
 Local TypeScript build, YAML parsing and production configuration validation
-passed using dummy credentials. Docker build and live deployment have not run:
-Docker is unavailable locally and the disposable VM currently times out over
-SSH. No Render resource or production credential has been created. The earlier
+passed using dummy credentials. At the image-preparation checkpoint, Docker
+build could not run: Docker was unavailable locally and the VM timed out over
+SSH. This browser provisioning review did not repeat that build or deploy.
+No Render resource or production credential has been created. The earlier
 local browser/VM results do not substitute for this deployment acceptance.
+
+## Dashboard provisioning checkpoint
+
+Render successfully planned the `develop` Blueprint for `cyber-range-api`.
+The unsaved form is named `cyber-range-production`; issuer/audience are prepared
+as `cyber-range-frontend` and `cyber-range-backend`. The required application
+database URL, Resend key and sender address remain empty. Deploy was not clicked.
+
+A separate unsaved PostgreSQL form is prepared for `cyber-range-db`, database
+`cyber_range`, owner `cyber_range_owner`, Singapore, PostgreSQL 18, minimum
+paid compute and 1 GB storage. The dashboard quotes $6.30/month ($6 compute
+plus $0.30 storage), with autoscaling and high availability disabled. No database
+has been purchased or created; this quote needs explicit budget approval.
+The owner is for migrations only; a restricted runtime login must be provisioned
+and verified before populating the API's `DATABASE_URL`.
+
+The current Blueprint still selects a free API preview. Render advises against
+free services for production, and its free PostgreSQL expires after 30 days
+without backups. Choose an appropriate paid API/database plan before calling
+the deployment production-ready. The existing unrelated workspace resources
+were not changed. A verified sender domain and backend-only Resend key remain
+required; do not substitute local Gmail credentials or bypass production mode.
