@@ -24,14 +24,18 @@ worker crash recovery also passed on that topology.
 Local Gmail verification/reset and real VM worker lifecycle browser acceptance
 passed on 2026-10-05. An isolated database restore drill matched all 12 tables.
 **Next:** Finish deployed frontend integration and operational launch controls.
-**Blocked/waiting:** Vercel team access and reachable HTTPS backend for deployed
-integration. Production domain/email and topology evidence are deferred under
-the current local-demo scope.
-**Last updated:** 2026-10-05.
+**Blocked/waiting:** Vercel team access and server configuration for deployed
+frontend integration, plus hosted lab-worker networking and ingress. Verified
+sender-domain email and production topology evidence remain open.
+**Last updated:** 2026-10-06.
+Hosted-demo follow-up (2026-10-06): the Free Render API is live at
+https://cyber-range-api.onrender.com with a separate Free Neon database and
+restricted runtime login. HTTPS health/readiness, catalog and authentication
+acceptance passed. Vercel integration, live email and hosted lab-worker
+networking remain open; see [Render deployment evidence](docs/RENDER.md).
 
-Render API deployment configuration is prepared, not deployed. Account access,
-hosted PostgreSQL and production email setup are pending; see
-[Render deployment steps](docs/RENDER.md).
+API hosting is complete for the free demo. Deployed frontend and hosted
+lifecycle acceptance remain pending; see [Render deployment steps](docs/RENDER.md).
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,

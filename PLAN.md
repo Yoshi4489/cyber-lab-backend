@@ -15,7 +15,8 @@ containers previously became healthy and accepted direct operations; this
 machine now also has a working native PostgreSQL 18.3 demo database.
 Remote CI has passed on `develop`. See
 README for current verification evidence.
-The backend is not deployed and public signup remains closed. A protected
+The free hosted-demo API is deployed at https://cyber-range-api.onrender.com;
+HTTPS health/database/auth acceptance passed. Public signup remains closed. A protected
 Vercel frontend URL has been supplied; deployed integration is unverified.
 Phase 4 VM checks have
 passed. Real Engine mTLS and remote route-delivery preflight passed on the
@@ -193,25 +194,27 @@ Remaining work: review the deployed production firewall and domain/TLS layout;
 provision and verify separate production application and migration database
 roles; and finish frontend, production email, and operational launch controls.
 Repeat the validated probes and recovery drill on the actual deployment.
-Current user-approved scope is a local Gmail demo; production domain/email
-provisioning is deferred. Local verification/reset browser flows, real-worker
+Current user-approved scope includes the local Gmail demo and a free hosted
+API demo; verified-domain email provisioning is deferred. Local verification/reset browser flows, real-worker
 start/refresh/extend/stop and route removal, and an isolated 12-table restore
 drill passed on 2026-10-05. See the gate record and
 [operations runbook](docs/OPERATIONS.md). The supplied Vercel deployment needs
-connector team access and a reachable HTTPS backend before integration.
+connector team access and server configuration before integration; the HTTPS
+backend is now available.
 Render browser provisioning is now accessible, and its `develop` API Blueprint
 has been planned successfully. The operator requires free tiers only; Render
 rejected database creation because its active free-database quota is occupied.
 The alternative free Neon project is now provisioned: migrations, restricted
 runtime role privileges, fresh account/catalog seed and login/session/logout
 checks passed. The approved sending-only Resend key is created and deployment
-configuration validation passed. Free API credential submission and public
-endpoint creation await confirmation; no Render resource
-has been created. See [Render checkpoint](docs/RENDER.md).
+configuration validation passed. The operator approved credential submission
+and free API creation; Render deployed `2a76b71` successfully. Live HTTPS
+readiness/catalog/login/session/profile/signup-denial/logout/revocation checks
+passed. See [Render checkpoint](docs/RENDER.md).
 Render API hosting preparation now includes a Docker Blueprint, a secret-free
 build-context allowlist and committed migrations in the runtime image. Actual
-deployment waits for Render credential submission/API creation and frontend
-integration. Verified-domain delivery remains deferred; the hosted demo can
+frontend integration and hosted worker networking remain open. Verified-domain
+delivery remains deferred; the hosted demo can
 use the restricted Resend test sender for the operator's own account email.
 See [Render deployment](docs/RENDER.md). Remote worker networking and ingress
 remain separate prerequisites for hosted lab acceptance.

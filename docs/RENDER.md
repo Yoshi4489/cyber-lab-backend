@@ -1,10 +1,11 @@
 # Render API deployment
 
-Status (2026-10-06): configuration prepared, not deployed. Render browser access
+Status (2026-10-06): free hosted-demo API deployed and HTTPS acceptance passed.
+API URL: https://cyber-range-api.onrender.com. Render browser access
 is now working in My Workspace, and the backend GitHub repository is already
 available through the existing connection. A free Neon database is now
 provisioned and checked; the approved Resend sending-only key now exists.
-Render credential submission and API creation await confirmation. Public signup remains
+The operator approved credential submission and API creation. Public signup remains
 closed. This delivery
 changes hosting preparation within Phase 4; it does not close the security gate.
 
@@ -99,13 +100,13 @@ SSH. This browser provisioning review did not repeat that build or deploy.
 At that preparation checkpoint no hosted resource or credential existed. The earlier
 local browser/VM results do not substitute for this deployment acceptance.
 
-## Dashboard provisioning checkpoint
+## Dashboard provisioning checkpoint (before deployment)
 
 Render successfully planned the `develop` Blueprint for `cyber-range-api`.
-The unsaved form is named `cyber-range-demo`; issuer/audience are prepared
-as `cyber-range-frontend` and `cyber-range-backend`. The required application
-database URL and Resend key remain empty; sender is `onboarding@resend.dev`.
-Deploy was not clicked.
+At this checkpoint, the unsaved form was named `cyber-range-demo`; issuer/audience
+were prepared as `cyber-range-frontend` and `cyber-range-backend`. The required
+application database URL and Resend key were empty; sender was `onboarding@resend.dev`.
+Deploy had not been clicked. The later completed deployment is recorded below.
 
 A separate PostgreSQL form was prepared for `cyber-range-db`, database
 `cyber_range`, owner `cyber_range_owner`, Singapore, PostgreSQL 18 and 1 GB
@@ -157,11 +158,13 @@ Catalog and fresh verified demo player/admin accounts were seeded through this
 login. Player login, session resolution and logout revocation passed. Existing
 local accounts/data and unrelated Neon/Render resources were not imported.
 
-Connections and fresh account credentials remain in ignored private local
-configuration; no value was printed, committed or submitted to Render/Vercel.
+At this provisioning checkpoint, connections and fresh account credentials
+remained in ignored private local configuration; no value was printed, committed
+or submitted to Render/Vercel.
 The owner credential must remain outside runtime service configuration. The
-application connection is ready for Render once email configuration is ready.
-API deployment, frontend integration, hosted lifecycle/worker networking and
+application connection was ready for Render once email configuration was ready;
+its later approved submission to Render is recorded below.
+Frontend integration, hosted lifecycle/worker networking and
 production privilege acceptance across all application paths remain open.
 
 ## Resend key checkpoint (2026-10-06)
@@ -178,6 +181,37 @@ connection and Resend key, explicit database `sslmode=verify-full`, the HTTPS
 frontend origin, closed signup and independently generated validation keys.
 This is a configuration check, not provider delivery or deployment acceptance.
 The Render Blueprint generates its own independent backend keys on creation.
-Credential submission to Render and creation of its public HTTPS API are
-prepared but awaiting browser-action confirmation. No owner/Docker credential
-will be given to the API or frontend.
+Credential submission to Render and creation of its public HTTPS API were
+subsequently approved and completed below. No owner/Docker credential was
+given to the API or frontend.
+
+## Live free API acceptance (2026-10-06)
+
+The operator explicitly approved storing the restricted Neon connection and
+Resend key in Render and deploying the free public HTTPS API. Blueprint
+`cyber-range-demo` (`exs-db1t8a60tbcc73cbpcog`) created one Free Docker web
+service in Singapore: `cyber-range-api` (`srv-db1u9c0m7kps73duk1o0`). The build
+and deployment of commit `2a76b71` succeeded, reported Live after 1m16s, at
+https://cyber-range-api.onrender.com. This provides an actual Node 22 Docker
+image build, in addition to the earlier local configuration checks.
+
+Live HTTPS checks passed: `/healthz`, PostgreSQL `/readyz`, database-backed
+catalog, rejection of login without the BFF credential, hosted seeded player
+login and session resolution, scoped profile access, signup rejection (403),
+logout, and rejection of the same signed profile token after session revocation.
+The test session was revoked. No email or lifecycle creation request was sent.
+
+Generated API bootstrap/signing credentials were copied only into ignored
+private acceptance configuration, with the clipboard cleared. No keys, database
+owner credential, seed passwords, local demo database, Redis or Docker material
+were put in Git or given to the frontend. The API uses the restricted login;
+migrations were run separately. No paid resource was created or enabled.
+
+The deployed frontend still needs its server-only configuration and browser
+acceptance. Resend live delivery remains untested, with the default test sender
+limited to the operator's own account address. Lab operations are not enabled
+end-to-end by this API deployment: the worker, durable Redis and public target
+ingress must be provisioned and validated separately. No cloud worker was
+started. Free API idle sleep can delay the next request; public signup stays
+closed and the production security gate remains open. Documentation commits
+after `2a76b71` do not redeploy because automatic service deployments are off.
