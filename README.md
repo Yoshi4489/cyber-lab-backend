@@ -17,13 +17,14 @@ This repository is
 
 **Now:** Phase 3 passed; Phase 4 disposable-host hardening and isolation probes passed.
 Authenticated remote route delivery is implemented and unit-tested. Both VMs
-are running. Real remote Engine mTLS, fail-closed route delivery preflight, and
+were running during validation. Real remote Engine mTLS, fail-closed route delivery preflight, and
 separate validation database logins passed on 2026-10-04.
 Live HTTPS lifecycle, two-player isolation, network-drift cleanup, and mid-spawn
 worker crash recovery also passed on that topology.
 **Next:** Finish production deployment, frontend, email, and operational launch controls.
-**Blocked/waiting:** domain and production email.
-**Last updated:** 2026-10-04.
+**Blocked/waiting:** production domain/TLS, verified email domain/credentials,
+and deployed topology/operational evidence.
+**Last updated:** 2026-10-05.
 
 Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
 committed migrations, account seeds, Argon2id credentials, opaque sessions,
@@ -36,16 +37,20 @@ worker, restricted Docker options, and generated Traefik file-provider routes
 delivered either beside the worker or into the ingress container over the
 worker's authenticated Docker connection.
 
-Not implemented yet: the frontend cookie/CSRF, scoring and lifecycle checkpoints,
-production email delivery, authored player challenges, production-topology
-isolation evidence, or deployment. A disposable HTTP target and runtime
+Frontend cookie/CSRF, catalog and learner lifecycle controls are implemented;
+production browser and real worker acceptance remain open. Submissions/progress
+and leaderboard UI integration, authored player challenges, production-topology
+evidence and deployment remain unfinished. The Resend delivery adapter is
+implemented, but verified-domain live sending is unverified. A disposable HTTP target and runtime
 manifest were used for the Phase 3 exit check. Dynamic submission scoring is
-active only for an owned, running, unexpired instance. Local development email
-is written only to the ignored `.local-mail` directory.
+active only for an owned, running, unexpired instance. Development email defaults
+to the ignored `.local-mail` directory; Gmail delivery is an explicit local-demo option.
 
-Verification: 137 Vitest cases are defined; the local run on 2026-10-04 passes
-91 and skips 46 environment-gated cases, across 17 passed and 14 skipped files.
-Lint, type checking, and build pass on Node 22.23.2.
+Verification: 158 Vitest cases are defined; the local run on 2026-10-05 passes
+112 and skips 46 environment-gated cases, across 20 passed and 14 skipped files.
+Lint, type checking, and build pass locally on Node 24.19.0. The repo supports
+Node 22; the Resend adapter's Node 22 CI passed at
+[run 37268300486](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268300486).
 Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
 and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
 started with Docker Desktop, reached healthy status, accepted direct client
@@ -213,9 +218,10 @@ contains separate worker settings. Docker credentials are parsed only by
 | `INSTANCE_RATE_LIMIT_MAX`, `INSTANCE_RATE_LIMIT_WINDOW_MS` | API | Instance-create limits keyed by verified user identity |
 | `LAB_PUBLIC_BASE_URL` | API | Base URL used only when a target is running and has an unguessable route |
 | `LOCAL_MAIL_DIRECTORY` | Development API | Ignored local verification/reset delivery directory |
-| `MAIL_PROVIDER` | API | `local` by default; `gmail` opts into local-demo SMTP delivery; both reject production use |
+| `MAIL_PROVIDER` | API | `local` by default; `gmail` for local demos; production requires `resend` |
 | `SMTP_USER`, `SMTP_APP_PASSWORD` | Development API | Gmail sender and backend-only app password; required when `MAIL_PROVIDER=gmail` |
-| `EMAIL_SENDER_NAME` | Development API | Custom sender display name; defaults to Cyber Range |
+| `RESEND_API_KEY`, `EMAIL_FROM` | API | Backend-only provider key and sender on a verified domain; required when `MAIL_PROVIDER=resend` |
+| `EMAIL_SENDER_NAME` | API | Custom sender display name; defaults to Cyber Range |
 | `DEV_POSTGRES_PASSWORD` | Local Compose | Required to initialize local PostgreSQL |
 | `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
 | `REDIS_URL` | Worker | BullMQ connection; never sent to targets or frontend |
@@ -235,6 +241,13 @@ For Gmail local-demo delivery, see [email setup](docs/EMAIL.md). Gmail accepted
 one operator-approved setup message on 2026-10-05. Inbox receipt and frontend
 verification/reset completion remain unverified; production delivery remains
 an open launch requirement.
+
+The Resend production adapter is implemented with contract coverage and passing
+Node 22 CI. Verified-domain live delivery remains pending. Provider failures keep
+verification/reset acknowledgements generic and create a sanitized audit event.
+The frontend cookie/CSRF implementation is present in the sibling repo;
+33 focused unit checks passed on 2026-10-05. Production HTTPS/browser validation
+and real worker UI acceptance remain open.
 
 ## Current API
 

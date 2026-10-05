@@ -138,6 +138,19 @@ links but rejects production use. Inbox receipt and the actual frontend email
 flows are not yet verified. This does not close the production-email gate;
 see [email delivery](EMAIL.md).
 
+Follow-up (2026-10-05): Resend production adapter contract tests and Node 22 CI
+passed; live provider/domain delivery remains unverified. Delivery failures now
+keep verification/reset acknowledgements generic, with sanitized append-only
+audit events. Local lint/typecheck/build and 112 tests passed; 46 environment
+cases skipped on Node 24.19.0. Sibling frontend `64afe70` implements cookie/CSRF
+and BFF auth forms; 33 focused unit checks passed. Production HTTPS/browser
+and real email-link validation remain open; this review does not close the gate.
+Sixteen additional authentication integration cases passed against a disposable
+local PostgreSQL 18.3 database, removed afterward. This supplements the CI
+PostgreSQL 16 checks and does not establish production database privileges.
+The email failure security fix passed Node 22/PostgreSQL/Redis CI at
+[run 37268528702](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268528702).
+
 1. Repeat the validated live lifecycle checks on the deployed production layout and review
    production trust-zone/firewall controls. The two-VM setup passed real Docker
    mTLS, live routing, and target management-route blocking on 2026-10-04;

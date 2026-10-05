@@ -2,7 +2,8 @@
 
 The API selects an `AuthMailer` using `MAIL_PROVIDER`. The default `local`
 provider writes verification and password-reset messages to the ignored
-`LOCAL_MAIL_DIRECTORY`. Both providers keep email tokens out of request logs.
+`LOCAL_MAIL_DIRECTORY`. All providers keep email tokens out of request logs.
+The `resend` provider supplies the production delivery adapter.
 
 ## Gmail for local demos
 
@@ -48,6 +49,52 @@ still supports Node 22, which must be used for supported-runtime validation.
 
 Gmail is an explicit local-demo option and is rejected under
 `NODE_ENV=production`. The local file mailer also rejects production use.
-Production Resend delivery, verified domain/TLS, frontend secure-cookie/CSRF
-checks, and operational launch controls remain open Phase 4 requirements.
 Public signup stays closed. Never commit app passwords, `.env`, or email tokens.
+
+## Production Resend setup
+
+The Resend adapter is implemented. Set the following only on the backend API,
+after verifying the sender domain in your Resend account:
+
+```dotenv
+NODE_ENV=production
+MAIL_PROVIDER=resend
+RESEND_API_KEY=your-server-only-api-key
+EMAIL_FROM=noreply@your-verified-domain.example
+EMAIL_SENDER_NAME=Cyber Range
+FRONTEND_ORIGIN=https://your-frontend.example
+```
+
+Production startup requires complete Resend credentials and an HTTPS frontend
+origin that is not loopback and has no credentials, path, query or fragment.
+Configuration cannot prove DNS/domain verification; Resend enforces that when
+accepting mail. The existing local demo continues to use Gmail.
+
+Requests use the fixed HTTPS endpoint, a 15-second timeout, rejected redirects,
+and a hashed idempotency key for the same purpose/recipient/token. The adapter
+validates the provider's acceptance response and discards provider diagnostics.
+See the [Resend send-email contract](https://resend.com/docs/api-reference/emails/send-email).
+Delivery is synchronous; there is no durable email outbox or automatic retry.
+Provider acceptance does not prove inbox delivery.
+
+Verification/reset requests retain their generic HTTP 202 acknowledgement when
+delivery fails. The backend writes `auth.email.delivery_failed` with only the
+backend-owned target account ID and `purpose` audit detail. It never stores the
+recipient, token, password, message, or provider error in that event. Operators
+must monitor this event; a player may retry the request after the provider issue
+is resolved. Database token/audit persistence errors still propagate as errors.
+Response timing is not made uniform by this change.
+
+On 2026-10-05, lint, typecheck, build, and 112 local tests passed on Node 24.19.0;
+46 environment-gated tests skipped. The Resend adapter's Node 22 CI passed at
+[run 37268300486](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268300486).
+The email failure security fix also passed Node 22 CI at
+[run 37268528702](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268528702).
+Contract tests use injected provider responses and do not send mail. Live Resend
+delivery, domain verification, inbox receipt, production browser email-link
+completion, and operational launch controls remain unverified Phase 4 gates.
+
+An additional 16 authentication service/repository/route integration tests passed
+against a freshly created disposable PostgreSQL 18.3 database on this machine.
+The database was removed after the run; the local demo database was preserved.
+No external mail was sent in these tests.

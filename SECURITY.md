@@ -57,8 +57,9 @@ the Ubuntu VM; no production target has been launched.
   verification. Test captured logs for password, session and email-token leaks.
 
 The backend now enforces these Phase 1 rules, including captured-log redaction
-tests and a signup configuration that accepts only `false`. The frontend cookie
-and CSRF checkpoint and production Resend delivery remain incomplete. See
+tests and a signup configuration that accepts only `false`. Frontend cookie/CSRF
+implementation and the production Resend adapter are implemented. Deployment
+HTTPS/browser validation and verified-domain live delivery remain incomplete. See
 [AUTHENTICATION.md](docs/AUTHENTICATION.md) for the implemented contract.
 
 ## Docker boundary

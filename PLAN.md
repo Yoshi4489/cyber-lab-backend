@@ -9,9 +9,11 @@ the Phase 4 security gate. This plan covers
 backend work and frontend contract checkpoints; frontend implementation stays
 in its separate repository.
 
-The current local run passes 91 tests and skips 46 environment-gated cases on
-Node 22.23.2. Local PostgreSQL 16 and Redis 7 containers start, become healthy,
-and accept direct client operations. Remote CI has passed on `develop`. See
+The latest local run passes 112 tests and skips 46 environment-gated cases on
+Node 24.19.0; Node 22 remains supported and passes CI. PostgreSQL 16 and Redis 7
+containers previously became healthy and accepted direct operations; this
+machine now also has a working native PostgreSQL 18.3 demo database.
+Remote CI has passed on `develop`. See
 README for current verification evidence.
 Nothing is deployed and public signup remains closed. Phase 4 VM checks have
 passed. Real Engine mTLS and remote route-delivery preflight passed on the
@@ -57,7 +59,7 @@ Dependency: Phase 0. Delivered accounts/auth only; the catalog remains mocked.
 | Session lifecycle, verification/reset services and development mailer | Persistence and hashing | Implemented |
 | Auth bootstrap routes, BFF/session contract and current-user authorization | Auth services | Implemented |
 | Generated contracts and PostgreSQL integration tests | Routes | Implemented |
-| Frontend secure-cookie/CSRF integration checkpoint | Backend contract | Pending in frontend repository |
+| Frontend cookie/CSRF integration checkpoint | Backend contract | Implemented in frontend; 33 focused unit checks passed; production HTTPS/browser validation pending |
 
 Sessions use 30-day inactivity and 90-day absolute expiry, fresh tokens on
 login, logout revocation, and single-use email tokens. Public signup returns
@@ -91,8 +93,9 @@ Dependency: Phase 1 users and database.
   queries with generated contracts.
 - Implemented: HMAC per-instance flag derivation/verification and a trusted-user
   submission rate limiter.
-- Pending in the frontend repository: catalog/source, `profile:read`, leaderboard,
-  and submission contract integration.
+- Implemented in the frontend repository: database catalog/source reads.
+- Pending in the frontend repository: `profile:read`, leaderboard and submission
+  contract integration.
 
 Per-instance flags depend on real instance identity. Phase 3 now supplies the
 owned running-instance resolver; tests still use explicit fixtures where Docker
@@ -124,7 +127,8 @@ A routing domain and certificates are prerequisites for remote deployment.
   running ingress and one reviewed pinned HTTP fixture image.
 - Passed on the Ubuntu VM: full create/poll/submit/extend/destroy target run and
   pending-operation recovery after a worker restart.
-- Pending in the frontend repository: frontend polling integration.
+- Implemented in the frontend repository: polling and learner lifecycle controls
+  with fixture tests; actual worker/ingress UI acceptance remains pending.
 
 Start with HTTP targets and a single node. One active instance per player,
 60-minute default lifetime, 2-hour absolute maximum. Extensions cannot exceed
@@ -239,8 +243,8 @@ belong to the frontend repo, coordinated through generated OpenAPI and phase
 checkpoints. A schema change, revocation rule, retry contract, or isolation
 claim requires a corresponding meaningful test.
 
-Next task: complete the frontend secure-cookie/CSRF checkpoint and production
-email delivery, then provision the production topology and database roles and
+Next task: validate frontend cookies/CSRF over deployed HTTPS and activate
+verified-domain production email, then provision the production topology and database roles and
 record the remaining deployment and operational checks in the gate record.
 Public signup remains closed.
 
@@ -251,3 +255,23 @@ and actual frontend email-link flows remain unverified. Lint, typecheck, build,
 and 100 tests passed on local Node 24.19.0; 46 environment-gated tests skipped.
 Node 22 remains the supported runtime. Gmail is rejected in production and does
 not close the production email gate. See [email setup](docs/EMAIL.md).
+
+Phase 4 follow-up (2026-10-05): the production Resend adapter is implemented
+with fixed HTTPS delivery, bounded requests, hashed idempotency keys and
+sanitized errors. Verification/reset delivery failures now retain generic HTTP
+acknowledgements and write safe audit events. Local lint/typecheck/build passed,
+with 112 tests passed and 46 environment skips on Node 24.19.0. The adapter's
+Node 22 CI passed at run 37268300486. No live Resend email was sent; verified
+domain, provider credentials and deployed frontend URL remain required.
+
+Frontend status review: sibling commit `64afe70` documents implemented auth,
+cookie/CSRF and learner catalog/lifecycle UI. Its 33 focused authentication unit
+checks passed locally. Production HTTPS/browser checks, live email-link flows,
+actual worker UI acceptance, and submissions/progress/leaderboard integration
+remain open. No frontend source was changed in this backend delivery.
+
+Additional local database evidence: all 16 authentication service, repository
+and HTTP integration tests passed in a separate disposable PostgreSQL 18.3
+database, removed after the run. The demo database and accounts were preserved.
+The email failure security fix passed Node 22/PostgreSQL/Redis CI at
+[run 37268528702](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268528702).

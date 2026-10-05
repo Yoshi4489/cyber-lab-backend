@@ -2,8 +2,10 @@
 
 Status: Phase 1 backend implemented. PostgreSQL accounts/sessions, BFF bootstrap
 routes, Argon2id credentials, local development mail, and session-bound service
-tokens are active. The frontend secure-cookie/CSRF integration and production
-Resend delivery remain separate checkpoints. Public signup is closed.
+tokens are active. The frontend cookie/CSRF integration is implemented with
+passing focused unit checks; production HTTPS/browser validation remains open.
+The Resend adapter is implemented; verified-domain live delivery remains open.
+Public signup is closed.
 
 ## Ownership and credentials
 
@@ -91,7 +93,9 @@ ignored `LOCAL_MAIL_DIRECTORY` (default `.local-mail`) and refuses to run as a
 production mailer. An opt-in Gmail SMTP adapter now delivers local-demo auth
 email with a backend-only app password and verified TLS; it also refuses
 production use. See [email setup and validation](EMAIL.md).
-Resend follows after a domain is verified. Local links do not
+The production Resend adapter uses a fixed HTTPS endpoint and sanitized errors;
+live sending requires a verified domain and backend-only key. Delivery failures
+retain generic request acknowledgements and append a safe audit event. Local links do not
 enter normal request or audit logs; captured-log tests cover password, session,
 and email-token field names.
 
@@ -109,6 +113,10 @@ Prove request bodies cannot choose the user, foreign sessions cannot satisfy
 `sid`, revoked sessions cannot mint/use tokens, and signup remains closed.
 
 Backend acceptance covers these cases with PostgreSQL integration tests and the
-generated contract. The remaining frontend checkpoint must verify secure cookie
-handling, CSRF/origin checks, session resolution, scoped token signing, logout,
-verification/reset links, and error mapping in the frontend repository.
+generated contract. The frontend checkpoint at sibling commit `64afe70` records
+implemented BFF forms and prior live login/cookie/refresh/logout acceptance.
+On 2026-10-05, 33 focused frontend unit tests passed for cookies, CSRF, session
+resolution, authorization, auth adapters and BFF routes. That review made no
+frontend source changes and did not repeat live browser acceptance. Production
+HTTPS cookies/CSRF, live verification/reset links and deployment error handling
+still require end-to-end validation on the deployed frontend.

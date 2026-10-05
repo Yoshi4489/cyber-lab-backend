@@ -81,6 +81,13 @@ status, and current role permissions.
 The [auth contract](docs/AUTHENTICATION.md) describes bootstrap, cookie handling,
 expiry/revocation and the frontend integration checkpoint.
 
+The API selects a narrow authentication mailer: local file delivery by default,
+Gmail for explicitly configured local demos, or Resend in production. Only the
+API holds provider credentials. Links point at frontend BFF forms, and the
+database stores token hashes. Provider failures retain generic request
+acknowledgements and append only safe failure metadata to the audit log.
+Delivery is synchronous; there is no durable email outbox. See [email delivery](docs/EMAIL.md).
+
 ## Data and challenge definitions
 
 Phase 1 replaced the unused Neon HTTP factory with a transactional PostgreSQL
