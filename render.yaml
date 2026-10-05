@@ -1,0 +1,41 @@
+# API only. Database roles/migrations and remote worker networking are separate.
+services:
+  - type: web
+    name: cyber-range-api
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: develop
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /readyz
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: FRONTEND_ORIGIN
+        value: https://cyber-lab-frontend.vercel.app
+      - key: SIGNUPS_OPEN
+        value: "false"
+      - key: MAIL_PROVIDER
+        value: resend
+      - key: EMAIL_SENDER_NAME
+        value: Cyber Range
+      - key: DATABASE_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: BFF_AUTH_SECRET
+        generateValue: true
+      - key: BACKEND_SERVICE_TOKEN_SECRET
+        generateValue: true
+      - key: INSTANCE_FLAG_SECRET
+        generateValue: true
+      - key: SERVICE_TOKEN_ISSUER
+        sync: false
+      - key: SERVICE_TOKEN_AUDIENCE
+        sync: false
