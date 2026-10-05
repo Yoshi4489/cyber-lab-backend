@@ -5,6 +5,7 @@ import type {
   AccountRecord,
   AccountRole,
   AuthRepository,
+  EmailTokenPurpose,
   SessionAccountRecord,
 } from './auth-repository.js';
 import type { AuthMailer } from './mailer.js';
@@ -124,7 +125,8 @@ export class AuthenticationService {
       now,
       expiresAt: new Date(now.getTime() + VERIFICATION_TOKEN_MS),
     });
-    await this.mailer.sendEmailVerification({ email: account.email, token: token.value });
+    await this.deliverEmail(account.id, 'email_verification', () =>
+      this.mailer.sendEmailVerification({ email: account.email, token: token.value }));
   }
 
   async confirmEmailVerification(token: string): Promise<void> {
@@ -148,7 +150,26 @@ export class AuthenticationService {
       now,
       expiresAt: new Date(now.getTime() + PASSWORD_RESET_TOKEN_MS),
     });
-    await this.mailer.sendPasswordReset({ email: account.email, token: token.value });
+    await this.deliverEmail(account.id, 'password_reset', () =>
+      this.mailer.sendPasswordReset({ email: account.email, token: token.value }));
+  }
+
+  private async deliverEmail(
+    userId: string,
+    purpose: EmailTokenPurpose,
+    deliver: () => Promise<void>,
+  ): Promise<void> {
+    try {
+      await deliver();
+    } catch {
+      // Preserve generic acknowledgements during provider failures; retain only safe audit metadata.
+      await this.repository.appendAuditEvent({
+        eventType: 'auth.email.delivery_failed',
+        targetUserId: userId,
+        details: { purpose },
+        createdAt: this.now(),
+      });
+    }
   }
 
   async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
