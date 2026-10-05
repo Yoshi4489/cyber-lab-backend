@@ -202,12 +202,13 @@ connector team access and a reachable HTTPS backend before integration.
 Render browser provisioning is now accessible, and its `develop` API Blueprint
 has been planned successfully. The operator requires free tiers only; Render
 rejected database creation because its active free-database quota is occupied.
-Service creation needs an alternative free hosted database, restricted runtime
-roles and Resend setup; no Render
-resource has been created. See [Render checkpoint](docs/RENDER.md).
+The alternative free Neon project is now provisioned: migrations, restricted
+runtime role privileges, fresh account/catalog seed and login/session/logout
+checks passed. Service creation still needs Resend setup; no Render resource
+has been created. See [Render checkpoint](docs/RENDER.md).
 Render API hosting preparation now includes a Docker Blueprint, a secret-free
 build-context allowlist and committed migrations in the runtime image. Actual
-deployment waits for hosted PostgreSQL with restricted roles,
+deployment waits for Resend configuration,
 and verified-domain Resend setup, which the operator confirmed are absent.
 See [Render deployment](docs/RENDER.md). Remote worker networking and ingress
 remain separate prerequisites for hosted lab acceptance.

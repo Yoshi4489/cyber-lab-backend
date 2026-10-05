@@ -208,5 +208,10 @@ See [the operations runbook](OPERATIONS.md) for remaining operational drills.
    public signup decision.
 
 The Phase 4 gate is not satisfied by a passing VM probe or CI suite alone.
+Hosted-demo follow-up: a separate free Neon PostgreSQL 18 project now has
+migrations and distinct owner/runtime logins. Actual audit/DDL/journal denial
+checks, restricted-login seeding and player login/session/logout passed. This
+is hosted database evidence only: deployed API/worker acceptance, networking,
+backups and provider/production controls remain open. See [Render evidence](RENDER.md).
 `SIGNUPS_OPEN` must remain `false` until the production-topology checks and
 separate launch review pass.

@@ -2,8 +2,9 @@
 
 Status (2026-10-05): configuration prepared, not deployed. Render browser access
 is now working in My Workspace, and the backend GitHub repository is already
-available through the existing connection. The operator confirmed hosted
-PostgreSQL and Resend are not configured. Public signup remains closed. This delivery
+available through the existing connection. A free Neon database is now
+provisioned and checked; the Resend key is still missing. Public signup remains
+closed. This delivery
 changes hosting preparation within Phase 4; it does not close the security gate.
 
 ## What the Blueprint creates
@@ -94,7 +95,7 @@ Local TypeScript build, YAML parsing and production configuration validation
 passed using dummy credentials. At the image-preparation checkpoint, Docker
 build could not run: Docker was unavailable locally and the VM timed out over
 SSH. This browser provisioning review did not repeat that build or deploy.
-No Render resource or production credential has been created. The earlier
+At that preparation checkpoint no hosted resource or credential existed. The earlier
 local browser/VM results do not substitute for this deployment acceptance.
 
 ## Dashboard provisioning checkpoint
@@ -128,3 +129,35 @@ the operator's account and backend-only API key but avoids buying a domain for
 this restricted test. It does not enable email delivery to other players or
 close the production-email gate. See
 [Resend test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
+
+## Free Neon provisioning evidence
+
+The operator signed in to Neon. The Vercel-managed organization disables direct
+project creation, so the separate personal `Yoshi` organization was selected.
+A PostgreSQL-only Free project `cyber-range-demo` was created in Singapore:
+project `delicate-sky-93592387`, branch `br-blue-cell-b388shnb`, database
+`cyber_range`, PostgreSQL 18. Extra Auth, storage, functions and AI services were
+not enabled. The default branch name `production` is a provider label; it does
+not establish a production launch or close Phase 4.
+
+Committed Drizzle migrations passed through the private owner connection.
+A NOLOGIN `cyber_range_app` permission role and separate `cyber_range_api`
+login were provisioned, and the reviewed grants applied. Schema CREATE and
+database access through PUBLIC were revoked. The runtime login has no
+superuser, CREATE DATABASE, CREATE ROLE, BYPASSRLS or `neon_superuser`
+membership. TLS uses explicit `sslmode=verify-full` for its connection.
+
+Actual restricted-login checks passed: audit insert allowed; audit update,
+delete and truncate denied; public table creation and alteration denied;
+Drizzle migration journal reads and user deletion denied. Validation audit
+inserts were rolled back. The schema contains 12 public/Drizzle tables.
+Catalog and fresh verified demo player/admin accounts were seeded through this
+login. Player login, session resolution and logout revocation passed. Existing
+local accounts/data and unrelated Neon/Render resources were not imported.
+
+Connections and fresh account credentials remain in ignored private local
+configuration; no value was printed, committed or submitted to Render/Vercel.
+The owner credential must remain outside runtime service configuration. The
+application connection is ready for Render once email configuration is ready.
+API deployment, frontend integration, hosted lifecycle/worker networking and
+production privilege acceptance across all application paths remain open.
