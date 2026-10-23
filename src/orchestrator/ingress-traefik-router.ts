@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { PassThrough } from 'node:stream';
 import type Docker from 'dockerode';
 import {
   assertContainerDirectory,
@@ -6,6 +7,7 @@ import {
   readArchive,
   renderRouteDocument,
   routeFileName,
+  routeInstanceIds,
   validateRoute,
   type TraefikRoute,
   type TraefikRouter,
@@ -38,6 +40,23 @@ export class IngressTraefikRouter implements TraefikRouter {
   async remove(instanceId: string): Promise<void> {
     assertInstanceId(instanceId);
     await this.delete(routeFileName(instanceId));
+  }
+
+  async listInstanceIds(): Promise<string[]> {
+    const exec = await this.docker.getContainer(this.ingressContainer).exec({
+      Cmd: ['ls', '-1A', '--', this.containerDirectory],
+      AttachStdout: true, AttachStderr: true, Privileged: false, Tty: false,
+    });
+    const stream = await exec.start({ Detach: false, Tty: false });
+    const output = new PassThrough();
+    this.docker.modem.demuxStream(stream, output, output);
+    stream.once('end', () => output.end());
+    stream.once('close', () => output.end());
+    stream.once('error', (error) => output.destroy(error));
+    const names = await readArchive(output, 1_048_576);
+    const { ExitCode } = await exec.inspect();
+    if (ExitCode !== 0) throw new Error('Cannot inventory ingress route directory');
+    return routeInstanceIds(names.split('\n').filter(Boolean));
   }
 
   /**

@@ -21,6 +21,24 @@ function route(overrides: RouteOverrides = {}): TraefikRoute {
 }
 
 describe('Traefik routes delivered into ingress', () => {
+  it('inventories remote routes through a bounded argument-vector directory read', async () => {
+    const ingress = ingressFixture();
+    const router = new IngressTraefikRouter(ingress.docker, 'traefik', directory);
+    await router.upsert(route());
+    expect(await router.listInstanceIds()).toEqual([instanceId]);
+    expect(ingress.exec).toHaveBeenCalledWith(expect.objectContaining({
+      Cmd: ['ls', '-1A', '--', directory], Privileged: false,
+    }));
+    await router.remove(instanceId);
+    expect(await router.listInstanceIds()).toEqual([]);
+  });
+
+  it('refuses a failed remote directory read', async () => {
+    const ingress = ingressFixture({ exitCode: 1 });
+    await expect(new IngressTraefikRouter(ingress.docker, 'traefik', directory).listInstanceIds())
+      .rejects.toThrow('Cannot inventory ingress route directory');
+  });
+
   it('delivers the rendered route into the ingress directory over the Docker channel', async () => {
     const ingress = ingressFixture();
     await new IngressTraefikRouter(ingress.docker, 'traefik', directory).upsert(route());
@@ -133,6 +151,9 @@ function ingressFixture(options: { exitCode?: number; readable?: boolean; remove
     const target = Cmd?.[3];
     return {
       start: async () => {
+        if (Cmd?.[0] === 'ls') {
+          return Readable.from([[...files.keys()].map((path) => path.slice(path.lastIndexOf('/') + 1)).join('\n')]);
+        }
         if (options.removes !== false && target) files.delete(target);
         return Readable.from([]);
       },
@@ -141,6 +162,7 @@ function ingressFixture(options: { exitCode?: number; readable?: boolean; remove
   });
   const docker = {
     getContainer: vi.fn(() => ({ putArchive, getArchive, exec })),
+    modem: { demuxStream: (stream: Readable, stdout: NodeJS.WritableStream) => stream.pipe(stdout, { end: false }) },
   } as unknown as Docker;
   return { docker, files, putArchive, getArchive, exec };
 }

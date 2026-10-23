@@ -25,7 +25,8 @@ const orchestrator = new DockerOrchestrator(
 );
 await orchestrator.preflight(manifests.all());
 await delivery.verify();
-const nodeId = await stateRepository.registerNode(config.LAB_NODE_NAME, new Date());
+await orchestrator.inventoryManagedResources();
+const nodeId = await stateRepository.registerNode(config.LAB_NODE_NAME, config.LAB_NODE_CAPACITY_SLOTS, new Date());
 const handler = new DockerLifecycleHandler(
   stateRepository,
   manifests,

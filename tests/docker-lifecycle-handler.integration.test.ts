@@ -41,7 +41,7 @@ describeDatabase('Docker lifecycle state machine', () => {
       passwordHash: 'test-only-placeholder-hash',
     });
     state = new DrizzleLifecycleStateRepository(database.db);
-    const nodeId = await state.registerNode(nodeName, now);
+    const nodeId = await state.registerNode(nodeName, 1, now);
     const manifests = new RuntimeManifestRegistry([{
       challengeId: challenge.id,
       image: `sha256:${'b'.repeat(64)}`,
@@ -60,6 +60,7 @@ describeDatabase('Docker lifecycle state machine', () => {
       spawn,
       destroy,
       runtimeStatus,
+      inventoryManagedResources: vi.fn(async () => ({ allocations: [], containerIds: [], networkIds: [] })),
     } as unknown as DockerOrchestrator;
     handler = new DockerLifecycleHandler(
       state,
@@ -119,6 +120,7 @@ describeDatabase('Docker lifecycle state machine', () => {
       instanceId: recoveredId,
       nodeId: registeredNode.id,
       routeKey: 'recoverysafekeyabcdefghijklmnop',
+      inventory: { allocations: [], containerIds: [], networkIds: [] },
       now,
     });
     await handler.handle(operation('reconcile', recoveredId, 'provisioning'));

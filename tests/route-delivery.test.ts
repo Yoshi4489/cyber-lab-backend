@@ -19,6 +19,7 @@ const base = {
   INSTANCE_FLAG_SECRET: 'worker-flag-secret-at-least-thirty-two-characters',
   RUNTIME_MANIFEST_PATH: '/run/config/manifests.json',
   LAB_INGRESS_CONTAINER: 'traefik',
+  LAB_NODE_CAPACITY_SLOTS: '2',
   DOCKER_SOCKET_PATH: '/var/run/docker.sock',
 };
 

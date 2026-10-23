@@ -17,6 +17,7 @@ const orchestrator = new DockerOrchestrator(
 
 await orchestrator.preflight(manifests.all());
 await delivery.verify();
+await orchestrator.inventoryManagedResources();
 process.stdout.write(`${JSON.stringify({
   status: 'ready',
   manifestCount: manifests.all().length,

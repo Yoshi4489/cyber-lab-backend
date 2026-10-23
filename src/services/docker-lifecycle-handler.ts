@@ -31,10 +31,13 @@ export class DockerLifecycleHandler implements LifecycleOperationHandler {
   private async spawn(operation: ClaimedLifecycleOperation): Promise<void> {
     const manifest = this.manifests.get(operation.instance.challengeId);
     if (!manifest) throw new Error('No trusted runtime manifest for challenge');
+    // Inventory failures must prevent admission and reservation release.
+    const inventory = await this.orchestrator.inventoryManagedResources();
     const prepared = await this.state.prepareSpawn({
       instanceId: operation.instance.id,
       nodeId: this.nodeId,
       routeKey: randomBytes(24).toString('base64url'),
+      inventory,
       now: this.clock(),
     });
     if (!prepared || prepared.status === 'running') return;
@@ -77,6 +80,7 @@ export class DockerLifecycleHandler implements LifecycleOperationHandler {
       containerId: instance.containerId,
       networkId: instance.networkId,
     });
+    await this.confirmAbsent(instance);
     await this.state.completeStop(instance.id, status, this.clock());
   }
 
@@ -102,6 +106,7 @@ export class DockerLifecycleHandler implements LifecycleOperationHandler {
         containerId: instance.containerId,
         networkId: instance.networkId,
       });
+      await this.confirmAbsent(instance);
       await this.state.markInstanceFailed(instance.id, `runtime_${runtime}`, this.clock());
       return;
     }
@@ -110,5 +115,14 @@ export class DockerLifecycleHandler implements LifecycleOperationHandler {
       containerId: instance.containerId,
       networkId: instance.networkId,
     });
+  }
+
+  private async confirmAbsent(instance: { id: string; containerId: string | null; networkId: string | null }): Promise<void> {
+    const inventory = await this.orchestrator.inventoryManagedResources();
+    if (inventory.allocations.some((resource) => resource.instanceId === instance.id) ||
+      (instance.containerId !== null && inventory.containerIds.includes(instance.containerId)) ||
+      (instance.networkId !== null && inventory.networkIds.includes(instance.networkId))) {
+      throw new Error('Managed instance resources remain after cleanup');
+    }
   }
 }

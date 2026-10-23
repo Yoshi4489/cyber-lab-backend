@@ -62,6 +62,7 @@ describeTls('remote Docker mTLS', () => {
         TRAEFIK_ROUTE_DELIVERY: 'ingress',
         TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: '/etc/traefik/dynamic',
         LAB_INGRESS_CONTAINER: 'traefik',
+        LAB_NODE_CAPACITY_SLOTS: '2',
         DOCKER_HOST: `https://127.0.0.1:${address.port}`,
       };
       // Docker's library also reads process.env before applying client options.

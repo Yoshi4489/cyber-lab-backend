@@ -11,6 +11,7 @@ const workerEnvSchema = z.object({
   TRAEFIK_ROUTE_DELIVERY: z.enum(['file', 'ingress']).default('file'),
   LAB_INGRESS_CONTAINER: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/u),
   LAB_NODE_NAME: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/u).default('local-lab-node'),
+  LAB_NODE_CAPACITY_SLOTS: z.coerce.number().int().min(1).max(2_147_483_647),
   DOCKER_SOCKET_PATH: z.string().min(1).optional(),
   DOCKER_HOST: z.url().refine((value) => {
     const endpoint = new URL(value);

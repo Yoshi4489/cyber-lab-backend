@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type Docker from 'dockerode';
 
@@ -13,6 +13,7 @@ export type TraefikRoute = {
 export type TraefikRouter = {
   upsert(route: TraefikRoute): Promise<void>;
   remove(instanceId: string): Promise<void>;
+  listInstanceIds(): Promise<string[]>;
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -22,6 +23,14 @@ const absoluteDirectory = /^\/(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+$/u;
 
 export class FileTraefikRouter implements TraefikRouter {
   constructor(private readonly directory: string) {}
+
+  async initialize(): Promise<void> {
+    await mkdir(this.directory, { recursive: true });
+  }
+
+  async listInstanceIds(): Promise<string[]> {
+    return routeInstanceIds(await readdir(this.directory));
+  }
 
   async verifyIngressVisibility(docker: Docker, ingressContainer: string, containerDirectory: string): Promise<void> {
     assertContainerDirectory(containerDirectory);
@@ -116,6 +125,18 @@ export function assertContainerDirectory(directory: string): void {
 
 export function routeFileName(instanceId: string): string {
   return `${resourceName(instanceId)}.yml`;
+}
+
+/** Recognize only our flat, canonical route names; ambiguous managed names fail closed. */
+export function routeInstanceIds(names: readonly string[]): string[] {
+  const ids: string[] = [];
+  for (const name of names) {
+    if (!name.startsWith('lab-') || !name.endsWith('.yml')) continue;
+    const match = /^lab-([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})\.yml$/u.exec(name);
+    if (!match) throw new Error('Invalid managed route name');
+    ids.push(match.slice(1).join('-'));
+  }
+  return ids;
 }
 
 export async function readArchive(

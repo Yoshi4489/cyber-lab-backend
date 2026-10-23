@@ -273,6 +273,7 @@ function routerFixture(): TraefikRouter & {
   return {
     upsert: vi.fn(async () => undefined),
     remove: vi.fn(async () => undefined),
+    listInstanceIds: vi.fn(async () => []),
   };
 }
 

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -21,8 +21,35 @@ describe('Traefik file routes', () => {
       expect(route).toContain(`rule: "PathPrefix(\`/labs/${routeKey}/\`)"`);
       expect(route).toContain(`prefixes: ["/labs/${routeKey}"]`);
       expect(route).toContain('servers: [{url: "http://cr-target:8080"}]');
+      expect(await router.listInstanceIds()).toEqual([instanceId]);
       await router.remove(instanceId);
       expect(await readdir(directory)).toEqual([]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('inventories only managed names and fails closed on ambiguous managed routes', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cyber-range-route-inventory-'));
+    try {
+      const router = new FileTraefikRouter(directory);
+      await writeFile(join(directory, 'unrelated.yml'), 'unrelated');
+      expect(await router.listInstanceIds()).toEqual([]);
+      await writeFile(join(directory, 'lab-invalid.yml'), 'invalid');
+      await expect(router.listInstanceIds()).rejects.toThrow('Invalid managed route name');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat a disappeared or unavailable route directory as empty inventory', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cyber-range-missing-inventory-'));
+    await rmdir(directory);
+    const router = new FileTraefikRouter(directory);
+    await expect(router.listInstanceIds()).rejects.toMatchObject({ code: 'ENOENT' });
+    try {
+      await router.initialize();
+      expect(await router.listInstanceIds()).toEqual([]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

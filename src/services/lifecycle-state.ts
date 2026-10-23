@@ -1,4 +1,5 @@
 import type { InstanceStatus } from './instance-lifecycle.js';
+import type { ManagedRuntimeInventory } from './runtime-inventory.js';
 
 export type RuntimeInstanceState = {
   id: string;
@@ -13,11 +14,12 @@ export type RuntimeInstanceState = {
 };
 
 export type LifecycleStateRepository = {
-  registerNode(name: string, now: Date): Promise<string>;
+  registerNode(name: string, capacitySlots: number, now: Date): Promise<string>;
   prepareSpawn(input: {
     instanceId: string;
     nodeId: string;
     routeKey: string;
+    inventory: ManagedRuntimeInventory;
     now: Date;
   }): Promise<RuntimeInstanceState | null>;
   completeSpawn(input: {

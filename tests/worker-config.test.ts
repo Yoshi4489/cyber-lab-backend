@@ -10,9 +10,18 @@ const base = {
   TRAEFIK_ROUTE_DELIVERY: 'ingress',
   TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY: '/etc/traefik/dynamic',
   LAB_INGRESS_CONTAINER: 'traefik',
+  LAB_NODE_CAPACITY_SLOTS: '2',
 };
 
 describe('worker configuration boundary', () => {
+  it('requires an explicit positive integer node capacity', () => {
+    const { LAB_NODE_CAPACITY_SLOTS: _capacity, ...withoutCapacity } = base;
+    const docker = { DOCKER_SOCKET_PATH: '/var/run/docker.sock', NODE_ENV: 'test' };
+    for (const capacity of [undefined, '', '0', '-1', '1.5', 'invalid', '2147483648']) {
+      expect(() => loadWorkerConfig({ ...withoutCapacity, ...docker, LAB_NODE_CAPACITY_SLOTS: capacity })).toThrow();
+    }
+    expect(loadWorkerConfig({ ...base, ...docker })).toMatchObject({ LAB_NODE_CAPACITY_SLOTS: 2 });
+  });
   it('rejects the Docker tooling certificate variable with migration guidance', () => {
     expect(() => loadWorkerConfig({
       ...base,

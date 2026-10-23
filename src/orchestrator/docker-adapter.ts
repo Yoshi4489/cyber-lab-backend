@@ -1,6 +1,7 @@
 import type Docker from 'dockerode';
 import type { RuntimeManifest } from './runtime-manifests.js';
 import type { TraefikRouter } from './traefik-router.js';
+import type { ManagedRuntimeAllocation, ManagedRuntimeInventory } from '../services/runtime-inventory.js';
 
 const MANAGED_LABEL = 'cyber-range.managed';
 const INSTANCE_LABEL = 'cyber-range.instance-id';
@@ -39,6 +40,70 @@ export class DockerOrchestrator {
     private readonly router: TraefikRouter,
     private readonly ingressContainer?: string,
   ) {}
+
+  /** Read-only inventory includes partial and orphan resources; it never deletes them. */
+  async inventoryManagedResources(): Promise<ManagedRuntimeInventory> {
+    const [containers, networks, routes] = await Promise.all([
+      this.docker.listContainers({ all: true }),
+      this.docker.listNetworks(),
+      this.router.listInstanceIds(),
+    ]);
+    const allocations = new Map<string, ManagedRuntimeAllocation>();
+    function allocationFor(instanceId: string): ManagedRuntimeAllocation {
+      let allocation = allocations.get(instanceId);
+      if (!allocation) {
+        allocation = { instanceId, challengeId: null, containerId: null, networkId: null, routePresent: false };
+        allocations.set(instanceId, allocation);
+      }
+      return allocation;
+    }
+    for (const [kind, resources] of [['containerId', containers], ['networkId', networks]] as const) {
+      const seen = new Set<string>();
+      for (const resource of resources) {
+        const labels = resource.Labels;
+        if (kind === 'containerId' && this.ingressContainer &&
+          (resource.Id === this.ingressContainer || ('Names' in resource &&
+            resource.Names?.includes(`/${this.ingressContainer}`))) && labels?.[MANAGED_LABEL] === 'true') {
+          throw new Error('Trusted ingress cannot be labeled as a managed lab target');
+        }
+        if (labels?.[MANAGED_LABEL] !== 'true') {
+          const names = 'Names' in resource ? resource.Names : ['Name' in resource ? resource.Name : ''];
+          if (names?.some((name) => /^\/?crn?-[0-9a-f]{32}$/u.test(name ?? ''))) {
+            throw new Error('Reserved lab resource names have missing ownership labels');
+          }
+          continue;
+        }
+        const instanceId = labels?.[INSTANCE_LABEL];
+        const challengeId = labels?.[CHALLENGE_LABEL];
+        if (labels?.[MANAGED_LABEL] !== 'true' || !isUuid(instanceId) || !isUuid(challengeId)) {
+          throw new Error('Managed resource inventory has invalid ownership labels');
+        }
+        if (seen.has(instanceId)) {
+          throw new Error('Managed resource inventory has duplicate allocations');
+        }
+        seen.add(instanceId);
+        const allocation = allocationFor(instanceId);
+        if (allocation.challengeId && allocation.challengeId !== challengeId) {
+          throw new Error('Managed runtime resources have inconsistent challenge labels');
+        }
+        if (!resource.Id) throw new Error('Managed resource inventory is missing an identifier');
+        allocation.challengeId = challengeId;
+        allocation[kind] = resource.Id;
+      }
+    }
+    for (const instanceId of routes) {
+      if (!isUuid(instanceId)) throw new Error('Managed route inventory has invalid ownership');
+      allocationFor(instanceId).routePresent = true;
+    }
+    return {
+      allocations: [...allocations.values()],
+      containerIds: containers.map((resource) => resource.Id),
+      networkIds: networks.map((resource) => {
+        if (!resource.Id) throw new Error('Network inventory is missing an identifier');
+        return resource.Id;
+      }),
+    };
+  }
 
   async spawn(input: SpawnTargetInput): Promise<SpawnedTarget> {
     validateSpawnInput(input);
@@ -365,6 +430,10 @@ function managedLabels(instanceId: string, challengeId: string): Record<string, 
 function resourceNames(instanceId: string) {
   const suffix = instanceId.replaceAll('-', '');
   return { container: `cr-${suffix}`, network: `crn-${suffix}` };
+}
+
+function isUuid(value: string | undefined): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(value);
 }
 
 function validateSpawnInput(input: SpawnTargetInput): void {

@@ -33,8 +33,11 @@ export function createRouteDelivery(docker: Docker, config: WorkerConfig): Route
   const router = new FileTraefikRouter(config.TRAEFIK_DYNAMIC_DIRECTORY);
   return {
     router,
-    verify: containerDirectory
-      ? () => router.verifyIngressVisibility(docker, config.LAB_INGRESS_CONTAINER, containerDirectory)
-      : () => Promise.resolve(),
+    verify: async () => {
+      await router.initialize();
+      if (containerDirectory) {
+        await router.verifyIngressVisibility(docker, config.LAB_INGRESS_CONTAINER, containerDirectory);
+      }
+    },
   };
 }
