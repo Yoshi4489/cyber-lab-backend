@@ -4,12 +4,15 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
+import { createPasswordHasher } from '../src/auth/password.js';
 import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
+import { DrizzleAuthRepository } from '../src/db/auth-repository.js';
 import { seedCatalog } from '../src/db/catalog-seed.js';
 import { createDatabase, type DatabaseClient } from '../src/db/client.js';
 import { DrizzleInstanceLifecycleRepository } from '../src/db/instance-lifecycle-repository.js';
 import { instanceOperations, instances, users } from '../src/db/schema.js';
 import { InstanceLifecycleService } from '../src/services/instance-lifecycle.js';
+import { AuthenticationService } from '../src/services/authentication.js';
 import { signToken, testConfig } from './helpers.js';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -18,8 +21,10 @@ const describeDatabase = testDatabaseUrl ? describe : describe.skip;
 describeDatabase('owned instance lifecycle API', () => {
   let database: DatabaseClient;
   let app: FastifyInstance;
-  const ownerId = randomUUID();
-  const otherUserId = randomUUID();
+  let ownerId: string;
+  let otherUserId: string;
+  let ownerSessionId: string;
+  let otherSessionId: string;
   const now = new Date('2026-01-01T00:00:00.000Z');
   const challenge = CHALLENGE_DEFINITIONS[0];
   const otherChallenge = CHALLENGE_DEFINITIONS[1];
@@ -30,29 +35,33 @@ describeDatabase('owned instance lifecycle API', () => {
     database = createDatabase(testDatabaseUrl);
     await migrate(database.db, { migrationsFolder: 'drizzle' });
     await seedCatalog(database.db);
-    await database.db.insert(users).values([
-      {
-        id: ownerId,
-        email: `instance-owner-${ownerId}@example.test`,
-        passwordHash: 'test-only-placeholder-hash',
-      },
-      {
-        id: otherUserId,
-        email: `instance-other-${otherUserId}@example.test`,
-        passwordHash: 'test-only-placeholder-hash',
-      },
-    ]);
+    const authRepository = new DrizzleAuthRepository(database.db);
+    const passwordHasher = createPasswordHasher({ memoryCost: 4 * 1024, timeCost: 1, parallelism: 1, hashLength: 32 });
+    const password = 'instance-fixture-password-long-enough';
+    const passwordHash = await passwordHasher.hash(password);
+    const ownerEmail = `instance-owner-${randomUUID()}@example.test`;
+    const otherEmail = `instance-other-${randomUUID()}@example.test`;
+    ownerId = (await authRepository.seedAccount({
+      email: ownerEmail, passwordHash, displayName: 'Instance owner', role: 'player', verifiedAt: null,
+    })).id;
+    otherUserId = (await authRepository.seedAccount({
+      email: otherEmail, passwordHash, displayName: 'Other instance player', role: 'player', verifiedAt: now,
+    })).id;
+    const authentication = await AuthenticationService.create({
+      repository: authRepository,
+      passwordHasher,
+      mailer: { sendEmailVerification: async () => {}, sendPasswordReset: async () => {} },
+      now: () => now,
+    });
+    ownerSessionId = (await authentication.login(ownerEmail, password)).sessionId;
+    otherSessionId = (await authentication.login(otherEmail, password)).sessionId;
     const service = new InstanceLifecycleService(
       new DrizzleInstanceLifecycleRepository(database.db),
       'https://labs.example.test',
       () => now,
     );
     app = await buildApp(testConfig, {
-      sessionAuthorizer: {
-        validateServiceSession: async () => ({
-          allowedScopes: ['instances:read', 'instances:write', 'submissions:write'],
-        }),
-      },
+      authentication,
       instances: service,
     });
   }, 30_000);
@@ -65,7 +74,7 @@ describeDatabase('owned instance lifecycle API', () => {
   });
 
   it('creates pending intent idempotently and enforces the active quota', async () => {
-    const authorization = `Bearer ${await signToken('instances:write', { subject: ownerId })}`;
+    const authorization = `Bearer ${await signToken('instances:write', { subject: ownerId, sessionId: ownerSessionId })}`;
     const request = {
       method: 'POST' as const,
       url: '/v1/instances',
@@ -73,6 +82,14 @@ describeDatabase('owned instance lifecycle API', () => {
       payload: { challengeId: challenge?.id },
     };
 
+    const forbidden = await app.inject(request);
+    expect(forbidden.statusCode).toBe(403);
+    expect(forbidden.json()).toMatchObject({ code: 'FORBIDDEN' });
+    expect(await database.db.select({ id: instances.id }).from(instances).where(eq(instances.userId, ownerId))).toHaveLength(0);
+    expect(await database.db.select({ id: instanceOperations.id }).from(instanceOperations).where(eq(instanceOperations.userId, ownerId))).toHaveLength(0);
+
+    // The same signed token must observe verification changed in PostgreSQL.
+    await database.db.update(users).set({ emailVerifiedAt: now }).where(eq(users.id, ownerId));
     const created = await app.inject(request);
     expect(created.statusCode).toBe(202);
     expect(created.json()).toMatchObject({
@@ -116,7 +133,7 @@ describeDatabase('owned instance lifecycle API', () => {
     const foreign = await app.inject({
       url: `/v1/instances/${instance.id}`,
       headers: {
-        authorization: `Bearer ${await signToken('instances:read', { subject: otherUserId })}`,
+        authorization: `Bearer ${await signToken('instances:read', { subject: otherUserId, sessionId: otherSessionId })}`,
       },
     });
     expect(foreign.statusCode).toBe(404);
@@ -126,11 +143,40 @@ describeDatabase('owned instance lifecycle API', () => {
       method: 'DELETE',
       url: `/v1/instances/${instance.id}`,
       headers: {
-        authorization: `Bearer ${await signToken('instances:write', { subject: ownerId })}`,
+        authorization: `Bearer ${await signToken('instances:write', { subject: ownerId, sessionId: ownerSessionId })}`,
       },
     });
     expect(missingKey.statusCode).toBe(400);
     expect(missingKey.json()).toMatchObject({ code: 'INVALID_REQUEST' });
+
+    for (const action of ['extend', 'destroy']) {
+      const request = {
+        method: action === 'extend' ? 'POST' as const : 'DELETE' as const,
+        url: `/v1/instances/${instance.id}${action === 'extend' ? '/extend' : ''}`,
+      };
+      const ownerBody = await app.inject({
+        ...request,
+        headers: {
+          authorization: `Bearer ${await signToken('instances:write', { subject: ownerId, sessionId: ownerSessionId })}`,
+          'idempotency-key': `unexpected-body-${action}`,
+        },
+        payload: {},
+      });
+      expect(ownerBody.statusCode).toBe(400);
+      expect(ownerBody.json()).toMatchObject({ code: 'INVALID_REQUEST' });
+
+      const foreignCommand = await app.inject({
+        ...request,
+        headers: {
+          authorization: `Bearer ${await signToken('instances:write', { subject: otherUserId, sessionId: otherSessionId })}`,
+          'idempotency-key': `foreign-command-${action}`,
+        },
+      });
+      expect(foreignCommand.statusCode).toBe(404);
+      expect(foreignCommand.json()).toMatchObject({ code: 'NOT_FOUND' });
+    }
+    expect(await database.db.select({ id: instanceOperations.id }).from(instanceOperations).where(eq(instanceOperations.userId, ownerId))).toHaveLength(1);
+    expect(await database.db.select({ id: instanceOperations.id }).from(instanceOperations).where(eq(instanceOperations.userId, otherUserId))).toHaveLength(0);
   });
 
   it('reveals the route only when running, extends once, and destroys safely', async () => {
@@ -145,7 +191,9 @@ describeDatabase('owned instance lifecycle API', () => {
       .set({ status: 'running', routeKey, startedAt: now, updatedAt: now })
       .where(eq(instances.id, pending.id));
 
-    const readAuthorization = `Bearer ${await signToken('instances:read', { subject: ownerId })}`;
+    // Removing verification must not lock an owner out of their existing target.
+    await database.db.update(users).set({ emailVerifiedAt: null }).where(eq(users.id, ownerId));
+    const readAuthorization = `Bearer ${await signToken('instances:read', { subject: ownerId, sessionId: ownerSessionId })}`;
     const running = await app.inject({
       url: `/v1/instances/${pending.id}`,
       headers: { authorization: readAuthorization },
@@ -156,7 +204,7 @@ describeDatabase('owned instance lifecycle API', () => {
       url: `https://labs.example.test/labs/${routeKey}/`,
     });
 
-    const writeAuthorization = `Bearer ${await signToken('instances:write', { subject: ownerId })}`;
+    const writeAuthorization = `Bearer ${await signToken('instances:write', { subject: ownerId, sessionId: ownerSessionId })}`;
     const extendRequest = {
       method: 'POST' as const,
       url: `/v1/instances/${pending.id}/extend`,

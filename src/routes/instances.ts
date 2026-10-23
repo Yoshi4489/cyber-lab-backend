@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Config } from '../config.js';
 import { requireScope, type ServiceSessionAuthorizer } from '../auth/require-scope.js';
 import type { ServiceIdentity } from '../auth/service-token.js';
-import { notImplemented, rateLimited, unauthorized } from '../lib/errors.js';
+import { invalidRequest, notImplemented, rateLimited, unauthorized } from '../lib/errors.js';
 import {
   INSTANCE_STATUSES,
   type InstanceLifecycleService,
@@ -48,15 +48,16 @@ export async function registerInstanceRoutes(
   const routes = app.withTypeProvider<ZodTypeProvider>();
   const response = { ...errorResponses, 501: errorBody };
 
-  function authorize(scope: string, applyRateLimit = false) {
+  function authorize(scope: string, requirements: { rateLimit?: boolean; verifiedEmail?: boolean } = {}) {
     return async (request: FastifyRequest): Promise<void> => {
       const identity = await requireScope(
         request.headers.authorization,
         options.config,
         scope,
         options.sessionAuthorizer,
+        requirements,
       );
-      if (applyRateLimit && !options.rateLimiter.consume(identity.userId)) throw rateLimited();
+      if (requirements.rateLimit && !options.rateLimiter.consume(identity.userId)) throw rateLimited();
       identities.set(request, identity);
     };
   }
@@ -68,11 +69,11 @@ export async function registerInstanceRoutes(
   }
 
   routes.post('/instances', {
-    preValidation: authorize('instances:write', true),
+    preValidation: authorize('instances:write', { rateLimit: true, verifiedEmail: true }),
     schema: {
       operationId: 'createInstance',
       tags: ['Instances'],
-      description: 'Creates owned instance intent. Requires instances:write and Idempotency-Key.',
+      description: 'Creates owned instance intent. Requires instances:write, Idempotency-Key, and currently verified email.',
       security: serviceTokenSecurity,
       headers: idempotencyHeaders,
       body: createBody,
@@ -109,13 +110,14 @@ export async function registerInstanceRoutes(
     schema: {
       operationId: 'extendInstance',
       tags: ['Instances'],
-      description: 'Adds 30 minutes without exceeding the two-hour absolute lifetime.',
+      description: 'Adds 30 minutes without exceeding the two-hour absolute lifetime. Requires an empty request body.',
       security: serviceTokenSecurity,
       headers: idempotencyHeaders,
       params: instanceParams,
       response: { ...response, 202: mutationResponse },
     },
   }, async (request, reply) => {
+    if (request.body !== undefined) throw invalidRequest('Request body must be empty');
     if (!options.instances) throw notImplemented('Instance lifecycle is unavailable');
     const result = await options.instances.extend({
       userId: identityFor(request).userId,
@@ -131,13 +133,14 @@ export async function registerInstanceRoutes(
     schema: {
       operationId: 'destroyInstance',
       tags: ['Instances'],
-      description: 'Requests retry-safe destruction of an owned instance.',
+      description: 'Requests retry-safe destruction of an owned instance. Requires an empty request body.',
       security: serviceTokenSecurity,
       headers: idempotencyHeaders,
       params: instanceParams,
       response: { ...response, 202: mutationResponse },
     },
   }, async (request, reply) => {
+    if (request.body !== undefined) throw invalidRequest('Request body must be empty');
     if (!options.instances) throw notImplemented('Instance lifecycle is unavailable');
     const result = await options.instances.destroy({
       userId: identityFor(request).userId,

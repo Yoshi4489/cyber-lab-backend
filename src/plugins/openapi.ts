@@ -17,7 +17,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       info: {
         title: 'Cyber Range Backend',
         version: '0.1.0',
-        description: 'Cyber Range API with backend-owned authentication and Phase 0 mock domain routes.',
+        description: 'Cyber Range API with backend-owned authentication, catalog, scoring, progress, and instance lifecycle operations.',
       },
       components: {
         securitySchemes: {

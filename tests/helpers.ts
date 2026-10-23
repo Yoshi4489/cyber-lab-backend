@@ -47,6 +47,7 @@ export const testAppDependencies = {
         throw new Error('Unknown test session');
       }
       return {
+        user: { emailVerified: true },
         allowedScopes: [
           'profile:read',
           'submissions:write',

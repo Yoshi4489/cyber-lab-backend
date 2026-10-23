@@ -76,7 +76,7 @@ try {
         .filter((key) => process.env[key]).map((key) => [key, process.env[key]]));
       child = spawn(process.execPath, [join(frontend, 'node_modules/next/dist/bin/next'),
         'start', '--hostname', '127.0.0.1', '--port', '3201'], {
-        cwd: frontend, windowsHide: true, stdio: 'ignore', env: { ...environment, NODE_ENV: 'production',
+        cwd: frontend, windowsHide: true, stdio: 'ignore', env: { ...environment, NODE_ENV: 'production', FRONTEND_MODE: 'live',
           BACKEND_URL: apiOrigin, BFF_PUBLIC_ORIGIN: origin,
           BFF_AUTH_SECRET: config.BFF_AUTH_SECRET, BFF_SESSION_SECRET: randomBytes(32).toString('base64url'),
           BACKEND_SERVICE_TOKEN_SECRET: config.BACKEND_SERVICE_TOKEN_SECRET,

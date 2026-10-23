@@ -38,6 +38,16 @@ describe('generated OpenAPI contract', () => {
         });
       expect(document.paths['/v1/instances'].post.responses).toHaveProperty('501');
       expect(document.paths['/v1/instances'].post.responses).toHaveProperty('202');
+      expect(document.paths['/v1/instances'].post.responses).toHaveProperty('403');
+      expect(document.paths['/v1/instances'].post.description).toContain('currently verified email');
+      for (const operation of [
+        document.paths['/v1/instances/{id}/extend'].post,
+        document.paths['/v1/instances/{id}'].delete,
+      ]) {
+        expect(operation.requestBody).toBeUndefined();
+        expect(operation.description).toContain('empty request body');
+        expect(operation.responses).toHaveProperty('400');
+      }
       expect(document.paths['/readyz'].get.responses).toHaveProperty('503');
       expect(document.paths['/v1/challenges'].get.security ?? []).toEqual([]);
       expect(document.paths['/v1/profile'].get.security).toEqual([{ serviceToken: [] }]);
