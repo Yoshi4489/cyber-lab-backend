@@ -1,5 +1,37 @@
 # Backend development plan
 
+## Current delivery: mock preview and lifecycle hardening (2026-10-23)
+
+The user approved the shared contract in `docs/API.md`. This delivery uses
+local development and disposable fixtures; it does not continue hosted rollout.
+The independent frontend now defaults to an isolated mock preview and retains
+explicit live mode for integration tests. Only the lead may coordinate further
+contract edits. Each numbered delivery phase requires its own approval.
+
+Phase 1 backend validation is implemented: creation rechecks persisted account
+email verification and refuses unverified users with 403 before creating intent;
+extend/delete reject nonempty bodies with 400 after authorization. Existing
+owners retain read/extend/stop access if verification changes. No DTO shape,
+dependency, migration, capacity, or orphan-sweep change was introduced.
+
+Verification on Node 24.19.0: lint, typecheck, and build passed. The full suite
+against a fresh disposable native PostgreSQL 18 cluster passed 160 tests and
+skipped six (five Redis queue cases and one OpenSSL-dependent TLS case). After
+the final test-only ownership/no-write assertions, all 19 focused tests across
+three files passed on a second fresh cluster. Both clusters were stopped and
+removed; the existing demo database was not migrated or modified.
+
+Next, after Phase 1 approval: Phase 2 capacity schema/configuration and retry-safe
+node admission. Phase 3 adds serialized managed-resource inventory and orphan
+cleanup. Phase 4 performs final disposable-service and isolated-worker acceptance.
+No later phase has started. Host-level egress anomaly monitoring, administration,
+advanced features, hosted deployment work and production launch gates remain
+deferred. Public signup stays closed.
+
+The numbered platform phases and deployment evidence below describe the earlier
+roadmap; they are not the four approval checkpoints of this delivery. Retain
+their evidence as historical records, not authorization for hosted changes.
+
 ## Scope and current state
 
 This backend is the authorization, data, scoring, and lab lifecycle boundary

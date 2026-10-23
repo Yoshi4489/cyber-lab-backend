@@ -78,6 +78,13 @@ verifier validates signature, algorithm, issuer, audience, required claims,
 five-minute max token age, scope, session ownership/liveness, current account
 status, and current role permissions.
 
+Creating an instance also checks the current account's email verification from
+that live lookup and returns 403 before intent is persisted for an unverified
+account. Read/extend/stop keep their existing owner rules. Extend and delete
+commands accept no body and reject supplied JSON, including `{}`, after
+authorization. The frontend's preview default makes no backend calls; explicit
+live frontend mode retains this BFF flow.
+
 The [auth contract](docs/AUTHENTICATION.md) describes bootstrap, cookie handling,
 expiry/revocation and the frontend integration checkpoint.
 

@@ -15,6 +15,19 @@ This repository is
 
 ## Project status
 
+Current delivery checkpoint (2026-10-23): the approved work targets an isolated
+mock frontend preview and local backend security/lifecycle hardening. Phase 1
+adds current persisted-email verification for creation and rejects nonempty
+extend/delete bodies, preserving existing owner access. Lint/typecheck/build
+passed; disposable PostgreSQL tests passed 160 with six environment skips, and
+the final focused 19-test security/ownership rerun passed. Temporary clusters
+were removed without changing the demo database. Capacity and orphan inventory
+cleanup await later phase approvals. See [the current plan](PLAN.md) and
+[approved contract](docs/API.md). Historical hosting evidence below does not
+authorize further deployment work or public signup.
+
+### Historical platform and hosting checkpoint
+
 **Now:** Phase 3 passed; Phase 4 disposable-host hardening and isolation probes passed.
 Authenticated remote route delivery is implemented and unit-tested. Both VMs
 were running during validation. Real remote Engine mTLS, fail-closed route delivery preflight, and

@@ -35,8 +35,8 @@ hold Docker Engine credentials.
 - `src/services/` contains application rules behind typed repository,
   mailer, and lifecycle interfaces.
 - `src/db/` contains Drizzle schema access and migrations.
-- `src/queue/` will contain BullMQ producers and workers.
-- `src/orchestrator/` will contain the narrow Docker lifecycle adapter.
+- `src/queue/` contains BullMQ producers and workers.
+- `src/orchestrator/` contains the narrow Docker lifecycle adapter.
 - `tests/` contains unit, contract, and lifecycle tests.
 
 Generated OpenAPI comes from the Zod route schemas; see `docs/API.md`. Phase 1

@@ -18,6 +18,12 @@ verified service-token subject. One player may have one active instance. A new
 instance starts `pending`, has a 60-minute expiry and a two-hour absolute cap.
 Each successful extension adds 30 minutes without crossing that cap.
 
+Creation requires current persisted email verification after live session and
+scope authorization; otherwise it returns `403 FORBIDDEN` without instance or
+operation intent. Owners keep normal read, extend and stop access if their
+verification changes. Extend and delete accept no body; supplied JSON including
+`{}` returns `400 INVALID_REQUEST` after authorization without persisting intent.
+
 The frontend polls `GET /v1/instances/:id`. Foreign and missing instances both
 return `404`. Responses never contain Docker/node IDs. `url` is omitted until
 the instance is `running`, has a worker-generated route key, and

@@ -21,6 +21,11 @@ the Ubuntu VM; no production target has been launched.
   sub, is active/unexpired, and the account is enabled. Check current roles
   for privileged actions; BFF possession alone must not grant admin rights.
 - Check instance ownership on every read, extend, reset and destroy action.
+- Require current persisted email verification for creation after live session
+  and scope authorization; never trust verification claims from a token or body.
+  Owners retain normal read, extension and stop access if verification changes.
+- Reject nonempty extend/delete command bodies after authorization, including
+  empty JSON objects. Acting-user and runtime fields never reach lifecycle intent.
 - Validate external bodies, parameters, queries and manifests through Zod.
   Generated OpenAPI must use the same route schemas.
 - Rate-limit auth, catalog-sensitive, submission and spawn operations. Derive

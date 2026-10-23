@@ -69,6 +69,14 @@ The `sid` claim is required. Tokens without it are rejected, and no fallback
 bypasses database-backed session validation. The frontend must include the
 backend session ID returned by session resolution.
 
+Instance creation additionally requires the account's current persisted email
+verification after session and scope authorization. Unverified accounts receive
+403 `FORBIDDEN` before creating instance or operation intent. This value comes
+from the live session/account lookup, never a service-token claim or submitted
+field. A custom authorizer omitting verification fails closed for creation.
+Removing verification does not prevent an owner from reading, extending, or
+stopping an existing instance under the normal ownership and lifecycle rules.
+
 ## Session and account rules
 
 - Store only hashes of strong random session/verification/reset tokens.
@@ -111,6 +119,9 @@ family, successful/failed login, token replay, concurrent token consumption,
 expiry boundaries, logout retries, reset revocation and role/account changes.
 Prove request bodies cannot choose the user, foreign sessions cannot satisfy
 `sid`, revoked sessions cannot mint/use tokens, and signup remains closed.
+Instance-route tests also cover unchanged tokens observing current account
+verification, no intent on rejected creation, strict empty-body extend/delete
+commands, authentication ordering, and retained access to owned instances.
 
 Backend acceptance covers these cases with PostgreSQL integration tests and the
 generated contract. The frontend checkpoint at sibling commit `64afe70` records
