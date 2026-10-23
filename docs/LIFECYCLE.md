@@ -32,6 +32,36 @@ unexpired instance whose challenge matches the request.
 
 ## Delivery and recovery
 
+### Node admission and capacity
+
+Workers and preflight require explicit positive `LAB_NODE_CAPACITY_SLOTS`.
+Startup persists that limit as `lab_nodes.capacity_slots`; migration 0005
+backfills existing nodes to a conservative one slot. This is a lab-allocation
+limit chosen from the isolated host's tested resource budget, not multi-node
+scheduling or a replacement for per-container resource restrictions.
+
+Before spawn, a complete read-only Engine and route inventory is combined with
+durable `instances.node_id` reservations under a PostgreSQL node-row lock.
+One container/network/route group for an instance consumes one slot; orphan or
+partial allocations also count. Duplicate containers/networks for an identity,
+malformed or mismatched ownership labels, and failed inventory reads refuse
+admission. Complete Engine ID lists catch persisted resources with stripped
+labels. Missing route directories fail closed; local startup initializes the
+configured directory before inventory.
+
+Retries reuse their reservation and route key. Cleanup or inventory failures
+retain the slot. Terminal reservations are released only after a complete
+successful inventory confirms all resources absent; stop completion also checks
+persisted container/network IDs before releasing its reservation. Inventory is
+read-only in this phase: destructive orphan sweeping remains pending.
+
+The API still accepts valid creation with `202` and a pending instance. If the
+worker finds no slot, it marks that instance `failed` with
+`failureCode: "node_capacity_exhausted"`, records `instance.capacity_refused`,
+and creates no runtime resources. Owner polling uses the existing response.
+
+### Queue delivery
+
 Every mutation creates an `instance_operations` row in the same database
 transaction as the state change. The worker sweeps `pending` rows into BullMQ;
 the operation UUID is the deterministic job ID. It marks the row `queued` only

@@ -21,8 +21,12 @@ adds current persisted-email verification for creation and rejects nonempty
 extend/delete bodies, preserving existing owner access. Lint/typecheck/build
 passed; disposable PostgreSQL tests passed 160 with six environment skips, and
 the final focused 19-test security/ownership rerun passed. Temporary clusters
-were removed without changing the demo database. Capacity and orphan inventory
-cleanup await later phase approvals. See [the current plan](PLAN.md) and
+were removed without changing the demo database. Phase 2 now adds explicit node
+capacity, serialized admission and retry reservations, and read-only resource
+inventory that keeps leftovers charged until absence is confirmed. The full
+disposable-PostgreSQL suite passed 185 tests with five Redis-dependent skips;
+lint/typecheck/build also passed. Destructive orphan cleanup awaits Phase 3
+approval; real isolated-worker acceptance remains open. See [the current plan](PLAN.md) and
 [approved contract](docs/API.md). Historical hosting evidence below does not
 authorize further deployment work or public signup.
 
@@ -256,6 +260,7 @@ contains separate worker settings. Docker credentials are parsed only by
 | `LAB_INGRESS_CONTAINER` | Worker/preflight | Isolated ingress container name |
 | `TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY` | Worker/preflight | Route directory inside ingress; required for `ingress` delivery, and with `file` delivery it enables the startup visibility probe |
 | `LAB_NODE_NAME` | Worker/preflight | Non-secret scheduling identity stored in PostgreSQL |
+| `LAB_NODE_CAPACITY_SLOTS` | Worker/preflight | Required positive integer maximum lab allocations for this node; no runtime default |
 | `DOCKER_HOST`, `DOCKER_CA_PATH`, `DOCKER_CLIENT_CERT_PATH`, `DOCKER_KEY_PATH` | Production worker/preflight | Complete remote Docker mTLS configuration |
 | `DOCKER_SOCKET_PATH` | Development worker/preflight only | Local disposable testing; rejected in production |
 

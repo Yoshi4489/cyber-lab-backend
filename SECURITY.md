@@ -79,6 +79,10 @@ HTTPS/browser validation and verified-domain live delivery remain incomplete. Se
   AppArmor, read-only roots, bounded tmpfs, CPU, memory, PID and storage limits.
 - Use pinned images and backend-controlled resource labels. Bound health
   checks, retries and startup times; failed starts must clean up resources.
+- Require an explicit positive per-node lab-slot budget. Serialize admission,
+  count durable reservations and orphan/partial managed allocations, and retain
+  capacity until all resources are confirmed absent. Failed inventory, stripped
+  or mismatched labels, and duplicate allocations must refuse new admission.
 
 The adapter applies these defaults now and refuses hosts that do not advertise
 user namespaces, seccomp and AppArmor. `npm run worker:preflight` checks those

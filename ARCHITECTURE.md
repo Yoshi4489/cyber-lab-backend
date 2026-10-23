@@ -139,7 +139,14 @@ partial creates, lost replies and worker restarts must not duplicate resources
 or points. One player has at most one active instance, a default 60-minute
 lifetime and a 2-hour absolute maximum. HTTP targets ship first.
 
-The current single-node worker serializes lifecycle jobs. Startup maintenance
+The current single-node worker serializes lifecycle jobs. Per-node PostgreSQL
+admission locks bound allocations to the explicit
+`LAB_NODE_CAPACITY_SLOTS` budget. Durable instance reservations are combined
+with read-only container/network/route inventory, including partial and orphan
+allocations. Cleanup failure retains capacity until complete inventory confirms
+absence. Inventory failures and ambiguous labels fail closed. Inventory does
+not yet delete orphans; that sweep remains the next delivery phase.
+Startup maintenance
 skips reconciliation while a spawn operation is active, so both jobs cannot
 race over the same Docker network. A second worker process requires a
 distributed per-instance lock; multi-node scheduling remains deferred. The

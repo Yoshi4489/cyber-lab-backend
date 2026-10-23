@@ -224,6 +224,7 @@ TRAEFIK_ROUTE_DELIVERY=ingress
 TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY=/etc/traefik/dynamic
 LAB_INGRESS_CONTAINER=phase3-traefik
 LAB_NODE_NAME=nongbuntu-target
+LAB_NODE_CAPACITY_SLOTS=1
 ```
 
 `DOCKER_HOST` must be an HTTPS URL with no credentials, path, query, or

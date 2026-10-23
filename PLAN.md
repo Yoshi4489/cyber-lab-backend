@@ -21,12 +21,37 @@ the final test-only ownership/no-write assertions, all 19 focused tests across
 three files passed on a second fresh cluster. Both clusters were stopped and
 removed; the existing demo database was not migrated or modified.
 
-Next, after Phase 1 approval: Phase 2 capacity schema/configuration and retry-safe
-node admission. Phase 3 adds serialized managed-resource inventory and orphan
+Phase 2 capacity schema/configuration and retry-safe node admission are complete.
+Migration `ca700b8` adds positive capacity slots with a conservative existing-node
+backfill; behavior `b888b9b` requires explicit worker capacity, uses a node lock
+and durable reservations, and counts partial/orphan resources without deleting
+them. Missing or ambiguous inventory fails closed. Cleanup retains capacity
+until all resources are confirmed absent. Excess spawns fail asynchronously with
+`node_capacity_exhausted` using the existing API response shapes.
+
+Phase 2 verification: lint/typecheck/build passed; 185 tests passed and five
+Redis queue cases skipped on disposable PostgreSQL 18. Existing Git OpenSSL
+enabled the local TLS fixture. An independent upgrade check applied migrations
+0000 through 0004, inserted an existing node, and verified migration 0005 backfills
+one slot and rejects zero. Generated frontend types exactly match all 20 current
+backend paths. Docker behavior used isolated fakes, not live hostile targets;
+real isolated-host acceptance and Redis execution remain open for Phase 4.
+The temporary database and cluster were stopped and removed; the existing demo
+database and hosted services were not changed.
+
+Phase 3 adds serialized managed-resource inventory and orphan
 cleanup. Phase 4 performs final disposable-service and isolated-worker acceptance.
-No later phase has started. Host-level egress anomaly monitoring, administration,
+Await Phase 3 approval; Phases 3 and 4 have not started. Host-level egress anomaly monitoring, administration,
 advanced features, hosted deployment work and production launch gates remain
 deferred. Public signup stays closed.
+
+The user clarified the ultimate goal is a playable web CTF platform with private
+web challenge instances; "VM" means the web target, consistent with the Docker
+architecture. Mock sessions are an intermediate frontend milestone. A later
+separately reviewed live delivery must include authored challenges, learner flag
+submission/progress integration and hosted worker/ingress acceptance through
+https://cyber-lab-frontend.vercel.app and https://cyber-range-api.onrender.com.
+The current approval does not change hosted configuration or close launch gates.
 
 The numbered platform phases and deployment evidence below describe the earlier
 roadmap; they are not the four approval checkpoints of this delivery. Retain
