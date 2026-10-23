@@ -36,6 +36,13 @@
       "when": 1790418900000,
       "tag": "0004_audit_fk_anonymization",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792760370377,
+      "tag": "0005_lab_node_capacity",
+      "breakpoints": true
     }
   ]
 }

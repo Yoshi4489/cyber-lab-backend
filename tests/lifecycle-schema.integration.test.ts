@@ -24,6 +24,24 @@ describeDatabase('lifecycle persistence constraints', () => {
     await database?.close();
   });
 
+  it('defaults legacy node capacity conservatively and rejects nonpositive slots', async () => {
+    const nodeId = randomUUID();
+    try {
+      const [node] = await database.db.insert(labNodes)
+        .values({ id: nodeId, name: `capacity-${nodeId}` })
+        .returning({ capacitySlots: labNodes.capacitySlots });
+      expect(node?.capacitySlots).toBe(1);
+      for (const capacitySlots of [0, -1]) {
+        await expect(database.db.update(labNodes).set({ capacitySlots }).where(eq(labNodes.id, nodeId)))
+          .rejects.toMatchObject({ cause: { code: '23514' } });
+      }
+      await database.db.update(labNodes).set({ capacitySlots: 3 }).where(eq(labNodes.id, nodeId));
+      expect((await database.db.select().from(labNodes).where(eq(labNodes.id, nodeId)))[0]?.capacitySlots).toBe(3);
+    } finally {
+      await database.db.delete(labNodes).where(eq(labNodes.id, nodeId));
+    }
+  });
+
   it('allows only one active instance per player', async () => {
     const userId = randomUUID();
     const nodeId = randomUUID();

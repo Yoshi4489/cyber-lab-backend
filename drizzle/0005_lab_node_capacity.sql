@@ -1,0 +1,2 @@
+ALTER TABLE "lab_nodes" ADD COLUMN "capacity_slots" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "lab_nodes" ADD CONSTRAINT "lab_nodes_capacity_positive" CHECK ("lab_nodes"."capacity_slots" > 0);

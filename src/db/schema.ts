@@ -108,6 +108,7 @@ export const labNodes = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     name: varchar('name', { length: 64 }).notNull(),
     status: labNodeStatus('status').default('active').notNull(),
+    capacitySlots: integer('capacity_slots').default(1).notNull(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -116,6 +117,7 @@ export const labNodes = pgTable(
     uniqueIndex('lab_nodes_name_unique').on(table.name),
     index('lab_nodes_status_idx').on(table.status),
     check('lab_nodes_name_normalized', sql`${table.name} = lower(${table.name})`),
+    check('lab_nodes_capacity_positive', sql`${table.capacitySlots} > 0`),
   ],
 );
 
