@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type Docker from 'dockerode';
 
@@ -14,6 +14,7 @@ export type TraefikRouter = {
   upsert(route: TraefikRoute): Promise<void>;
   remove(instanceId: string): Promise<void>;
   listInstanceIds(): Promise<string[]>;
+  validateManagedRoute(instanceId: string): Promise<void>;
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -30,6 +31,14 @@ export class FileTraefikRouter implements TraefikRouter {
 
   async listInstanceIds(): Promise<string[]> {
     return routeInstanceIds(await readdir(this.directory));
+  }
+
+  async validateManagedRoute(instanceId: string): Promise<void> {
+    assertInstanceId(instanceId);
+    const path = join(this.directory, routeFileName(instanceId));
+    const file = await lstat(path);
+    if (!file.isFile() || file.size > 16_384) throw new Error('Managed route is not a bounded regular file');
+    assertManagedRouteDocument(instanceId, await readFile(path, 'utf8'));
   }
 
   async verifyIngressVisibility(docker: Docker, ingressContainer: string, containerDirectory: string): Promise<void> {
@@ -125,6 +134,18 @@ export function assertContainerDirectory(directory: string): void {
 
 export function routeFileName(instanceId: string): string {
   return `${resourceName(instanceId)}.yml`;
+}
+
+/** Exact canonical rendering is the ownership evidence for routes, which have no Docker labels. */
+export function assertManagedRouteDocument(instanceId: string, contents: string): void {
+  assertInstanceId(instanceId);
+  const routeKey = /PathPrefix\(`\/labs\/([A-Za-z0-9_-]{24,64})\/`\)/u.exec(contents)?.[1];
+  const host = `cr-${instanceId.replaceAll('-', '')}`;
+  const port = /servers: \[\{url: "http:\/\/[a-z0-9-]+:([0-9]+)"\}\]/u.exec(contents)?.[1];
+  if (routeKey && port) validateRoute({ instanceId, routeKey, targetHost: host, targetPort: Number(port) });
+  if (!routeKey || !port || contents !== renderRouteDocument({ instanceId, routeKey, targetHost: host, targetPort: Number(port) })) {
+    throw new Error('Route contents do not match canonical managed ownership');
+  }
 }
 
 /** Recognize only our flat, canonical route names; ambiguous managed names fail closed. */

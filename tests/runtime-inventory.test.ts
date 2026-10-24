@@ -6,6 +6,7 @@ const first = '77777777-7777-4777-8777-777777777777';
 const second = '88888888-8888-4888-8888-888888888888';
 const challenge = '11111111-1111-4111-8111-111111111111';
 const resource = (Id: string, instanceId = first, challengeId = challenge) => ({
+  Name: `crn-${instanceId.replaceAll('-', '')}`, Names: [`/cr-${instanceId.replaceAll('-', '')}`],
   Id, Labels: { 'cyber-range.managed': 'true', 'cyber-range.instance-id': instanceId, 'cyber-range.challenge-id': challengeId },
 });
 
@@ -15,6 +16,7 @@ function fixture() {
   const listInstanceIds = vi.fn(async () => [first]);
   const orchestrator = new DockerOrchestrator({ listContainers, listNetworks } as unknown as Docker, {
     upsert: vi.fn(), remove: vi.fn(), listInstanceIds,
+    validateManagedRoute: vi.fn(),
   });
   return { orchestrator, listContainers, listNetworks, listInstanceIds };
 }
@@ -72,6 +74,7 @@ describe('read-only managed allocation inventory', () => {
     }] as unknown as ReturnType<typeof resource>[]);
     const orchestrator = new DockerOrchestrator({ listContainers: f.listContainers, listNetworks: f.listNetworks } as unknown as Docker, {
       upsert: vi.fn(), remove: vi.fn(), listInstanceIds: f.listInstanceIds,
+      validateManagedRoute: vi.fn(),
     }, 'traefik');
     await expect(orchestrator.inventoryManagedResources()).rejects.toThrow('Trusted ingress');
   });

@@ -21,6 +21,15 @@ function route(overrides: RouteOverrides = {}): TraefikRoute {
 }
 
 describe('Traefik routes delivered into ingress', () => {
+  it('reads and validates canonical route contents over the existing Docker channel', async () => {
+    const ingress = ingressFixture();
+    const router = new IngressTraefikRouter(ingress.docker, 'traefik', directory);
+    await router.upsert(route({ targetHost: `cr-${instanceId.replaceAll('-', '')}` }));
+    await expect(router.validateManagedRoute(instanceId)).resolves.toBeUndefined();
+    ingress.files.set(routePath, 'unrelated route');
+    await expect(router.validateManagedRoute(instanceId)).rejects.toThrow('canonical managed ownership');
+    expect(ingress.files.get(routePath)).toBe('unrelated route');
+  });
   it('inventories remote routes through a bounded argument-vector directory read', async () => {
     const ingress = ingressFixture();
     const router = new IngressTraefikRouter(ingress.docker, 'traefik', directory);
@@ -154,6 +163,7 @@ function ingressFixture(options: { exitCode?: number; readable?: boolean; remove
         if (Cmd?.[0] === 'ls') {
           return Readable.from([[...files.keys()].map((path) => path.slice(path.lastIndexOf('/') + 1)).join('\n')]);
         }
+        if (Cmd?.[0] === 'cat') return Readable.from([files.get(Cmd[2]!) ?? '']);
         if (options.removes !== false && target) files.delete(target);
         return Readable.from([]);
       },

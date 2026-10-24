@@ -274,6 +274,7 @@ function routerFixture(): TraefikRouter & {
     upsert: vi.fn(async () => undefined),
     remove: vi.fn(async () => undefined),
     listInstanceIds: vi.fn(async () => []),
+    validateManagedRoute: vi.fn(async () => undefined),
   };
 }
 

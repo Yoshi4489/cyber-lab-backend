@@ -2,12 +2,15 @@ import 'dotenv/config';
 import { createDatabase } from './db/client.js';
 import { DrizzleLifecycleJobRepository } from './db/lifecycle-job-repository.js';
 import { DrizzleLifecycleStateRepository } from './db/lifecycle-state-repository.js';
+import { DrizzleManagedCleanupRepository } from './db/managed-cleanup-repository.js';
 import { createWorkerDockerClient } from './orchestrator/docker-client.js';
 import { DockerOrchestrator } from './orchestrator/docker-adapter.js';
 import { loadRuntimeManifestRegistry } from './orchestrator/runtime-manifests.js';
 import { createRouteDelivery } from './orchestrator/route-delivery.js';
 import { createRedisConnection, LifecycleQueue } from './queue/lifecycle-queue.js';
 import { DockerLifecycleHandler } from './services/docker-lifecycle-handler.js';
+import { ManagedResourceSweeper } from './services/managed-resource-cleanup.js';
+import { SerializedLifecycleRunner } from './services/serialized-lifecycle-runner.js';
 import { HmacInstanceFlagService } from './services/instance-flags.js';
 import { loadWorkerConfig } from './worker-config.js';
 
@@ -35,11 +38,15 @@ const handler = new DockerLifecycleHandler(
   nodeId,
 );
 const queue = new LifecycleQueue(createRedisConnection(config.REDIS_URL), jobRepository);
-const worker = queue.createWorker(handler);
-await worker.waitUntilReady();
+const runner = new SerializedLifecycleRunner(handler,
+  new ManagedResourceSweeper(new DrizzleManagedCleanupRepository(database.db), orchestrator, nodeId));
+const worker = queue.createWorker(runner);
 
 let dispatching = false;
 let maintaining = false;
+let closing = false;
+let dispatchTimer: ReturnType<typeof setInterval> | undefined;
+let maintenanceTimer: ReturnType<typeof setInterval> | undefined;
 async function dispatch(): Promise<void> {
   if (dispatching) return;
   dispatching = true;
@@ -53,10 +60,11 @@ async function dispatch(): Promise<void> {
 }
 
 async function maintain(): Promise<void> {
-  if (maintaining) return;
+  if (maintaining || closing) return;
   maintaining = true;
   try {
-    await queue.scheduleMaintenance();
+    await runner.sweep();
+    if (!closing) await queue.scheduleMaintenance();
   } catch {
     reportWorkerError('maintenance');
   } finally {
@@ -64,20 +72,13 @@ async function maintain(): Promise<void> {
   }
 }
 
-await maintain();
-const dispatchTimer = setInterval(() => void dispatch(), config.LIFECYCLE_DISPATCH_INTERVAL_MS);
-const maintenanceTimer = setInterval(
-  () => void maintain(),
-  config.LIFECYCLE_MAINTENANCE_INTERVAL_MS,
-);
-
-let closing = false;
 async function shutdown(): Promise<void> {
   if (closing) return;
   closing = true;
-  clearInterval(dispatchTimer);
-  clearInterval(maintenanceTimer);
+  if (dispatchTimer) clearInterval(dispatchTimer);
+  if (maintenanceTimer) clearInterval(maintenanceTimer);
   await worker.close();
+  await runner.drain();
   await queue.close();
   await database.close();
 }
@@ -85,6 +86,15 @@ async function shutdown(): Promise<void> {
 process.once('SIGINT', () => void shutdown());
 process.once('SIGTERM', () => void shutdown());
 worker.on('error', () => reportWorkerError('worker'));
+
+await worker.waitUntilReady();
+if (!closing) {
+  await maintain();
+  if (!closing) {
+    dispatchTimer = setInterval(() => void dispatch(), config.LIFECYCLE_DISPATCH_INTERVAL_MS);
+    maintenanceTimer = setInterval(() => void maintain(), config.LIFECYCLE_MAINTENANCE_INTERVAL_MS);
+  }
+}
 
 function reportWorkerError(operation: string): void {
   process.stderr.write(`${JSON.stringify({ level: 'error', event: 'lifecycle_worker_error', operation })}\n`);

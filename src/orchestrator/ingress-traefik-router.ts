@@ -4,6 +4,7 @@ import type Docker from 'dockerode';
 import {
   assertContainerDirectory,
   assertInstanceId,
+  assertManagedRouteDocument,
   readArchive,
   renderRouteDocument,
   routeFileName,
@@ -43,8 +44,17 @@ export class IngressTraefikRouter implements TraefikRouter {
   }
 
   async listInstanceIds(): Promise<string[]> {
+    return routeInstanceIds((await this.readText(['ls', '-1A', '--', this.containerDirectory])).split('\n').filter(Boolean));
+  }
+
+  async validateManagedRoute(instanceId: string): Promise<void> {
+    assertInstanceId(instanceId);
+    assertManagedRouteDocument(instanceId, await this.readText(['cat', '--', `${this.containerDirectory}/${routeFileName(instanceId)}`], 16_384));
+  }
+
+  private async readText(command: string[], limit = 1_048_576): Promise<string> {
     const exec = await this.docker.getContainer(this.ingressContainer).exec({
-      Cmd: ['ls', '-1A', '--', this.containerDirectory],
+      Cmd: command,
       AttachStdout: true, AttachStderr: true, Privileged: false, Tty: false,
     });
     const stream = await exec.start({ Detach: false, Tty: false });
@@ -53,10 +63,10 @@ export class IngressTraefikRouter implements TraefikRouter {
     stream.once('end', () => output.end());
     stream.once('close', () => output.end());
     stream.once('error', (error) => output.destroy(error));
-    const names = await readArchive(output, 1_048_576);
+    const text = await readArchive(output, limit);
     const { ExitCode } = await exec.inspect();
     if (ExitCode !== 0) throw new Error('Cannot inventory ingress route directory');
-    return routeInstanceIds(names.split('\n').filter(Boolean));
+    return text;
   }
 
   /**

@@ -4,12 +4,25 @@ import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
 import type Docker from 'dockerode';
 import { describe, expect, it, vi } from 'vitest';
-import { FileTraefikRouter } from '../src/orchestrator/traefik-router.js';
+import { FileTraefikRouter, routeFileName } from '../src/orchestrator/traefik-router.js';
 
 const instanceId = '77777777-7777-4777-8777-777777777777';
 const routeKey = 'abcdefghijklmnopqrstuvwx12345678';
 
 describe('Traefik file routes', () => {
+  it('validates canonical route contents before allowing orphan cleanup', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'cyber-range-owned-route-'));
+    try {
+      const router = new FileTraefikRouter(directory);
+      await router.upsert({ instanceId, routeKey, targetHost: `cr-${instanceId.replaceAll('-', '')}`, targetPort: 8080 });
+      await expect(router.validateManagedRoute(instanceId)).resolves.toBeUndefined();
+      await writeFile(join(directory, routeFileName(instanceId)), 'http:\n  unrelated: true\n');
+      await expect(router.validateManagedRoute(instanceId)).rejects.toThrow('canonical managed ownership');
+      expect(await readdir(directory)).toEqual([routeFileName(instanceId)]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
   it('writes a supported YAML route and removes it with the instance', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'cyber-range-traefik-'));
     try {

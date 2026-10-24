@@ -78,6 +78,11 @@ export class DockerOrchestrator {
         if (labels?.[MANAGED_LABEL] !== 'true' || !isUuid(instanceId) || !isUuid(challengeId)) {
           throw new Error('Managed resource inventory has invalid ownership labels');
         }
+        const names = resourceNames(instanceId);
+        const canonicalName = kind === 'containerId'
+          ? 'Names' in resource && resource.Names?.includes(`/${names.container}`)
+          : 'Name' in resource && resource.Name === names.network;
+        if (!canonicalName) throw new Error('Managed resource name does not match its ownership labels');
         if (seen.has(instanceId)) {
           throw new Error('Managed resource inventory has duplicate allocations');
         }
@@ -103,6 +108,49 @@ export class DockerOrchestrator {
         return resource.Id;
       }),
     };
+  }
+
+  /** Complete every ownership read before returning any destructive operation. */
+  async prepareManagedCleanup(allocations: readonly ManagedRuntimeAllocation[]): Promise<Array<() => Promise<void>>> {
+    const ingress = this.ingressContainer ? await this.docker.getContainer(this.ingressContainer).inspect() : null;
+    return Promise.all(allocations.map(async (allocation) => {
+      if (!isUuid(allocation.instanceId)) throw new Error('Invalid cleanup instance identity');
+      if ((allocation.containerId || allocation.networkId) && !isUuid(allocation.challengeId ?? undefined)) {
+        throw new Error('Invalid cleanup challenge identity');
+      }
+      const names = resourceNames(allocation.instanceId);
+      const container = allocation.containerId ? this.docker.getContainer(allocation.containerId) : null;
+      const network = allocation.networkId ? this.docker.getNetwork(allocation.networkId) : null;
+      const [containerInfo, networkInfo] = await Promise.all([
+        container?.inspect().catch((error: unknown) => { if (isDockerNotFound(error)) return null; throw error; }),
+        network?.inspect().catch((error: unknown) => { if (isDockerNotFound(error)) return null; throw error; }),
+        allocation.routePresent ? this.router.validateManagedRoute(allocation.instanceId) : Promise.resolve(),
+      ]);
+      if (containerInfo) {
+        if (containerInfo.Id !== allocation.containerId || containerInfo.Name !== `/${names.container}` ||
+          (ingress && (containerInfo.Id === ingress.Id || containerInfo.Name === ingress.Name))) {
+          throw new Error('Refusing cleanup of a noncanonical or trusted ingress container');
+        }
+        assertManagedLabels(containerInfo.Config?.Labels, allocation.instanceId);
+        if (containerInfo.Config?.Labels?.[CHALLENGE_LABEL] !== allocation.challengeId) throw new Error('Cleanup container challenge ownership changed');
+      }
+      if (networkInfo) {
+        if (networkInfo.Id !== allocation.networkId || networkInfo.Name !== names.network) throw new Error('Cleanup network identity changed');
+        assertManagedLabels(networkInfo.Labels, allocation.instanceId);
+        if (networkInfo.Labels?.[CHALLENGE_LABEL] !== allocation.challengeId) throw new Error('Cleanup network challenge ownership changed');
+      }
+      return async () => {
+        if (allocation.routePresent) await this.router.remove(allocation.instanceId);
+        if (container && containerInfo) await removeContainer(container);
+        if (network && networkInfo) {
+          // Detach only the actual trusted ingress ID. Other endpoints remain untouched.
+          if (ingress && networkInfo.Containers?.[ingress.Id]) {
+            await network.disconnect({ Container: ingress.Id, Force: true });
+          }
+          await removeDockerNetwork(network);
+        }
+      };
+    }));
   }
 
   async spawn(input: SpawnTargetInput): Promise<SpawnedTarget> {
