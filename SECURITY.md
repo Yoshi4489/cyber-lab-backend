@@ -83,6 +83,11 @@ HTTPS/browser validation and verified-domain live delivery remain incomplete. Se
   count durable reservations and orphan/partial managed allocations, and retain
   capacity until all resources are confirmed absent. Failed inventory, stripped
   or mismatched labels, and duplicate allocations must refuse new admission.
+- Reconcile runtime inventory against database intent before orphan cleanup.
+  Validate every candidate and commit cleanup-start audits before deleting any
+  resources. Preserve active targets, trusted ingress and unrelated endpoints.
+  Serialize maintenance with lifecycle execution; retain reservations and safe
+  failure audits until a complete inventory confirms cleanup succeeded.
 
 The adapter applies these defaults now and refuses hosts that do not advertise
 user namespaces, seccomp and AppArmor. `npm run worker:preflight` checks those

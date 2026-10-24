@@ -52,8 +52,7 @@ configured directory before inventory.
 Retries reuse their reservation and route key. Cleanup or inventory failures
 retain the slot. Terminal reservations are released only after a complete
 successful inventory confirms all resources absent; stop completion also checks
-persisted container/network IDs before releasing its reservation. Inventory is
-read-only in this phase: destructive orphan sweeping remains pending.
+persisted container/network IDs before releasing its reservation.
 
 The API still accepts valid creation with `202` and a pending instance. If the
 worker finds no slot, it marks that instance `failed` with
@@ -61,6 +60,30 @@ worker finds no slot, it marks that instance `failed` with
 and creates no runtime resources. Owner polling uses the existing response.
 
 ### Queue delivery
+
+The single worker's maintenance pass now sweeps managed orphan resources through
+the same serialized execution gate as queue handlers. It reads the complete
+Engine/route inventory and relevant database intent, preserving active targets.
+Missing rows and terminal (`stopped`, `failed`, `expired`) intent qualify for
+cleanup. Conflicting nodes, IDs, challenge labels, canonical names, duplicate
+allocations, or missing evidence abort the whole plan before deletion.
+
+Every candidate is inspected before any destructive action. Route ownership
+requires the exact canonical platform-rendered document, not merely a matching
+filename. All `instance.orphan_cleanup_started` audits are committed before
+cleanup begins. Routes and target containers are removed, and only the actual
+trusted ingress endpoint may be detached from an owned network; unrelated
+endpoints remain attached. A network that cannot be removed retains capacity.
+
+After cleanup, a fresh complete inventory must confirm absence of all observed
+and persisted resource IDs. Only then does a transaction clear terminal
+reservations and append `instance.orphan_cleanup_succeeded`. Partial cleanup or
+failed confirmation writes `instance.orphan_cleanup_failed` with fixed safe
+metadata; reservations remain and the next maintenance pass retries. Repeated
+successful sweeps do no additional work. Audit failures before cleanup prevent
+deletion; failures afterward prevent a success claim and reservation release.
+Shutdown drains this shared gate before closing worker dependencies. The gate
+covers one worker process; a distributed worker deployment remains unsupported.
 
 Every mutation creates an `instance_operations` row in the same database
 transaction as the state change. The worker sweeps `pending` rows into BullMQ;

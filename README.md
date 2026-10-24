@@ -25,8 +25,11 @@ were removed without changing the demo database. Phase 2 now adds explicit node
 capacity, serialized admission and retry reservations, and read-only resource
 inventory that keeps leftovers charged until absence is confirmed. The full
 disposable-PostgreSQL suite passed 185 tests with five Redis-dependent skips;
-lint/typecheck/build also passed. Destructive orphan cleanup awaits Phase 3
-approval; real isolated-worker acceptance remains open. See [the current plan](PLAN.md) and
+lint/typecheck/build also passed. Phase 3 adds audited orphan cleanup, complete
+ownership validation, retry-safe capacity release and serialization with lifecycle
+execution, including shutdown drain. Its final disposable-PostgreSQL/TLS suite
+passed 215 tests with five Redis-dependent skips; final static gates passed.
+Real isolated-worker acceptance remains open for Phase 4. See [the current plan](PLAN.md) and
 [approved contract](docs/API.md). Historical hosting evidence below does not
 authorize further deployment work or public signup.
 

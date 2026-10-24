@@ -14,9 +14,9 @@ The generator is registered before routes in `buildApp`.
 ## Approved delivery contract: mock preview and lifecycle hardening
 
 **Review checkpoint (2026-10-23): documentation diff approved by the user.**
-Phase 1 preview isolation and backend validation and Phase 2 node capacity
-admission are implemented. Later phases still require their own approval after
-the preceding phase report. Destructive orphan cleanup remains pending; status documents
+Preview isolation, backend validation, node capacity admission and managed orphan
+cleanup are implemented under the approved contract. Phase 4 still requires
+approval after the Phase 3 report; status documents
 record actual verification. Agents must propose further contract changes
 to the lead and user, never edit this contract on their own.
 

@@ -39,9 +39,30 @@ real isolated-host acceptance and Redis execution remain open for Phase 4.
 The temporary database and cluster were stopped and removed; the existing demo
 database and hosted services were not changed.
 
-Phase 3 adds serialized managed-resource inventory and orphan
-cleanup. Phase 4 performs final disposable-service and isolated-worker acceptance.
-Await Phase 3 approval; Phases 3 and 4 have not started. Host-level egress anomaly monitoring, administration,
+Phase 3 was approved October 24 and is implemented in `d9823fe`. Sweeps build
+complete database/inventory plans, validate all ownership and canonical route
+contents, and persist cleanup-start audits before deletion. Active instances,
+unrelated resources and trusted ingress are preserved. Partial failures retain
+capacity and retry through maintenance. Absence and unchanged terminal intent
+are rechecked before success and reservation release. One execution gate covers
+queue lifecycle work and sweeps; shutdown drains it, including startup sweeps.
+
+Phase 3 verification: final lint/typecheck/build/whitespace passed. The exact
+final source passed 215 tests with five Redis queue skips using a fresh native
+PostgreSQL 18 cluster and existing Git OpenSSL. A readiness test initially timed
+out under concurrent machine load; 32 focused checks and the full suite passed
+with two workers, without weakening timeouts. Coverage includes missing/terminal
+and partial resources, repeated sweeps, candidate validation and audit failures,
+stripped/mismatched labels, unrelated endpoints, dependency failure, retries,
+intent changes and serialization/drain. Generated frontend types still exactly
+match all 20 backend paths. The disposable cluster was stopped and removed.
+No demo database, real target, hosted configuration or dependency was changed.
+
+Phase 4 performs final disposable-service and isolated-worker acceptance and
+still requires approval. Docker Engine was not reachable in a bounded probe;
+current Engine/router tests use fakes. Real isolation evidence and execution of
+the Redis cases remain open. Phase 4 has not started.
+Host-level egress anomaly monitoring, administration,
 advanced features, hosted deployment work and production launch gates remain
 deferred. Public signup stays closed.
 
