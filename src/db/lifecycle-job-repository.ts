@@ -75,7 +75,10 @@ export class DrizzleLifecycleJobRepository implements LifecycleJobRepository {
         .where(
           and(
             eq(instanceOperations.id, operationId),
-            inArray(instanceOperations.status, ['queued', 'running']),
+            // A delivered job can arrive before the producer persists its queued
+            // marker, including after an enqueue reply is lost. Claim its durable
+            // pending intent; markQueued's pending guard cannot rewind this state.
+            inArray(instanceOperations.status, ['pending', 'queued', 'running']),
           ),
         )
         .returning({ id: instanceOperations.id });

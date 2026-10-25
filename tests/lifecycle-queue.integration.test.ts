@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import type { Worker } from 'bullmq';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
 import { seedCatalog } from '../src/db/catalog-seed.js';
 import { createDatabase, type DatabaseClient } from '../src/db/client.js';
@@ -103,6 +103,37 @@ describeInfrastructure('durable lifecycle queue', () => {
     });
     const failed = await queue.getFailed();
     expect(failed.some((job) => job.id === operationId)).toBe(true);
+  }, 15_000);
+
+  it.each([false, true])('processes delivery before the queued marker, including producer failure: %s', async (producerFails) => {
+    const operationId = await insertOperation('extend', `queue-fast-delivery-${producerFails ? 'failed' : 'late'}-001`);
+    let claimed!: () => void;
+    const firstClaim = new Promise<void>((resolve) => { claimed = resolve; });
+    let firstClaimAccepted = false;
+    const claim = repository.claimOperation.bind(repository);
+    const markQueued = repository.markQueued.bind(repository);
+    const claimSpy = vi.spyOn(repository, 'claimOperation').mockImplementationOnce(async (id, now) => {
+      const result = await claim(id, now);
+      firstClaimAccepted = result !== null;
+      claimed();
+      return result;
+    });
+    const markerSpy = vi.spyOn(repository, 'markQueued').mockImplementationOnce(async (id, now) => {
+      await firstClaim;
+      if (producerFails) throw new Error('simulated producer failure after enqueue');
+      await markQueued(id, now);
+    });
+    try {
+      if (producerFails) await expect(queue.dispatchPending()).rejects.toThrow('simulated producer failure');
+      else await queue.dispatchPending();
+      expect(firstClaimAccepted).toBe(true);
+      await waitForOperation(operationId, 'succeeded');
+      expect(await readOperation(operationId)).toMatchObject({ status: 'succeeded', attempts: 1 });
+      await expect(queue.dispatchPending()).resolves.toBe(0);
+    } finally {
+      claimSpy.mockRestore();
+      markerSpy.mockRestore();
+    }
   }, 15_000);
 
   it('creates idempotent reaper and reconciliation intent from persisted state', async () => {
