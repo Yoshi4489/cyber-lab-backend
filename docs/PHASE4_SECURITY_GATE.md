@@ -5,7 +5,7 @@ controls, but it is not a production layout. Public signup remains closed.
 This record distinguishes observed behavior from code-level tests and
 unverified production boundaries.
 
-## Current mock-preview delivery verification (2026-10-25)
+## Current mock-preview delivery verification (2026-10-26)
 
 The fourth approval checkpoint of the current mock-preview/lifecycle delivery
 was approved on October 25. It is distinct from the older platform roadmap's
@@ -14,12 +14,23 @@ historical NongBuntu validation VMs were deleted. Their evidence below remains
 historical and cannot validate the new capacity or orphan-cleanup behavior.
 
 A replacement single-target Linux VM with a Windows control plane was selected.
-`CyberRangePhase4Target` is prepared powered off using an official
-checksum-verified Ubuntu Server installer (2 GiB VM memory); startup awaits
-enough available host memory and completion of the other application checks.
-The application checks have passed; a guarded start found only about 1.5 GiB
-free against the 2.5 GiB requirement and left the VM powered off.
-No new target-host acceptance is claimed. See the
+On October 25 its start was memory-blocked. On October 26, after the user
+authorized closing Roblox and Discord, `CyberRangePhase4Target` completed its
+checksum-verified Ubuntu 26.04.1 Server installation. It runs one CPU and 2 GiB
+configured memory with Docker 29.9.2. Engine advertises user namespaces,
+seccomp, AppArmor and private cgroup namespaces. A real Engine mTLS request
+returned 200; no client certificate, an untrusted server CA and an incorrect
+hostname were rejected. Windows TCP baselines to host SSH/Docker passed.
+
+Before target testing the temporary NAT adapter was removed; VirtualBox reports
+only the host-only adapter and the guest has no default route. Trusted ingress
+uses a digest-pinned Traefik 3.7.16 image, non-root/capability-free/read-only
+runtime and bounded resources. A key-pinned loopback-only SSH tunnel returned
+HTTPS 404 using the fixture CA and verified localhost certificate identity.
+The committed disposable HTTP fixture was rebuilt from its pinned base; no
+real CTF content or flag was baked into an image. Lifecycle and target-side
+acceptance below subsequently passed, completing the current local delivery's
+fourth checkpoint. The production gate remains open. See the
 [local alternative](LOCAL_DEVELOPMENT.md#disposable-single-target-vm-alternative)
 and current `PLAN.md` for progress and remaining checks.
 
@@ -28,9 +39,58 @@ with zero skips and unchanged deadlines/isolation. This includes two new real
 Redis regressions for delivery before the queued marker and producer failure
 after enqueue. Database-backed lifecycle/capacity/cleanup and fake Engine/router
 checks are service evidence; they are not a fresh isolated-target acceptance run.
-The disposable PostgreSQL/Redis fixtures, independent runtime database/login and
-temporary runtime credentials were removed afterward; their ports are closed.
-No API, worker or target was started during replacement-host preparation.
+The October 25 PostgreSQL/Redis fixtures and temporary credentials were removed
+afterward. Fresh October 26 fixtures provided a separate runtime database
+and restricted application login; the demo database remains unchanged. Verified
+player login/logout passed. Audit insert worked, while eight privileged
+operations were denied with SQLSTATE 42501 in rolled-back probes. The API and
+worker were started only for the following isolated-host acceptance work.
+
+### Replacement-host runtime acceptance
+
+The API, single serialized worker, PostgreSQL 18.3 and Redis 7.4.11 ran on
+Windows; only Engine, ingress and disposable HTTP targets ran on the VM.
+The node has two explicitly configured slots. These are disposable fixtures,
+not authored CTF challenges or hosted deployment evidence.
+
+| Control | Observed evidence on the replacement host |
+|---|---|
+| Engine and route delivery | Actual mTLS positive and three rejection cases passed. Overlapping ingress mounts initially caused intermittent Engine archive failures. Separate read-only static binds and the writable route volume fixed the fixture; five marker round trips and the actual worker preflight passed. The TLS document was preserved. |
+| Basic lifecycle and scoring | Fresh creation/idempotency, readiness, live HTTPS health, first score 10 then zero on replay, 30-minute extension within the cap, stop and subsequent ingress 404 passed. Flags stayed runtime-only. |
+| Ownership and per-player limit | Two distinct verified players had healthy simultaneous targets. Both directions of foreign read, extend and delete returned 404: six denials with zero added mutation intents. A second active start by the same player returned 409. |
+| Node capacity | With the node's persisted slot budget set to one, two concurrent creation requests were accepted; one target ran and the other became `failed` with `node_capacity_exhausted`. The refused instance held no reservation, and the winner cleaned up normally. |
+| Expiry | A running fixture's persisted expiry was moved into the past; the real worker reaper produced `expired`, removed its container/network/route, released its reservation and left ingress returning 404. No application lifetime limits were changed. |
+| Mid-spawn crash recovery | After an immediate hard kill during provisioning, the single restarted worker recovered through the normal BullMQ stalled-job lease. Spawn attempt two reused the exact original container and network and retained one allocation. Destruction then restored an empty baseline. An earlier harness attempt delayed the kill with a Windows ownership check, allowing normal cleanup first; it was recorded as incomplete and cleaned up. Pre-verifying the owned PID fixed the harness. Application timeouts and timestamps were unchanged. |
+| Missing-row orphan cleanup | Full, route-only, network-only and stopped-container-only fixtures each received one cleanup-start and one cleanup-success audit and were removed. Repeated sweeps produced no duplicate success. An unrelated container and the exact trusted ingress survived. |
+| Terminal partial cleanup and retained capacity | An unrelated endpoint attached to a terminal instance's network prevented network deletion. Cleanup removed only the managed container/route, preserved the unrelated endpoint and retained the reservation. Another accepted spawn failed with `node_capacity_exhausted`. After explicit fixture endpoint release, a later sweep removed the network and released capacity. |
+| Failed evidence prevents destruction | Actual database unavailability, paused-ingress inventory failure, a malformed managed ownership label and revoked audit INSERT each preserved the original managed IDs/routes and produced zero cleanup-start audits. Restoring dependencies/labels/grants allowed safe cleanup. |
+| Final inventory and drain | Managed containers, networks, routes and allocations were zero, as were active database instances, reservations, pending operations and owned diagnostic containers. Root independently verified the VM inventory and route directory exactly `tls.yml`. The same trusted ingress remained running, non-root and read-only. API and worker drained through their normal shutdown handlers and the API listener closed. |
+| Runtime restrictions | Both application-created targets used UID 65532 with host user-namespace offset 100000, zero capabilities, no-new-privileges, seccomp mode 2 and `docker-default` AppArmor. Inspect confirmed private namespaces, read-only roots, writable 16 MiB tmpfs, memory/swap 128 MiB, 0.5 CPU, 64 PIDs, bounded logs, no mounts and no published ports. |
+| Network isolation | Both target probes returned `ENETUNREACH` for public IPv4, metadata, host SSH/Docker, Windows control-plane addresses and the actual other instance's HTTP endpoint. Trusted ingress positively fetched both target health endpoints. Each actual host bridge had no IPv4 address; the former gateway `.1` belonged to ingress. Target IPv6 was disabled and probes to each actual host bridge's scoped IPv6 link-local SSH address also returned `ENETUNREACH`. |
+
+Probe destinations were public `1.1.1.1:80`, metadata `169.254.169.254:80`,
+target management `192.168.56.108:22` and `:2376`, and Windows
+`192.168.56.1:17903`, `:44479` and `:35239`. Windows positively reached target
+SSH/Docker, but API/PostgreSQL/Redis listeners were loopback-only. Their negative
+target probes demonstrate absence of an off-subnet route, not isolation against
+otherwise reachable control-plane listeners. Public/metadata checks establish
+absence of a route, not the presence of a live metadata service. The paired
+bridges were `br-e2ce9fee8d23` and `br-9bb9c0c89942`; target peers were
+`172.19.0.2:8080` and `172.18.0.2:8080`. Recovery polling reached the default API
+rate window; waiting for that unchanged window succeeded. Later fixture polling
+was reduced to one request per second without extending acceptance deadlines.
+No product source or dependency changed during replacement-host acceptance.
+Sanitized observations, including the incomplete first crash attempt, are
+retained under the task visualization folder's `phase4-runtime-qa`; no private
+configuration, credentials, keys, tokens or flags are included.
+
+After evidence preservation, the independent runtime database/restricted role
+and private credentials were removed, native PostgreSQL was stopped/removed and
+the owned Redis fixture was stopped/removed. API `17903`, PostgreSQL `44479` and
+Redis `35239` were confirmed closed, with no owned service processes remaining.
+The lead independently repeated the VM inventory check, closed the owned ingress
+tunnel and gracefully powered off the installed VM. The VM, server setup and
+operator identity are retained for the next separately approved milestone.
 
 ## Disposable-host evidence (2026-09-26 to 2026-09-27)
 

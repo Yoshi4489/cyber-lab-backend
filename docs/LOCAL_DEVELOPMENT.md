@@ -104,13 +104,46 @@ Ubuntu Desktop installer was verified first, then replaced with the smaller
 official Ubuntu 26.04.1 Server installer to reduce the VM's memory requirement.
 The streamed server download's SHA-256 matched
 [Ubuntu's published checksum](https://releases.ubuntu.com/26.04.1/SHA256SUMS).
-The VM has two CPUs, 2 GiB RAM and a dynamically allocated 32 GiB disk.
-Installation is gated on at least 2.5 GiB available host memory and completion
-of the resource-intensive application checks.
-Those application checks passed; the guarded start still found only about
-1.5 GiB available and left the VM powered off.
-No guest installation, preflight, target, or isolation result is established by
-preparing this VM; current progress is tracked in `PLAN.md`.
+The initial memory-gated start left it powered off. On October 26 the user
+authorized closing Roblox and Discord, freeing sufficient memory; installation
+completed. Its tested configuration is one CPU, 2 GiB RAM and a dynamic 32 GiB
+disk. The two-CPU installer boot stalled. A single CPU with APIC enabled,
+x2APIC disabled and `nox2apic rcupdate.rcu_normal=1` allowed the installer and
+installed disk to boot; serial console diagnostics remain enabled.
+
+Docker 29.9.2 uses user-namespace remapping, seccomp, AppArmor and private cgroup
+namespaces. Engine listens with verified mTLS on private `192.168.56.108:2376`;
+operator SSH is key-only. Management firewall rules permit Windows management
+traffic. The temporary NAT adapter was removed before target execution, leaving
+only host-only networking and no guest default route. The absent installer
+interface is marked optional to avoid future network-online startup waits.
+Traefik 3.7.16 is pinned by digest, runs without capabilities as a non-root user
+with a read-only root and bounded resources, and uses a separate writable route
+volume. Its HTTPS listener is guest-loopback-only and reached by a key-pinned,
+Windows-loopback-only SSH tunnel. The committed HTTP fixture was rebuilt against
+its pinned base and referenced by its actual image ID in an out-of-repository
+runtime manifest. No real CTF content was added.
+
+Fresh Engine mTLS positive/negative checks and the trusted HTTPS ingress baseline
+passed, followed by real lifecycle/scoring, capacity, expiry, crash recovery,
+orphan cleanup, failed-evidence safeguards and paired IPv4/IPv6 isolation probes.
+The exact scope is recorded in `PLAN.md` and the security gate record. Final
+managed resources and disposable control-plane fixtures were removed, the tunnel
+closed and the installed VM retained powered off. Keep all keys, certificates,
+VM disks, generated manifests and private fixture credentials outside version
+control.
+
+The generated fixture certificates are valid for seven days; reissue them and
+repeat mTLS/preflight checks before reusing an expired fixture. This is not
+production certificate provisioning.
+
+Mount the static Traefik configuration file and certificate directory read-only
+as separate siblings of the writable dynamic-route volume. On Docker 29.9.2 an
+enclosing read-only `/etc/traefik` bind with a nested writable route volume
+intermittently rejected Engine archive writes as read-only, even though an exec
+writability check passed. The fixture ingress was recreated with separate
+static binds while retaining its route volume, TLS document, read-only root and
+runtime limits. Require the actual worker route round trip before spawning.
 
 ## Initial accounts and local mail
 

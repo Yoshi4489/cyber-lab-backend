@@ -58,9 +58,9 @@ intent changes and serialization/drain. Generated frontend types still exactly
 match all 20 backend paths. The disposable cluster was stopped and removed.
 No demo database, real target, hosted configuration or dependency was changed.
 
-Phase 4 was approved October 25 and is in progress. It performs final
-disposable-service and isolated-worker acceptance. Docker Engine is reachable
-again for disposable Redis service testing. A fresh native PostgreSQL 18.3
+Phase 4 was approved October 25 and completed local acceptance on October 26.
+It covers disposable-service and isolated-worker acceptance. Docker Engine was
+reachable again for disposable Redis service testing. A fresh native PostgreSQL 18.3
 fixture and non-root, memory-only Redis 7.4.11 fixture passed all 222 tests with
 zero skips, using one worker and standard test isolation/deadlines. An earlier
 run spanning a host interruption had two five-second request timeouts; the
@@ -77,19 +77,66 @@ including once-only execution and safe redispatch. No public contract, schema,
 or application dependency changed.
 
 The user confirmed both historical lab VMs were deleted and chose one fresh
-target-only Linux VM with the control plane on Windows. `CyberRangePhase4Target`
-is prepared powered off with a checksum-verified Ubuntu Server installer,
-two CPUs, 2 GiB RAM and a dynamic 32 GiB disk. Installation awaits at least
-2.5 GiB available host memory. The guarded start after the heavy application
-checks found about 1.5 GiB free and left the VM powered off.
-Real worker spawning, expiry, recovery, capacity, orphan cleanup and network
-isolation acceptance remain open on this replacement host. Engine/router fakes
-and the PostgreSQL/Redis suite do not substitute for that evidence.
-All disposable services were cleaned up after the memory gate blocked VM
-startup: the runtime database/restricted role and private credentials were
-removed, the native PostgreSQL cluster stopped/removed, and the task-labeled
-Redis container stopped/removed. Their ports are closed and no API, worker, or
-target process was started. The powered-off VM remains prepared for resumption.
+target-only Linux VM with the control plane on Windows. At the October 25
+checkpoint its guarded start found about 1.5 GiB free against the 2.5 GiB
+requirement and left it powered off. The disposable services and credentials
+were removed then; no replacement-host acceptance was claimed.
+
+On October 26, after the user authorized closing Roblox and Discord, the memory
+check passed and Ubuntu 26.04.1 Server installed successfully. The working VM
+uses one CPU, 2 GiB configured RAM and the existing dynamic 32 GiB disk. The
+initial two-CPU boot stalled; a single CPU, enabled APIC, disabled x2APIC and
+normal-RCU kernel setting allowed installation and subsequent disk boots.
+Docker 29.9.2 advertises user namespaces, AppArmor, seccomp and private cgroup
+namespaces. Real Engine mTLS accepts the worker identity and rejects a missing
+client certificate, an untrusted CA and a wrong server hostname. Only server
+key material was transferred to the target host; worker/CA private keys remain
+outside both repositories on Windows.
+
+The temporary NAT adapter was removed before any target started. Guest routing
+shows no default route; private management SSH and Docker TCP baselines pass.
+Digest-pinned constrained Traefik ingress and the committed disposable HTTP
+fixture were prepared, with a key-pinned loopback HTTPS tunnel. Fresh PostgreSQL
+18.3/Redis 7.4.11 fixtures and an independent restricted runtime login were
+separate from the demo database. API login/logout and eight denied database
+privilege probes passed. Real lifecycle, capacity, recovery, orphan cleanup and
+target-side isolation acceptance subsequently passed:
+
+- The committed HTTP fixture passed create/idempotency, live HTTPS health,
+  first score 10 then zero on replay, extension, stop and ingress 404.
+- Two verified players received separate targets. Six cross-user read/extend/
+  delete requests returned 404 with no mutation intents, and the per-player
+  active-instance limit returned 409. Both targets passed exact runtime-limit
+  inspection and IPv4/IPv6/private/public/metadata/cross-instance route probes.
+- A one-slot persisted node budget admitted one of two accepted concurrent
+  creations; the other failed with `node_capacity_exhausted`. Real expiry
+  cleaned resources and released its reservation. A hard-killed worker recovered
+  through the normal lease, reusing the exact provisioning resources.
+- Full and partial missing-row orphans were removed once, preserving unrelated
+  resources and trusted ingress. A terminal cleanup failure retained capacity
+  until its unrelated endpoint was explicitly released and cleanup retried.
+- Database/inventory failures, malformed ownership and denied audit INSERT
+  prevented destructive cleanup; restoration allowed successful cleanup.
+
+The ingress fixture needed separate read-only static binds beside its writable
+route volume; an enclosing read-only bind intermittently blocked Engine archive
+writes. Five marker round trips and actual preflight then passed. An incomplete
+crash attempt was retained in the evidence and corrected by pre-verifying the
+owned worker PID before its immediate hard kill. No product source, dependency,
+contract, lifetime limit or acceptance deadline changed in this resumed run.
+
+Final managed containers/networks/routes/allocations, active intents,
+reservations, pending operations and owned diagnostic containers were all zero.
+Trusted ingress/TLS survived; API/worker drained. Runtime database/restricted
+role/private credentials, PostgreSQL cluster and Redis fixture were removed;
+their listeners closed. The ingress tunnel was closed and the installed VM
+retained powered off to release memory. Twenty-three sanitized observations and
+the lead's setup/management evidence are retained in the task visualization
+folder's `phase4-runtime-qa`. Exact scope and limitations are in
+`docs/PHASE4_SECURITY_GATE.md`. This completes the fourth local delivery
+checkpoint, not the older production security gate. Pause for user approval
+before the separate playable-CTF milestone.
+
 Host-level egress anomaly monitoring, administration,
 advanced features, hosted deployment work and production launch gates remain
 deferred. Public signup stays closed.

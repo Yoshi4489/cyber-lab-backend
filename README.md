@@ -15,7 +15,7 @@ This repository is
 
 ## Project status
 
-Current delivery checkpoint (2026-10-25): the approved work targets an isolated
+Current delivery checkpoint (2026-10-26): the approved work targets an isolated
 mock frontend preview and local backend security/lifecycle hardening. Phase 1
 adds current persisted-email verification for creation and rejects nonempty
 extend/delete bodies, preserving existing owner access. Lint/typecheck/build
@@ -35,10 +35,17 @@ fast-worker delivery race before the producer's queued marker; two regression
 cases now cover delayed marking and producer failure after enqueue.
 Final lint, typecheck, build and whitespace checks passed on Node 24.19.0;
 Node 22 remains the project's configured CI/runtime target and was not rerun here.
-The user confirmed the historical VMs were deleted. A fresh target-only Ubuntu
-Server VM is prepared powered off; installation and real worker/isolation
-acceptance remain open, pending enough host memory for installation. A guarded
-start found about 1.5 GiB free against a 2.5 GiB requirement. See the
+The user confirmed the historical VMs were deleted. The replacement target-only
+Ubuntu 26.04.1 Server VM is installed with Docker 29.9.2, user namespaces,
+AppArmor, seccomp and verified Engine mTLS. Its temporary NAT adapter was removed
+before target testing; only private management networking remains. A constrained,
+digest-pinned ingress and the committed disposable HTTP fixture are prepared.
+Real HTTPS lifecycle/scoring, two-player ownership/isolation, capacity, expiry,
+mid-spawn crash recovery, orphan cleanup and failed-evidence preservation all
+passed on this replacement host. The current delivery's fourth local checkpoint
+is complete. Managed resources and disposable services/credentials were removed;
+the installed VM is retained powered off. Production and real CTF delivery
+remain open. See the
 [single-VM alternative](docs/LOCAL_DEVELOPMENT.md#disposable-single-target-vm-alternative),
 [the current plan](PLAN.md) and
 [approved contract](docs/API.md). Historical hosting evidence below does not
