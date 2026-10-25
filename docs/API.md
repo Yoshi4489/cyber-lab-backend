@@ -15,9 +15,9 @@ The generator is registered before routes in `buildApp`.
 
 **Review checkpoint (2026-10-23): documentation diff approved by the user.**
 Preview isolation, backend validation, node capacity admission and managed orphan
-cleanup are implemented under the approved contract. Phase 4 still requires
-approval after the Phase 3 report; status documents
-record actual verification. Agents must propose further contract changes
+cleanup are implemented under the approved contract. Phase 4 verification was
+approved on October 25; status documents record actual verification and any
+remaining infrastructure blockers. Agents must propose further contract changes
 to the lead and user, never edit this contract on their own.
 
 ### Frontend preview boundary

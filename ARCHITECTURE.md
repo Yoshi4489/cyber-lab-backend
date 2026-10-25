@@ -121,6 +121,11 @@ The API persists owned instance intent and idempotency records. A worker sweep
 adds pending operations to BullMQ using the operation UUID as the job ID and
 marks delivery only after enqueue succeeds. This closes the database/enqueue
 gap and recovers stale running operations.
+Delivery can reach a worker before the producer saves its queued marker.
+The worker therefore claims an existing durable pending operation as well as
+queued/retrying work. The producer's pending-only marker cannot rewind a
+running or completed operation. Real PostgreSQL/Redis regressions cover delayed
+marking and producer failure after enqueue; terminal operations are not claimed.
 
 Workers validate the manifest/quota, choose the registered node, create an isolated
 network, start the pinned image with fixed restrictions, configure ingress,

@@ -58,10 +58,38 @@ intent changes and serialization/drain. Generated frontend types still exactly
 match all 20 backend paths. The disposable cluster was stopped and removed.
 No demo database, real target, hosted configuration or dependency was changed.
 
-Phase 4 performs final disposable-service and isolated-worker acceptance and
-still requires approval. Docker Engine was not reachable in a bounded probe;
-current Engine/router tests use fakes. Real isolation evidence and execution of
-the Redis cases remain open. Phase 4 has not started.
+Phase 4 was approved October 25 and is in progress. It performs final
+disposable-service and isolated-worker acceptance. Docker Engine is reachable
+again for disposable Redis service testing. A fresh native PostgreSQL 18.3
+fixture and non-root, memory-only Redis 7.4.11 fixture passed all 222 tests with
+zero skips, using one worker and standard test isolation/deadlines. An earlier
+run spanning a host interruption had two five-second request timeouts; the
+clean serial run passed without relaxing those limits.
+Final lint, typecheck, build and whitespace gates also passed. Local execution
+used Node 24.19.0; the configured Node 22 CI/runtime target was not rerun here.
+
+Real Redis also reproduced a delivery-order bug: a worker could receive a job
+while its durable operation was still pending, before the producer persisted
+the queued marker. Claiming that delivered pending intent now permits normal
+execution; the marker's pending-only update cannot rewind running or completed
+work. Two regressions cover a delayed marker and producer failure after enqueue,
+including once-only execution and safe redispatch. No public contract, schema,
+or application dependency changed.
+
+The user confirmed both historical lab VMs were deleted and chose one fresh
+target-only Linux VM with the control plane on Windows. `CyberRangePhase4Target`
+is prepared powered off with a checksum-verified Ubuntu Server installer,
+two CPUs, 2 GiB RAM and a dynamic 32 GiB disk. Installation awaits at least
+2.5 GiB available host memory. The guarded start after the heavy application
+checks found about 1.5 GiB free and left the VM powered off.
+Real worker spawning, expiry, recovery, capacity, orphan cleanup and network
+isolation acceptance remain open on this replacement host. Engine/router fakes
+and the PostgreSQL/Redis suite do not substitute for that evidence.
+All disposable services were cleaned up after the memory gate blocked VM
+startup: the runtime database/restricted role and private credentials were
+removed, the native PostgreSQL cluster stopped/removed, and the task-labeled
+Redis container stopped/removed. Their ports are closed and no API, worker, or
+target process was started. The powered-off VM remains prepared for resumption.
 Host-level egress anomaly monitoring, administration,
 advanced features, hosted deployment work and production launch gates remain
 deferred. Public signup stays closed.

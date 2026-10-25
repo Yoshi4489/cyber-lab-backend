@@ -5,6 +5,33 @@ controls, but it is not a production layout. Public signup remains closed.
 This record distinguishes observed behavior from code-level tests and
 unverified production boundaries.
 
+## Current mock-preview delivery verification (2026-10-25)
+
+The fourth approval checkpoint of the current mock-preview/lifecycle delivery
+was approved on October 25. It is distinct from the older platform roadmap's
+Phase 4 production security gate, which remains open. The user confirmed both
+historical NongBuntu validation VMs were deleted. Their evidence below remains
+historical and cannot validate the new capacity or orphan-cleanup behavior.
+
+A replacement single-target Linux VM with a Windows control plane was selected.
+`CyberRangePhase4Target` is prepared powered off using an official
+checksum-verified Ubuntu Server installer (2 GiB VM memory); startup awaits
+enough available host memory and completion of the other application checks.
+The application checks have passed; a guarded start found only about 1.5 GiB
+free against the 2.5 GiB requirement and left the VM powered off.
+No new target-host acceptance is claimed. See the
+[local alternative](LOCAL_DEVELOPMENT.md#disposable-single-target-vm-alternative)
+and current `PLAN.md` for progress and remaining checks.
+
+The standard one-worker PostgreSQL 18.3/Redis 7.4.11 suite passed all 222 tests
+with zero skips and unchanged deadlines/isolation. This includes two new real
+Redis regressions for delivery before the queued marker and producer failure
+after enqueue. Database-backed lifecycle/capacity/cleanup and fake Engine/router
+checks are service evidence; they are not a fresh isolated-target acceptance run.
+The disposable PostgreSQL/Redis fixtures, independent runtime database/login and
+temporary runtime credentials were removed afterward; their ports are closed.
+No API, worker or target was started during replacement-host preparation.
+
 ## Disposable-host evidence (2026-09-26 to 2026-09-27)
 
 The same Ubuntu VM ran Docker Engine 29.8.1, the worker, Traefik, and disposable

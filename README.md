@@ -15,7 +15,7 @@ This repository is
 
 ## Project status
 
-Current delivery checkpoint (2026-10-23): the approved work targets an isolated
+Current delivery checkpoint (2026-10-25): the approved work targets an isolated
 mock frontend preview and local backend security/lifecycle hardening. Phase 1
 adds current persisted-email verification for creation and rejects nonempty
 extend/delete bodies, preserving existing owner access. Lint/typecheck/build
@@ -29,7 +29,18 @@ lint/typecheck/build also passed. Phase 3 adds audited orphan cleanup, complete
 ownership validation, retry-safe capacity release and serialization with lifecycle
 execution, including shutdown drain. Its final disposable-PostgreSQL/TLS suite
 passed 215 tests with five Redis-dependent skips; final static gates passed.
-Real isolated-worker acceptance remains open for Phase 4. See [the current plan](PLAN.md) and
+Phase 4 verification was approved October 25. A fresh PostgreSQL 18.3 and
+Redis 7.4.11 run passed all 222 tests with no skips. It reproduced and fixed a
+fast-worker delivery race before the producer's queued marker; two regression
+cases now cover delayed marking and producer failure after enqueue.
+Final lint, typecheck, build and whitespace checks passed on Node 24.19.0;
+Node 22 remains the project's configured CI/runtime target and was not rerun here.
+The user confirmed the historical VMs were deleted. A fresh target-only Ubuntu
+Server VM is prepared powered off; installation and real worker/isolation
+acceptance remain open, pending enough host memory for installation. A guarded
+start found about 1.5 GiB free against a 2.5 GiB requirement. See the
+[single-VM alternative](docs/LOCAL_DEVELOPMENT.md#disposable-single-target-vm-alternative),
+[the current plan](PLAN.md) and
 [approved contract](docs/API.md). Historical hosting evidence below does not
 authorize further deployment work or public signup.
 

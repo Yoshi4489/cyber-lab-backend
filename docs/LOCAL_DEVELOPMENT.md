@@ -71,6 +71,47 @@ Desktop on the verification machine lacked user namespaces and AppArmor, so it
 is suitable for PostgreSQL/Redis development but not for launching these target
 containers. Production uses an isolated target host and complete Docker mTLS.
 
+## Disposable single-target-VM alternative
+
+The two historical validation VMs were deleted, as confirmed by the user on
+2026-10-25. Replacing them does not require putting the control plane back on
+the target host. One dedicated Linux VM can host only Docker Engine, ingress,
+and disposable targets; the API, worker, PostgreSQL, and Redis can remain on
+Windows. This is a local test topology, not hosted deployment evidence.
+
+Prepare a fresh VM from an official checksum-verified installer, with no shared
+folders, clipboard, drag-and-drop, or control-plane credentials. Keep operator
+SSH keys and Docker TLS material outside both repositories. Bind any bootstrap
+SSH forwarding to loopback. NAT may be used to install the operating system,
+Engine, and reviewed images; remove that adapter before starting targets and
+retain only the private management network. A host-only adapter still permits
+host access: it does not replace Docker's isolated per-instance bridges,
+default-deny egress, ownership checks, or the negative network probes.
+
+Configure Docker user-namespace remapping, seccomp, AppArmor, and verified mTLS
+following [DOCKER_MTLS.md](DOCKER_MTLS.md). Keep the worker and its runtime
+manifest on Windows; deliver routes through the authenticated Engine connection
+into ingress. Configure an explicit tested node capacity and use disposable
+database/Redis fixtures. Do not start targets until worker preflight succeeds.
+
+Repeat lifecycle/recovery, capacity, orphan cleanup, cross-user denial, and
+network isolation acceptance on this replacement topology. Record positive
+management/peer reachability baselines alongside target probe results. Old
+two-VM results remain historical evidence and do not validate the new VM.
+
+On 2026-10-25, `CyberRangePhase4Target` was prepared powered off. The existing
+Ubuntu Desktop installer was verified first, then replaced with the smaller
+official Ubuntu 26.04.1 Server installer to reduce the VM's memory requirement.
+The streamed server download's SHA-256 matched
+[Ubuntu's published checksum](https://releases.ubuntu.com/26.04.1/SHA256SUMS).
+The VM has two CPUs, 2 GiB RAM and a dynamically allocated 32 GiB disk.
+Installation is gated on at least 2.5 GiB available host memory and completion
+of the resource-intensive application checks.
+Those application checks passed; the guarded start still found only about
+1.5 GiB available and left the VM powered off.
+No guest installation, preflight, target, or isolation result is established by
+preparing this VM; current progress is tracked in `PLAN.md`.
+
 ## Initial accounts and local mail
 
 Set all `SEED_ADMIN_*` and `SEED_PLAYER_*` variables, then run:
