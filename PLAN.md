@@ -1,5 +1,36 @@
 # Backend development plan
 
+## First playable CTF: Phase 1 in progress (2026-10-26)
+
+The user authorized the first authored web CTF connected to real learner
+accounts. The user approved the lead's documentation diff in `docs/API.md` on
+October 26; Phase 1 implementation is authorized. Existing `/v1`
+DTOs, auth, scoring and lifecycle remain authoritative; no schema migration or
+dependency is planned. Use the retained target-only VM and fresh disposable
+control-plane fixtures; do not change hosted services or open public signup.
+
+1. **Playable slice:** backend agent implements Cookie Monster under backend
+   `challenges/`, including a pinned-base image, health check, relative/prefix-safe
+   navigation and scoped cookies, runtime-only flag and no-flag-output solve.
+   Add a separate validated catalog identity; explicitly reseed only disposable
+   data, unpublishing sample fixtures without deleting identities/solve history.
+   Frontend agent connects real identity, briefing and flag submission through
+   existing BFF/lifecycle DTOs. Report verification and pause.
+2. **Persisted learner views:** frontend connects profile/dashboard/rankings
+   through the existing progress contracts and new preview-gated BFF reads.
+   Backend verifies authored-challenge solve uniqueness, persistence and privacy.
+   Report verification and pause.
+3. **Real browser acceptance:** fresh disposable PostgreSQL/Redis, existing
+   isolated VM and one worker; preflight and browser login/spawn/solve/score,
+   refresh, extension, expiry/stop and cleanup. Verify two-player flag/ownership
+   separation and distinct learner/target cookie hosts. Run required gates,
+   record actual evidence, remove temporary resources and pause.
+
+Backend agent edits only this repo; frontend agent edits only its sibling. The
+lead owns contract changes; agents propose changes rather than editing the
+contract. Keep commits focused and preserve unrelated work. The prior delivery
+below is complete; production and hosted acceptance remain separate open gates.
+
 ## Current delivery: mock preview and lifecycle hardening (2026-10-23)
 
 The user approved the shared contract in `docs/API.md`. This delivery uses

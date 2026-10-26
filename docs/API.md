@@ -88,6 +88,119 @@ After each numbered phase, update existing status documents with actual checks,
 report changed behavior, testing and open questions, and await approval before
 the next phase. This review does not close any production security gate.
 
+## Approved delivery: first playable web CTF (2026-10-26)
+
+**Review checkpoint: documentation diff approved by the user on 2026-10-26.** The
+user authorized beginning a playable CTF connected to real learners. The
+mock-preview delivery above is complete; its exclusion of real challenge content
+describes that earlier delivery. This delivery extends scope to one locally
+playable challenge. It does not authorize hosted configuration or deployment.
+Phase 1 implementation is authorized; agents must return any contract change
+to the lead and user. Phases 2 and 3 retain their separate approval checkpoints.
+
+### Existing backend contract remains authoritative
+
+No new `/v1` endpoint, scope, response field, database migration, or dependency
+is planned. Generated OpenAPI types remain the wire source of truth; frontend
+adapters validate responses at runtime without importing backend source.
+
+| Learner action | Existing backend operation | Required browser behavior |
+|---|---|---|
+| Sign in and restore identity | Existing BFF login/session/logout contract | Use the real account throughout live navigation; never use preview identity for live authority. Public signup stays closed. |
+| Browse and start Cookie Monster | Catalog reads and `POST /v1/instances` with `{ challengeId }` | Show the published challenge briefing, objective and assigned-target-only scope; require a currently verified operator-created account. |
+| Play and manage a lab | Existing owner read, extend and delete operations | Poll accepted state, disclose the URL only while running, preserve idempotency/backoff, and explain failure/expiry without substituting demo state. |
+| Submit the recovered flag | `POST /v1/submissions` with `{ challengeId, instanceId, flag }` | Enable only for this challenge's running, locally unexpired instance. Backend ownership and expiry checks remain decisive. Show incorrect, first-solve and zero-point repeat outcomes. |
+| Read personal progress | `GET /v1/profile`, scope `profile:read` | Show server totals and solve history; account selection never comes from browser input. |
+| Read rankings | Public `GET /v1/leaderboard` | Show returned ranks, display names and aggregates; never append fictional players in live mode. |
+
+Submission response stays `{ correct, points, recorded: true, source:
+"database" }`. `points` is awarded by this attempt, not the challenge's nominal
+value or the learner's total. A submission is not a lifecycle command: success
+does not stop the lab or change instance status. Do not automatically retry a
+flag submission with an unknown outcome; refresh persisted progress and let the
+learner retry deliberately. Replays cannot award points twice.
+
+The frontend adds same-origin `GET /api/profile` and `GET /api/leaderboard`
+handlers, forwarding the existing DTOs unchanged. Profile resolves the sealed
+session and issues only `profile:read`; leaderboard is public and needs no
+credential. Both validate backend responses, return no-store responses, and use
+the existing `{ code }` BFF error envelope. Preview returns 404 before any
+credential, cookie or upstream access, including on these new handlers.
+Existing `/api/submissions` keeps strict validation and same-origin mutation
+checks. Flag input is transient: never place it in URLs, browser storage,
+analytics, logs, error messages or submission responses; clear it on success,
+instance changes and sign-out. Only the intentionally vulnerable target reveals
+the runtime-injected flag after the intended solve, not a control-plane API.
+
+Live dashboard/Profile read persisted progress, and live rankings use the public
+leaderboard. Empty, loading, denied and unavailable states are explicit; no
+local demo rewards or invented activity fill missing backend fields. Preview
+remains the server default with its existing samples and isolation guarantees.
+The API still has no active-instance discovery/list endpoint: refresh can restore
+a remembered returned instance ID after owner revalidation; recovery on another
+browser/device is outside this milestone.
+
+### First challenge and local trust boundary
+
+Use the existing Cookie Monster concept: a beginner bakery application with an
+intentionally unsigned role cookie. Add the implementation, pinned-base
+Dockerfile, automated solve and maintainer writeup under the backend-owned
+`challenges/` directory. The frontend's existing YAML-only sketch is historical,
+not a worker manifest. Actual public metadata uses the existing validated
+catalog definitions; actual runtime uses `runtimeManifestSchema` JSON. The
+frontend owns instructional presentation, with no target runtime or secrets.
+
+Give the new challenge its own stable ID/slug, separate from fixture IDs. Keep
+existing fixture identities and historical solves intact, but unpublish the six
+sample definitions on an explicit catalog reseed so they are not advertised as
+playable content. Do not reseed any hosted or existing personal database as part
+of local acceptance. Tests may explicitly publish fixture definitions.
+
+The target uses relative navigation and works behind `/labs/<route-key>/`
+prefix stripping. Challenge cookies stay within that instance path and never
+set a parent-domain cookie. Flags are HMAC-derived and injected at runtime only;
+the image, catalog, briefing and solve output contain no fixed flag. The solve
+checks the intended bypass and reports success without printing the flag. Free
+instructional hints can be frontend metadata; paid hints and an in-app writeup
+API are deferred.
+
+Use the retained disposable target-only Linux VM, one worker/node and existing
+isolation/capacity controls. In browser acceptance, control-plane and target
+ingress must have different cookie hostnames, not just different ports (for
+example, learner site `localhost`, target `127.0.0.1`). Prove the learner session
+cookie is absent at the target, and challenge cookies cannot authorize platform
+operations. Keep credentials, generated manifests, certificates and test flags
+outside version control; repeat preflight before real target creation.
+
+### Approval checkpoints and acceptance
+
+1. **Playable slice:** backend agent authors/seeds the challenge and verifies
+   its solve; frontend agent connects real identity, briefing, lifecycle and
+   flag submission using a contract-shaped local fixture. Hide unfinished live
+   progress views rather than displaying demo totals or fictional rankings.
+   Check malformed flags,
+   cross-user/expired denial, wrong answers, repeat solves, safe return links,
+   prefix-aware cookies and unknown submission outcomes. Report and pause.
+2. **Persisted learner views:** frontend agent adds the two BFF reads and live
+   dashboard/Profile/rankings, refreshes progress after solving and prevents
+   stale results after sign-out/account changes. Backend agent verifies the
+   existing persistence/privacy contracts against the real challenge. Report
+   and pause.
+3. **Real browser acceptance:** with fresh disposable PostgreSQL/Redis and the
+   isolated VM, exercise real login, spawn, target solve, flag submission,
+   refresh-persistent scoring, extension, expiry, stop and route removal. Prove
+   two-player ownership/flag separation and cookie isolation. Run required
+   frontend/backend gates, generated-type freshness and preview isolation;
+   inspect responsive/theme/keyboard flows in one combined pass with at most one
+   confirmation pass. Record actual evidence and remove temporary resources.
+
+Exactly two implementation agents retain frontend-only and backend-only
+repository ownership. Keep migrations (if later approved), behavior, refactors
+and docs in separate reviewable commits; preserve unrelated working-tree edits.
+New dependencies and further contract changes require approval. Hosting, public
+signup, production email/policies/operations, advanced access/scaling and
+host-level egress anomaly monitoring remain deferred launch gates.
+
 ## Adding a route
 
 1. Use `app.withTypeProvider<ZodTypeProvider>()` in the route plugin.
