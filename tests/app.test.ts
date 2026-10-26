@@ -12,6 +12,7 @@ const config: Config = {
   SERVICE_TOKEN_ISSUER: 'cyber-range-frontend',
   SERVICE_TOKEN_AUDIENCE: 'cyber-range-backend',
   SIGNUPS_OPEN: false,
+  WELCOME_LAB_TEST_ENABLED: false,
   AUTH_RATE_LIMIT_MAX: 10,
   AUTH_RATE_LIMIT_WINDOW: '1 minute',
   SUBMISSION_RATE_LIMIT_MAX: 20,

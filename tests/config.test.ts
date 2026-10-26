@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config.js';
+import { loadWelcomeLabConfig, WELCOME_LAB_PUBLIC_FLAG } from '../src/welcome-lab-config.js';
 
 const validEnvironment = {
   NODE_ENV: 'test',
@@ -81,5 +82,51 @@ describe('authentication configuration', () => {
 
   it('does not accept a configuration that opens public signup', () => {
     expect(() => loadConfig({ ...validEnvironment, SIGNUPS_OPEN: 'true' })).toThrow();
+  });
+});
+
+describe('Welcome development configuration', () => {
+  it('defaults off without requiring unrelated settings in the narrow seed validator', () => {
+    expect(loadWelcomeLabConfig({})).toEqual({ WELCOME_LAB_TEST_ENABLED: false });
+    expect(loadConfig(validEnvironment).WELCOME_LAB_TEST_ENABLED).toBe(false);
+    expect(loadWelcomeLabConfig({ NODE_ENV: 'production' })).toEqual({ WELCOME_LAB_TEST_ENABLED: false });
+  });
+
+  it.each(['development', 'test'])('requires the exact public placeholder when enabled in %s', (NODE_ENV) => {
+    const enabled = { ...validEnvironment, NODE_ENV, WELCOME_LAB_TEST_ENABLED: 'true' };
+    expect(() => loadConfig(enabled)).toThrow('requires the approved public placeholder');
+    expect(loadConfig({ ...enabled, WELCOME_LAB_FLAG: WELCOME_LAB_PUBLIC_FLAG })).toMatchObject({
+      WELCOME_LAB_TEST_ENABLED: true,
+      WELCOME_LAB_FLAG: WELCOME_LAB_PUBLIC_FLAG,
+    });
+  });
+
+  it('rejects coercion, misspellings and changed placeholder values', () => {
+    for (const value of ['', 'TRUE', '1', 'yes', ' false ']) {
+      expect(() => loadWelcomeLabConfig({ WELCOME_LAB_TEST_ENABLED: value })).toThrow();
+    }
+    for (const value of ['', WELCOME_LAB_PUBLIC_FLAG.toLowerCase(), ` ${WELCOME_LAB_PUBLIC_FLAG}`, `${WELCOME_LAB_PUBLIC_FLAG} `, 'different-public-placeholder']) {
+      expect(() => loadWelcomeLabConfig({ WELCOME_LAB_FLAG: value })).toThrow();
+    }
+    expect(() => loadWelcomeLabConfig({ NODE_ENV: 'prod' })).toThrow();
+  });
+
+  it('rejects either test setting in production, including explicit false', () => {
+    for (const settings of [
+      { WELCOME_LAB_TEST_ENABLED: 'false' },
+      { WELCOME_LAB_TEST_ENABLED: 'true', WELCOME_LAB_FLAG: WELCOME_LAB_PUBLIC_FLAG },
+      { WELCOME_LAB_FLAG: WELCOME_LAB_PUBLIC_FLAG },
+    ]) {
+      expect(() => loadWelcomeLabConfig({ NODE_ENV: 'production', ...settings }))
+        .toThrow('Welcome lab test settings are disabled in production');
+      expect(() => loadConfig({ ...validEnvironment, NODE_ENV: 'production', ...settings }))
+        .toThrow('Welcome lab test settings are disabled in production');
+    }
+  });
+
+  it('does not select Welcome settings from frontend mode or browser-shaped values', () => {
+    const browserInput = { FRONTEND_MODE: 'live', welcomeLabTestEnabled: 'true', flag: WELCOME_LAB_PUBLIC_FLAG };
+    expect(loadWelcomeLabConfig(browserInput)).toEqual({ WELCOME_LAB_TEST_ENABLED: false });
+    expect(loadConfig({ ...validEnvironment, ...browserInput }).WELCOME_LAB_TEST_ENABLED).toBe(false);
   });
 });

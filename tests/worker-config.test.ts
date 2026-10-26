@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadWorkerConfig } from '../src/worker-config.js';
+import { WELCOME_LAB_PUBLIC_FLAG } from '../src/welcome-lab-config.js';
 
 const base = {
   NODE_ENV: 'production',
@@ -14,6 +15,24 @@ const base = {
 };
 
 describe('worker configuration boundary', () => {
+  it('shares the exact local Welcome opt-in and production refusal', () => {
+    const local = { ...base, NODE_ENV: 'test', DOCKER_SOCKET_PATH: '/var/run/docker.sock' };
+    expect(loadWorkerConfig(local).WELCOME_LAB_TEST_ENABLED).toBe(false);
+    expect(() => loadWorkerConfig({ ...local, WELCOME_LAB_TEST_ENABLED: 'true' })).toThrow('requires the approved public placeholder');
+    expect(loadWorkerConfig({ ...local, WELCOME_LAB_TEST_ENABLED: 'true', WELCOME_LAB_FLAG: WELCOME_LAB_PUBLIC_FLAG }))
+      .toMatchObject({ WELCOME_LAB_TEST_ENABLED: true, WELCOME_LAB_FLAG: WELCOME_LAB_PUBLIC_FLAG });
+    expect(() => loadWorkerConfig({ ...local, WELCOME_LAB_TEST_ENABLED: 'TRUE' })).toThrow();
+    expect(() => loadWorkerConfig({ ...local, WELCOME_LAB_FLAG: 'different-public-placeholder' })).toThrow();
+    for (const settings of [
+      { WELCOME_LAB_TEST_ENABLED: 'false' },
+      { WELCOME_LAB_TEST_ENABLED: 'true', WELCOME_LAB_FLAG: WELCOME_LAB_PUBLIC_FLAG },
+      { WELCOME_LAB_FLAG: WELCOME_LAB_PUBLIC_FLAG },
+    ]) {
+      expect(() => loadWorkerConfig({ ...base, ...settings }))
+        .toThrow('Welcome lab test settings are disabled in production');
+    }
+  });
+
   it('requires an explicit positive integer node capacity', () => {
     const { LAB_NODE_CAPACITY_SLOTS: _capacity, ...withoutCapacity } = base;
     const docker = { DOCKER_SOCKET_PATH: '/var/run/docker.sock', NODE_ENV: 'test' };

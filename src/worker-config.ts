@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { loadWelcomeLabConfig, type WelcomeLabConfig } from './welcome-lab-config.js';
 
 const workerEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -53,11 +54,12 @@ const workerEnvSchema = z.object({
   }
 });
 
-export type WorkerConfig = z.infer<typeof workerEnvSchema>;
+export type WorkerConfig = z.infer<typeof workerEnvSchema> & WelcomeLabConfig;
 
 export function loadWorkerConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
+  const welcome = loadWelcomeLabConfig(env);
   if (env.DOCKER_CERT_PATH !== undefined) {
     throw new Error('DOCKER_CERT_PATH is reserved by Docker tooling; use DOCKER_CLIENT_CERT_PATH for the worker certificate file');
   }
-  return workerEnvSchema.parse(env);
+  return { ...workerEnvSchema.parse(env), ...welcome };
 }

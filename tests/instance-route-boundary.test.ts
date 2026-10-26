@@ -117,7 +117,11 @@ describe('instance authorization and empty command boundaries', () => {
 
   it('rejects acting-user, verification and runtime fields before persisting', async () => {
     const authorization = `Bearer ${await signToken('instances:write')}`;
-    for (const fields of [{ userId: 'forged' }, { emailVerified: true }, { privileged: true }]) {
+    for (const fields of [
+      { userId: 'forged' }, { emailVerified: true }, { privileged: true },
+      { WELCOME_LAB_TEST_ENABLED: true }, { WELCOME_LAB_FLAG: 'public-placeholder' },
+      { welcomeLabTestEnabled: true },
+    ]) {
       const response = await app.inject({
         method: 'POST', url: '/v1/instances',
         headers: { authorization, 'idempotency-key': 'strict-create-001' },

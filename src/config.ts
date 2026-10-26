@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { loadWelcomeLabConfig, type WelcomeLabConfig } from './welcome-lab-config.js';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -29,9 +30,10 @@ const envSchema = z.object({
   EMAIL_SENDER_NAME: z.string().trim().min(1).max(100).regex(/^[^\r\n]+$/u).default('Cyber Range'),
 });
 
-export type Config = z.infer<typeof envSchema>;
+export type Config = z.infer<typeof envSchema> & WelcomeLabConfig;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  const welcome = loadWelcomeLabConfig(env);
   const config = envSchema.parse(env);
   if (config.MAIL_PROVIDER === 'gmail') {
     if (!config.SMTP_USER || !config.SMTP_APP_PASSWORD) {
@@ -81,5 +83,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       'BFF_AUTH_SECRET, BACKEND_SERVICE_TOKEN_SECRET, and INSTANCE_FLAG_SECRET must be different',
     );
   }
-  return config;
+  return { ...config, ...welcome };
 }
