@@ -1,6 +1,6 @@
 # Backend development plan
 
-## Harmless Welcome lab: Phase 2 runtime verified (2026-10-26)
+## Harmless Welcome lab: Phase 2 complete locally (2026-10-26)
 
 The user requested implementation of the harmless Welcome test plan, replacing
 Cookie Monster. Confirmed choices are the exact shared Welcome flag, local
@@ -125,11 +125,11 @@ Public signup, hosted changes and production security gates remain outside scope
 
 Final shared fixture cleanup: PostgreSQL was already stopped; its dedicated
 cluster/state were removed after exact-path, absent-PID and closed-port checks.
-Redis' loopback port is closed, but Docker Desktop inventory times out after
-restart. Its owned-container state is preserved until absence/removal can be
-confirmed. Windows is locked, so UI inspection stopped and the user was asked
-to unlock the desktop. This cleanup check remains open. The VM remains off;
-no Phase 3 work or push has started.
+After the user unlocked the desktop, Docker inventory confirmed the retained
+Redis container absent and no phase-labeled containers remaining. Only then was
+its stale ownership record removed. Both fixture ports are closed and no
+phase-owned service state files remain. Cleanup is complete and the VM remains
+off. No Phase 3 work or push has started; await approval for that phase.
 
 ## Current delivery: mock preview and lifecycle hardening (2026-10-23)
 
