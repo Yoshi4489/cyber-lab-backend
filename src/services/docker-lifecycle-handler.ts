@@ -12,7 +12,7 @@ export class DockerLifecycleHandler implements LifecycleOperationHandler {
   constructor(
     private readonly state: LifecycleStateRepository,
     private readonly manifests: RuntimeManifestRegistry,
-    private readonly flags: InstanceFlagService,
+    private readonly flags: Pick<InstanceFlagService, 'derive'>,
     private readonly orchestrator: DockerOrchestrator,
     private readonly nodeId: string,
     private readonly clock: () => Date = () => new Date(),

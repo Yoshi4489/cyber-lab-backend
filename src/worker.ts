@@ -11,7 +11,7 @@ import { createRedisConnection, LifecycleQueue } from './queue/lifecycle-queue.j
 import { DockerLifecycleHandler } from './services/docker-lifecycle-handler.js';
 import { ManagedResourceSweeper } from './services/managed-resource-cleanup.js';
 import { SerializedLifecycleRunner } from './services/serialized-lifecycle-runner.js';
-import { HmacInstanceFlagService } from './services/instance-flags.js';
+import { createRuntimeFlagDeriver } from './services/runtime-flags.js';
 import { loadWorkerConfig } from './worker-config.js';
 
 const config = loadWorkerConfig();
@@ -33,7 +33,7 @@ const nodeId = await stateRepository.registerNode(config.LAB_NODE_NAME, config.L
 const handler = new DockerLifecycleHandler(
   stateRepository,
   manifests,
-  new HmacInstanceFlagService(config.INSTANCE_FLAG_SECRET),
+  createRuntimeFlagDeriver(config.INSTANCE_FLAG_SECRET, config),
   orchestrator,
   nodeId,
 );
