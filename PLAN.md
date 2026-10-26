@@ -1,30 +1,36 @@
 # Backend development plan
 
-## First playable CTF: Phase 1 in progress (2026-10-26)
+## Harmless Welcome lab: Phase 1 in progress (2026-10-26)
 
-The user authorized the first authored web CTF connected to real learner
-accounts. The user approved the lead's documentation diff in `docs/API.md` on
-October 26; Phase 1 implementation is authorized. Existing `/v1`
-DTOs, auth, scoring and lifecycle remain authoritative; no schema migration or
-dependency is planned. Use the retained target-only VM and fresh disposable
-control-plane fixtures; do not change hosted services or open public signup.
+The user requested implementation of the harmless Welcome test plan, replacing
+Cookie Monster. Confirmed choices are the exact shared Welcome flag, local
+isolated VM and 10 points once. **The user approved the actual replacement
+contract diff in `docs/API.md` on October 26; Phase 1 is authorized.** No Welcome
+backend source has been written. Existing `/v1` DTOs/auth/lifecycle remain;
+a Welcome-only development/test flag policy is the proposed semantic change.
+No migration, dependency, hosted change or public signup is planned.
 
-1. **Playable slice:** backend agent implements Cookie Monster under backend
-   `challenges/`, including a pinned-base image, health check, relative/prefix-safe
-   navigation and scoped cookies, runtime-only flag and no-flag-output solve.
-   Add a separate validated catalog identity; explicitly reseed only disposable
-   data, unpublishing sample fixtures without deleting identities/solve history.
-   Frontend agent connects real identity, briefing and flag submission through
-   existing BFF/lifecycle DTOs. Report verification and pause.
-2. **Persisted learner views:** frontend connects profile/dashboard/rankings
-   through the existing progress contracts and new preview-gated BFF reads.
-   Backend verifies authored-challenge solve uniqueness, persistence and privacy.
-   Report verification and pause.
-3. **Real browser acceptance:** fresh disposable PostgreSQL/Redis, existing
-   isolated VM and one worker; preflight and browser login/spawn/solve/score,
-   refresh, extension, expiry/stop and cleanup. Verify two-player flag/ownership
-   separation and distinct learner/target cookie hosts. Run required gates,
-   record actual evidence, remove temporary resources and pause.
+1. **Accounts/catalog:** validated local-only Welcome settings, stable identity
+   and conditional disposable seed; two verified learners; frontend login and
+   listing/briefing checks. Preserve historical IDs/solves.
+2. **Spawn/running:** static Welcome target with runtime-injected flag, health,
+   pinned image/manifest and VM preflight; actual readiness, refresh and create
+   idempotency through one worker/node with two slots.
+3. **Submission/persistence:** Welcome-only fixed-flag injection/verification,
+   unchanged owner/running/expiry checks, incorrect/correct/repeated/concurrent
+   attempts, exactly one 10-point award and real progress views.
+4. **Two-user isolation:** distinct resources, foreign-operation denial, benign
+   health requests between controlled targets and independent stop behavior.
+5. **Expiry/cleanup:** destroy/repeat/timeout, capacity refusal/retention and
+   controlled partial cleanup/retry with resource/route absence evidence.
+6. **Regression/replacement readiness:** full harmless browser flow, application
+   and disposable-service gates, preview/cookie isolation and final cleanup.
+
+After each numbered phase, report changes, test steps/results and open questions,
+update canonical docs and pause for approval. The shared flag is public test
+content, not proof of per-user flag separation. No exploit or attack payload is
+used. Real labs later use separate reviewed content and the existing dynamic
+flag policy; retire Welcome by unpublishing, preserving history.
 
 Backend agent edits only this repo; frontend agent edits only its sibling. The
 lead owns contract changes; agents propose changes rather than editing the

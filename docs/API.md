@@ -88,28 +88,50 @@ After each numbered phase, update existing status documents with actual checks,
 report changed behavior, testing and open questions, and await approval before
 the next phase. This review does not close any production security gate.
 
-## Approved delivery: first playable web CTF (2026-10-26)
+## Approved replacement delivery: harmless Welcome lab (2026-10-26)
 
-**Review checkpoint: documentation diff approved by the user on 2026-10-26.** The
-user authorized beginning a playable CTF connected to real learners. The
-mock-preview delivery above is complete; its exclusion of real challenge content
-describes that earlier delivery. This delivery extends scope to one locally
-playable challenge. It does not authorize hosted configuration or deployment.
-Phase 1 implementation is authorized; agents must return any contract change
-to the lead and user. Phases 2 and 3 retain their separate approval checkpoints.
+**Review checkpoint: documentation diff approved by the user on 2026-10-26.**
+The user requested implementation of the harmless Welcome test plan and chose
+the exact shared flag, local isolated VM and 10 points awarded once. This
+replaces the earlier Cookie Monster delivery; no vulnerable application,
+exploit, attack payload or sensitive challenge content is included. Existing
+partial frontend work is preserved for review and reuse. No backend target
+implementation from the replaced delivery exists.
 
-### Existing backend contract remains authoritative
+The mock-preview delivery above remains complete. This local test delivery
+does not authorize hosted configuration, deployment or public signup. After
+contract approval, exactly two agents retain their frontend/backend repository
+boundaries. Phase 1 is authorized; later phases retain separate approval
+checkpoints. Further contract changes return to the lead and user.
 
-No new `/v1` endpoint, scope, response field, database migration, or dependency
-is planned. Generated OpenAPI types remain the wire source of truth; frontend
-adapters validate responses at runtime without importing backend source.
+### Existing wire contract and Welcome-only flag exception
+
+No new `/v1` endpoint, scope, response field, database migration or dependency
+is planned. Generated OpenAPI types remain authoritative and frontend adapters
+validate responses without importing backend source. Welcome has its own stable
+ID `88888888-8888-4888-8888-888888888888`, slug `welcome`, kind `web`, easy
+difficulty and 10 points. It does not reuse retired fixture identities.
+
+The current flag service derives unique flags. For this test only, introduce
+server-controlled `WELCOME_LAB_TEST_ENABLED`, default false. Enabling it is
+allowed only in development/test, never production, and requires the trusted
+fixture setting `WELCOME_LAB_FLAG=FLAG{WELCOME_TO_CISCO_FAMILY}`. Production
+configuration rejects these Welcome test settings. Browser input, frontend mode
+and request fields cannot select a flag policy. API, worker and explicit local
+catalog seed use the same validated test configuration.
+
+When enabled, the shared flag applies only to Welcome's fixed challenge ID;
+all other IDs keep HMAC per-instance derivation and verification. Both policies
+run behind existing live-session, ownership, challenge-match, running-state and
+expiry checks. Preserve the existing case-sensitive comparison and trimming of
+surrounding whitespace. Never accept the Welcome flag as a global fallback.
 
 | Learner action | Existing backend operation | Required browser behavior |
 |---|---|---|
 | Sign in and restore identity | Existing BFF login/session/logout contract | Use the real account throughout live navigation; never use preview identity for live authority. Public signup stays closed. |
-| Browse and start Cookie Monster | Catalog reads and `POST /v1/instances` with `{ challengeId }` | Show the published challenge briefing, objective and assigned-target-only scope; require a currently verified operator-created account. |
+| Browse and start Welcome | Catalog reads and `POST /v1/instances` with `{ challengeId }` | Show a harmless introductory briefing, the Spawn Instance action and assigned-target-only scope; require a currently verified operator-created account. |
 | Play and manage a lab | Existing owner read, extend and delete operations | Poll accepted state, disclose the URL only while running, preserve idempotency/backoff, and explain failure/expiry without substituting demo state. |
-| Submit the recovered flag | `POST /v1/submissions` with `{ challengeId, instanceId, flag }` | Enable only for this challenge's running, locally unexpired instance. Backend ownership and expiry checks remain decisive. Show incorrect, first-solve and zero-point repeat outcomes. |
+| Submit the displayed flag | `POST /v1/submissions` with `{ challengeId, instanceId, flag }` | Enable only for this challenge's running, locally unexpired instance. Backend ownership and expiry checks remain decisive. Ordinary incorrect input awards zero; the first correct solve awards 10 and repeats award zero. |
 | Read personal progress | `GET /v1/profile`, scope `profile:read` | Show server totals and solve history; account selection never comes from browser input. |
 | Read rankings | Public `GET /v1/leaderboard` | Show returned ranks, display names and aggregates; never append fictional players in live mode. |
 
@@ -129,8 +151,8 @@ credential, cookie or upstream access, including on these new handlers.
 Existing `/api/submissions` keeps strict validation and same-origin mutation
 checks. Flag input is transient: never place it in URLs, browser storage,
 analytics, logs, error messages or submission responses; clear it on success,
-instance changes and sign-out. Only the intentionally vulnerable target reveals
-the runtime-injected flag after the intended solve, not a control-plane API.
+instance changes and sign-out. Welcome openly displays the runtime-injected
+test flag; a control-plane API never returns an expected or submitted flag.
 
 Live dashboard/Profile read persisted progress, and live rankings use the public
 leaderboard. Empty, loading, denied and unavailable states are explicit; no
@@ -140,59 +162,70 @@ The API still has no active-instance discovery/list endpoint: refresh can restor
 a remembered returned instance ID after owner revalidation; recovery on another
 browser/device is outside this milestone.
 
-### First challenge and local trust boundary
+### Harmless content and local trust boundary
 
-Use the existing Cookie Monster concept: a beginner bakery application with an
-intentionally unsigned role cookie. Add the implementation, pinned-base
-Dockerfile, automated solve and maintainer writeup under the backend-owned
-`challenges/` directory. The frontend's existing YAML-only sketch is historical,
-not a worker manifest. Actual public metadata uses the existing validated
-catalog definitions; actual runtime uses `runtimeManifestSchema` JSON. The
-frontend owns instructional presentation, with no target runtime or secrets.
+Implement a static Welcome page and flag-free health endpoint under backend
+`challenges/welcome/`, with a digest-pinned base image, bounded runtime and
+automated benign completion check. No bypass, hidden step, vulnerable behavior
+or target account is needed. Actual public metadata uses validated catalog
+definitions; runtime uses `runtimeManifestSchema` JSON. The frontend owns
+instructional presentation, with no runtime or management credentials.
 
-Give the new challenge its own stable ID/slug, separate from fixture IDs. Keep
-existing fixture identities and historical solves intact, but unpublish the six
-sample definitions on an explicit catalog reseed so they are not advertised as
-playable content. Do not reseed any hosted or existing personal database as part
-of local acceptance. Tests may explicitly publish fixture definitions.
+Keep existing fixture identities and historical solves intact. The explicit
+disposable Welcome seed publishes Welcome only when its test policy is enabled
+and unpublishes the six samples so they are not advertised as playable labs.
+Do not reseed hosted or personal databases. Disabling the policy and explicitly
+reseeding unpublishes Welcome; this changes no existing solve history.
 
-The target uses relative navigation and works behind `/labs/<route-key>/`
-prefix stripping. Challenge cookies stay within that instance path and never
-set a parent-domain cookie. Flags are HMAC-derived and injected at runtime only;
-the image, catalog, briefing and solve output contain no fixed flag. The solve
-checks the intended bypass and reports success without printing the flag. Free
-instructional hints can be frontend metadata; paid hints and an in-app writeup
-API are deferred.
+The target uses relative navigation behind `/labs/<route-key>/` prefix stripping
+and needs no cookies. Inject the flag through the existing runtime environment
+boundary; do not bake it into an image or persist submitted flag values. Keep
+the runtime fixture configuration outside version control. Completion checks
+report outcomes without printing response bodies, credentials or submitted
+flags. The fixed value in this contract is intentional public placeholder
+content, not a platform secret or authorization credential.
 
 Use the retained disposable target-only Linux VM, one worker/node and existing
 isolation/capacity controls. In browser acceptance, control-plane and target
 ingress must have different cookie hostnames, not just different ports (for
 example, learner site `localhost`, target `127.0.0.1`). Prove the learner session
-cookie is absent at the target, and challenge cookies cannot authorize platform
-operations. Keep credentials, generated manifests, certificates and test flags
-outside version control; repeat preflight before real target creation.
+cookie is absent at the target. Keep credentials, generated manifests,
+certificates and runtime test configuration outside version control; repeat
+preflight before real target creation.
 
 ### Approval checkpoints and acceptance
 
-1. **Playable slice:** backend agent authors/seeds the challenge and verifies
-   its solve; frontend agent connects real identity, briefing, lifecycle and
-   flag submission using a contract-shaped local fixture. Hide unfinished live
-   progress views rather than displaying demo totals or fictional rankings.
-   Check malformed flags,
-   cross-user/expired denial, wrong answers, repeat solves, safe return links,
-   prefix-aware cookies and unknown submission outcomes. Report and pause.
-2. **Persisted learner views:** frontend agent adds the two BFF reads and live
-   dashboard/Profile/rankings, refreshes progress after solving and prevents
-   stale results after sign-out/account changes. Backend agent verifies the
-   existing persistence/privacy contracts against the real challenge. Report
-   and pause.
-3. **Real browser acceptance:** with fresh disposable PostgreSQL/Redis and the
-   isolated VM, exercise real login, spawn, target solve, flag submission,
-   refresh-persistent scoring, extension, expiry, stop and route removal. Prove
-   two-player ownership/flag separation and cookie isolation. Run required
-   frontend/backend gates, generated-type freshness and preview isolation;
-   inspect responsive/theme/keyboard flows in one combined pass with at most one
-   confirmation pass. Record actual evidence and remove temporary resources.
+1. **Accounts and catalog:** two fresh verified learners, login/refresh/logout,
+   ordinary incorrect-password checks, real identity and a Welcome briefing.
+   Hide unfinished live progress rather than displaying demo totals/rankings.
+2. **Spawn and running:** actual isolated VM target, preflight, readiness-only
+   URL, persistent expiry, idempotent creation and visible Welcome flag. Keep
+   one worker/node, two configured slots and the existing per-user quota.
+3. **Submission and persistence:** incorrect/correct/repeated/concurrent
+   attempts; exactly one 10-point award; validated profile/leaderboard BFF reads
+   and live progress; refresh/relogin, malformed input and inactive-instance
+   denial. No automatic retry after an unknown submission outcome.
+4. **Two-user isolation:** distinct containers/networks/routes; ownership-safe
+   foreign read/extend/destroy/submission denial; stopping A preserves B. Use
+   only benign health requests between controlled fixtures, with no scanning or
+   exploit payloads. The shared flag cannot establish per-user flag separation.
+5. **Expiry and cleanup:** manual/repeated destroy, timeout, capacity refusal,
+   controlled partial-cleanup retry and confirmation that old routes/resources
+   disappear. Retain capacity until resources are confirmed absent.
+6. **Regression and replacement readiness:** full harmless browser journey,
+   required frontend/backend gates, generated types, preview isolation and
+   distinct cookie hosts. Inspect responsive/theme/keyboard flows in one combined
+   pass with at most one confirmation. Remove fixtures and record final counts.
+
+After each numbered phase, report changes, reproduction steps/results and open
+questions, update canonical docs and pause for approval. Each phase uses fresh
+disposable services as needed; caches/fixture tests do not replace real VM
+evidence. Shortened expiry belongs only in disposable test fixtures.
+
+Future real labs receive new IDs and reviewed images/manifests, use the existing
+unique per-instance flag policy and repeat these platform tests with a separately
+reviewed content-specific completion step. Retire Welcome by unpublishing it,
+preserving solve history. Real content and hosted rollout need separate approval.
 
 Exactly two implementation agents retain frontend-only and backend-only
 repository ownership. Keep migrations (if later approved), behavior, refactors
