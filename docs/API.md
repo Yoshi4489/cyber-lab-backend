@@ -91,6 +91,12 @@ the next phase. This review does not close any production security gate.
 ## Approved replacement delivery: harmless Welcome lab (2026-10-26)
 
 **Review checkpoint: documentation diff approved by the user on 2026-10-26.**
+Implementation status: Phase 1 local settings, conditional catalog seeding and
+real learner account/catalog acceptance are complete. Target spawning and
+Welcome-only fixed-flag injection/verification remain later approval checkpoints.
+The frontend keeps Welcome launch disabled; profile/rankings BFF reads below
+remain planned for Phase 3. This status note does not change the approved contract.
+
 The user requested implementation of the harmless Welcome test plan and chose
 the exact shared flag, local isolated VM and 10 points awarded once. This
 replaces the earlier Cookie Monster delivery; no vulnerable application,

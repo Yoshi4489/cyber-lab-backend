@@ -55,6 +55,47 @@ with `npm run db:migrate`. Use `npm run db:generate` only after a reviewed schem
 change, and review the generated SQL before committing it. The worker consumes
 `REDIS_URL`.
 
+## Harmless Welcome: accounts and catalog checkpoint
+
+Use a fresh disposable database for the Welcome delivery. Phase 1 adds account
+entry, catalog publication and configuration validation; it does not yet add a
+Welcome target image, runtime flag policy or a running instance. Keep its worker
+off until the later spawn checkpoint is implemented and approved.
+
+In the ignored local backend configuration, set:
+
+```dotenv
+NODE_ENV=development
+WELCOME_LAB_TEST_ENABLED=true
+WELCOME_LAB_FLAG=FLAG{WELCOME_TO_CISCO_FAMILY}
+```
+
+The displayed value is intentional public onboarding content, not a credential.
+The shared validator is used by API, worker configuration and the seed command.
+It defaults off, rejects invalid values, and rejects either Welcome setting's
+presence in production, including explicit `false`. Do not set these variables
+on Render or other hosted services. A locally built frontend can still use its
+production build while this separate backend runs in development/test mode.
+
+Configure the ordinary database and seed-account fields, migrate the fresh
+database, then run `npm run db:seed`. Welcome is published with its own stable
+identity and 10-point metadata; the six sample definitions become unpublished.
+To create a second verified learner, change the `SEED_PLAYER_*` values in the
+private fixture configuration and seed again. Normal retries preserve existing
+accounts and credentials; no email is sent and public signup remains closed.
+
+The frontend must explicitly select `FRONTEND_MODE=live` and use matching
+server-only BFF configuration. Visit `/login`, sign in with either test learner,
+refresh, browse `/labs/welcome` and sign out. The briefing currently shows a
+disabled **Spawn Instance** action and explains that launch is being prepared;
+direct Welcome session navigation returns to its briefing. Preview keeps its
+independent username-only entry and sample catalog.
+
+Setting `WELCOME_LAB_TEST_ENABLED=false` and explicitly reseeding unpublishes
+Welcome and restores the ordinary sample publication settings. Both histories
+and challenge identities remain. API startup alone never reseeds data. No
+existing personal or hosted database is modified by this acceptance workflow.
+
 ## Lifecycle worker
 
 Read [LIFECYCLE.md](LIFECYCLE.md), create a reviewed runtime-manifest JSON file,

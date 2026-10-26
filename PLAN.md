@@ -1,13 +1,14 @@
 # Backend development plan
 
-## Harmless Welcome lab: Phase 1 in progress (2026-10-26)
+## Harmless Welcome lab: Phase 1 complete (2026-10-26)
 
 The user requested implementation of the harmless Welcome test plan, replacing
 Cookie Monster. Confirmed choices are the exact shared Welcome flag, local
 isolated VM and 10 points once. **The user approved the actual replacement
 contract diff in `docs/API.md` on October 26; Phase 1 is authorized.** No Welcome
-backend source has been written. Existing `/v1` DTOs/auth/lifecycle remain;
-a Welcome-only development/test flag policy is the proposed semantic change.
+target runtime has been written. Validated local test settings and the conditional
+catalog seed are implemented. Existing `/v1` DTOs/auth/lifecycle remain;
+Welcome-only fixed-flag injection/verification remains a later-phase change.
 No migration, dependency, hosted change or public signup is planned.
 
 1. **Accounts/catalog:** validated local-only Welcome settings, stable identity
@@ -36,6 +37,44 @@ Backend agent edits only this repo; frontend agent edits only its sibling. The
 lead owns contract changes; agents propose changes rather than editing the
 contract. Keep commits focused and preserve unrelated work. The prior delivery
 below is complete; production and hosted acceptance remain separate open gates.
+
+Phase 1 source is split into `72f7583` (shared API/worker/seed local configuration
+validation) and `3e84e38` (stable Welcome metadata and conditional seed). The flag
+setting is validated but does not yet change runtime injection or submission
+verification. Explicit seeding publishes only Welcome when enabled; disabling
+and reseeding restores ordinary sample publication and unpublishes Welcome.
+Upserts preserve catalog IDs and historical solves; integration coverage uses
+direct historical database fixtures, not new Welcome submissions.
+
+Verification on Node 24.19.0: lint, typecheck, build and whitespace passed. A
+fresh native PostgreSQL 18 cluster, disposable memory-only Redis and existing
+OpenSSL passed all 232 tests across 42 files with zero skips using the normal
+one-worker suite. An initial catalog startup test exceeded its existing five-
+second timeout under load; unchanged focused catalog checks passed 5/5, then the
+unchanged full suite passed 232/232 without relaxing deadlines. New integration
+checks create their own database, exercise two verified learners, wrong-password
+denial, independent sessions/logout, seed toggles and history preservation.
+Generated frontend types exactly match all 20 API paths; no wire shape changed.
+
+Independent browser acceptance connected the built frontend through its BFF to
+the real compiled API and a separate fresh PostgreSQL database. Both verified
+learners passed wrong-password 401, login 200, HttpOnly session, Welcome-only
+catalog/10 points, refresh identity, disabled launch, direct-session redirect,
+logout 204 and revoked-session checks. There were no browser errors, unexpected
+outbound requests, later-phase calls, emails or target creation. The acceptance
+database was dropped and its API/frontend ports closed. See the sibling PLAN
+for browser/regression and 24-screen visual evidence.
+Final cleanup removed the owned PostgreSQL cluster and both task-labeled Redis
+fixtures (including one earlier startup fixture found during final inventory).
+All three fixture ports closed, with no owned PostgreSQL processes/directories,
+Redis containers or private connection-state files remaining. The VM stayed off.
+
+Repeat setup and seed instructions are in `docs/LOCAL_DEVELOPMENT.md`; run
+the existing lint/typecheck/build/test commands with disposable database/Redis
+settings, then use two verified operator accounts in explicit frontend live mode.
+Keep worker/VM stopped for Phase 1. No open Phase 1 questions remain. **Await
+approval before Phase 2 target/runtime work.** Public signup, hosted changes,
+production runtime evidence and production security gates remain outside scope.
 
 ## Current delivery: mock preview and lifecycle hardening (2026-10-23)
 

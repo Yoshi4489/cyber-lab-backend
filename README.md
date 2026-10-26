@@ -15,6 +15,14 @@ This repository is
 
 ## Project status
 
+The latest approved delivery is harmless Welcome testing. Its Phase 1 implements
+local-only test configuration, explicit catalog publication and verified learner
+account checks. Welcome is worth 10 points in catalog metadata; target spawning,
+its shared-flag validation and new solve/scoring acceptance remain later
+checkpoints. The actual verification results are tracked at the top of
+[PLAN.md](PLAN.md). See [local setup](docs/LOCAL_DEVELOPMENT.md#harmless-welcome-accounts-and-catalog-checkpoint).
+The prior mock-preview/hardening delivery below is complete historical evidence.
+
 Current delivery checkpoint (2026-10-26): the approved work targets an isolated
 mock frontend preview and local backend security/lifecycle hardening. Phase 1
 adds current persisted-email verification for creation and rejects nonempty
