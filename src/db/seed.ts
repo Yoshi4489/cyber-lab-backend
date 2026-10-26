@@ -5,6 +5,7 @@ import type { AccountRole } from '../services/auth-repository.js';
 import { DrizzleAuthRepository } from './auth-repository.js';
 import { createDatabase } from './client.js';
 import { seedCatalog } from './catalog-seed.js';
+import { loadWelcomeLabConfig } from '../welcome-lab-config.js';
 
 const seedConfigSchema = z.object({
   DATABASE_URL: z.url(),
@@ -16,6 +17,7 @@ const seedConfigSchema = z.object({
   SEED_PLAYER_DISPLAY_NAME: z.string().trim().min(1).max(64),
 });
 
+const welcome = loadWelcomeLabConfig();
 const config = seedConfigSchema.parse(process.env);
 const database = createDatabase(config.DATABASE_URL);
 const repository = new DrizzleAuthRepository(database.db);
@@ -44,7 +46,7 @@ async function seedAccount(input: {
 }
 
 try {
-  await seedCatalog(database.db);
+  await seedCatalog(database.db, welcome);
   await seedAccount({
     email: config.SEED_ADMIN_EMAIL,
     password: config.SEED_ADMIN_PASSWORD,

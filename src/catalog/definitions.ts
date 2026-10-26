@@ -18,6 +18,8 @@ export const challengeDefinitionSchema = z
 
 export type ChallengeDefinition = z.infer<typeof challengeDefinitionSchema>;
 
+export const WELCOME_CHALLENGE_ID = '88888888-8888-4888-8888-888888888888';
+
 const rawDefinitions = [
   {
     id: '11111111-1111-4111-8111-111111111111',
@@ -96,6 +98,19 @@ const rawDefinitions = [
     tags: ['analysis', 'beginner'],
     definitionVersion: 1,
     published: true,
+  },
+  {
+    id: WELCOME_CHALLENGE_ID,
+    slug: 'welcome',
+    title: 'Welcome',
+    summary: 'A harmless introduction to starting a lab and completing your first activity.',
+    category: 'web',
+    difficulty: 'easy',
+    points: 10,
+    kind: 'web',
+    tags: ['onboarding', 'beginner'],
+    definitionVersion: 1,
+    published: false,
   },
 ] satisfies ChallengeDefinition[];
 
