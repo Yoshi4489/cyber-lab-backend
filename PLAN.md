@@ -1,14 +1,14 @@
 # Backend development plan
 
-## Harmless Welcome lab: Phase 1 complete (2026-10-26)
+## Harmless Welcome lab: Phase 2 runtime verified (2026-10-26)
 
 The user requested implementation of the harmless Welcome test plan, replacing
 Cookie Monster. Confirmed choices are the exact shared Welcome flag, local
 isolated VM and 10 points once. **The user approved the actual replacement
-contract diff in `docs/API.md` on October 26; Phase 1 is authorized.** No Welcome
-target runtime has been written. Validated local test settings and the conditional
-catalog seed are implemented. Existing `/v1` DTOs/auth/lifecycle remain;
-Welcome-only fixed-flag injection/verification remains a later-phase change.
+contract diff in `docs/API.md` on October 26, then Phases 1 and 2.** The static
+Welcome target, validated local test settings and conditional catalog seed are
+implemented. Existing `/v1` DTOs/auth/lifecycle remain; worker-only runtime
+injection is implemented, while fixed-flag verification awaits Phase 3.
 No migration, dependency, hosted change or public signup is planned.
 
 1. **Accounts/catalog:** validated local-only Welcome settings, stable identity
@@ -75,6 +75,61 @@ settings, then use two verified operator accounts in explicit frontend live mode
 Keep worker/VM stopped for Phase 1. No open Phase 1 questions remain. **Await
 approval before Phase 2 target/runtime work.** Public signup, hosted changes,
 production runtime evidence and production security gates remain outside scope.
+
+The user subsequently approved Phase 2. Commits `f1298f3` and `080c0c6` add the
+harmless static target and derive-only worker injection for its exact ID. The
+image has a narrow build context, digest-pinned base, nonroot runtime, escaped
+HTML, restrictive headers and flag-free health. Its manifest fixes bounded
+resources. Production rejects the local Welcome settings. The API submission
+verifier remains unchanged until Phase 3; no API/schema/dependency change was
+needed. Other challenges retain their existing dynamic flag derivation.
+
+Phase 2 lint, typecheck, build and all 247 tests across 44 files passed with zero
+skips against disposable PostgreSQL/Redis/TLS fixtures. An initial restricted
+test-cache failure was resolved by using the same suite in its approved native
+environment; no product change was required. Generated frontend types still
+match all 20 API paths. Frontend gates, 108 explicit-live browser cases and the
+bounded combined visual review passed; details are in the sibling PLAN.
+
+Independent real acceptance used the compiled API/worker, built frontend, fresh
+database and retained isolated Ubuntu target VM after private-network, mTLS and
+worker preflight. The operator manifest pinned Engine image ID
+`sha256:b5f4557ec7237d546c88fd279df7a6f5e201954964a8893fa51ef0353db622b2`.
+The one node had two slots. Accepted creation disclosed no URL; three concurrent
+same-key replays reused one instance and operation. Pending/running refresh kept
+the exact 60-minute expiry and two-hour absolute cap. Inventory showed one
+managed container/network/route. Nonroot, read-only root, no mounts/host ports,
+dropped capabilities, no-new-privileges, AppArmor and CPU/memory/PID limits were
+checked, along with isolated networking and no baked flag. The runtime-injected
+public placeholder was visible, health was flag-free and the target received no
+learner cookie. Stop removed all owned resources and its route returned 404.
+No submission/scoring/email or unexpected outbound browser request occurred.
+An initial ignored acceptance helper selected the wrong TLS server name; only
+that helper was corrected, then fresh acceptance passed. Separate fixture-only
+tests do not substitute for this real VM evidence.
+
+Acceptance removed its disposable database/role/private runtime directory and
+stopped its frontend/API/worker. Independent guest inventory found zero managed
+containers, networks and routes, preserved trusted ingress/TLS and no default
+route. The owned tunnel and new private handoff files were removed; retained VM
+management credentials were preserved. VM poweroff is confirmed. Final shared
+fixture cleanup is recorded below. Sanitized evidence is retained in the task's
+`welcome-phase2-qa/real-spawn-browser.json`.
+
+Repeat with the Welcome runtime instructions in `docs/LOCAL_DEVELOPMENT.md`,
+disposable accounts/services and a fresh preflight; exercise pending/running
+refresh, same-key creation, target health/open and stop/resource absence through
+the built frontend. No open product questions remain. **Pause for Phase 3
+approval: Welcome verification, once-only scoring and persisted progress.**
+Public signup, hosted changes and production security gates remain outside scope.
+
+Final shared fixture cleanup: PostgreSQL was already stopped; its dedicated
+cluster/state were removed after exact-path, absent-PID and closed-port checks.
+Redis' loopback port is closed, but Docker Desktop inventory times out after
+restart. Its owned-container state is preserved until absence/removal can be
+confirmed. Windows is locked, so UI inspection stopped and the user was asked
+to unlock the desktop. This cleanup check remains open. The VM remains off;
+no Phase 3 work or push has started.
 
 ## Current delivery: mock preview and lifecycle hardening (2026-10-23)
 

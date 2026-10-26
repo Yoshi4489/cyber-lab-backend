@@ -132,6 +132,13 @@ recovered without duplicate resources. See the gate record for probe scope.
 
 ## Data, flags, retries and audit
 
+The approved local Welcome delivery has one explicit public-placeholder
+exception, specified in `docs/API.md`. Phase 2 injects that value through the
+worker only for Welcome's fixed ID; its harmless target page intentionally
+displays it. API verification remains dynamic until the separate Phase 3
+checkpoint. The test settings are rejected in production, and no control-plane
+API returns an expected flag. All other lab identities retain dynamic flags.
+
 - Derive per-instance flags from a dedicated backend secret and runtime identity;
   persist neither expected flags nor submitted values. Verify only after an
   ownership resolver binds user, challenge, and instance.

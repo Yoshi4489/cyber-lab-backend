@@ -110,6 +110,16 @@ runtime; no expected or submitted flag is persisted. Target flag injection uses
 a narrow runtime path, never an image layer, public API response, or unrestricted
 Docker option.
 
+The approved harmless Welcome milestone adds one development/test exception:
+validated configuration selects a worker-only derive interface that supplies the
+public placeholder for Welcome's exact stable ID. Other identities retain HMAC
+derivation. The standalone `challenges/welcome/` handler reads only the injected
+runtime value; its health endpoint contains no flag. Its reviewed manifest fixes
+non-root execution, health and resource bounds around an operator-supplied
+immutable image identity. The API submission verifier is unchanged in Phase 2;
+Welcome scoring and live progress integration remain Phase 3. See `docs/API.md`
+for the approved semantics and `PLAN.md` for actual local acceptance evidence.
+
 The submission service resolves a running, unexpired instance through a narrow
 ownership interface before deriving or checking a flag, then records attempts,
 audits, and first solves transactionally. Progress reads use only the verified token subject; the public

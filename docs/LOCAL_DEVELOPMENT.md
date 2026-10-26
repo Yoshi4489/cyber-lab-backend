@@ -98,6 +98,44 @@ existing personal or hosted database is modified by this acceptance workflow.
 
 ## Lifecycle worker
 
+### Harmless Welcome runtime (Phase 2)
+
+The reviewed target source is `challenges/welcome/`. It contains only a static
+introductory page, a runtime-supplied flag and flag-free `/health`. Build the
+image from that narrow directory; do not run a target beside control-plane
+services. The Dockerfile pins its base and copies only the required runtime
+sources. Its checker and manifest generator remain outside the image.
+
+```sh
+docker build --pull=false -t cyber-range-welcome-local challenges/welcome
+npm run build
+node challenges/welcome/runtime-manifest.mjs sha256:<reviewed-target-image-id>
+```
+
+Use the actual immutable image identity observed on the isolated lab Engine,
+which may differ from a Desktop OCI index identity after image export/import.
+Save the generator's JSON to a private fixture file, set `RUNTIME_MANIFEST_PATH`
+to that file, and use the existing isolated worker/mTLS/ingress configuration
+below. One worker/node with two explicit slots is the approved local test scope.
+Transfer the image to an offline lab VM rather than enabling target internet
+access. Re-run `npm run worker:preflight` before creating any learner instance.
+
+With the validated local Welcome settings enabled, the worker injects the
+configured public placeholder only for Welcome's exact challenge identity.
+All other challenge IDs retain dynamic derivation. No flag is baked into the
+image, manifest or database. At this checkpoint API submission verification is
+still unchanged; flag submission and scoring acceptance belong to Phase 3.
+Use learner `localhost` and target `127.0.0.1` so browser session cookies cannot
+follow the target link. Different ports alone do not separate cookie domains.
+
+In explicit live mode, open Welcome, enter its session and confirm **Spawn
+Instance**. The existing API accepts pending work before a worker prepares it;
+the page link appears only after readiness. Refresh revalidates the remembered
+instance with its owner and preserves the server's original expiry. Stop the
+instance after checking the harmless page, confirm its route/resources are gone,
+and remove only the disposable service fixtures. No hosted seed or deployment
+is part of this workflow. Acceptance results are recorded in `PLAN.md`.
+
 Read [LIFECYCLE.md](LIFECYCLE.md), create a reviewed runtime-manifest JSON file,
 and configure the Traefik file-provider directory and ingress container. Run
 the worker separately from the API:

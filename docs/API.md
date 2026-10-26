@@ -92,10 +92,10 @@ the next phase. This review does not close any production security gate.
 
 **Review checkpoint: documentation diff approved by the user on 2026-10-26.**
 Implementation status: Phase 1 local settings, conditional catalog seeding and
-real learner account/catalog acceptance are complete. Target spawning and
-Welcome-only fixed-flag injection/verification remain later approval checkpoints.
-The frontend keeps Welcome launch disabled; profile/rankings BFF reads below
-remain planned for Phase 3. This status note does not change the approved contract.
+real learner account/catalog acceptance are complete. Approved Phase 2 harmless
+target spawning and worker-only injection passed local browser-to-VM acceptance.
+API submission verification and profile/rankings BFF reads below remain planned
+for Phase 3. This status note does not change the approved contract.
 
 The user requested implementation of the harmless Welcome test plan and chose
 the exact shared flag, local isolated VM and 10 points awarded once. This
@@ -107,7 +107,7 @@ implementation from the replaced delivery exists.
 The mock-preview delivery above remains complete. This local test delivery
 does not authorize hosted configuration, deployment or public signup. After
 contract approval, exactly two agents retain their frontend/backend repository
-boundaries. Phase 1 is authorized; later phases retain separate approval
+boundaries. Phases 1 and 2 are authorized; later phases retain separate approval
 checkpoints. Further contract changes return to the lead and user.
 
 ### Existing wire contract and Welcome-only flag exception

@@ -15,11 +15,12 @@ This repository is
 
 ## Project status
 
-The latest approved delivery is harmless Welcome testing. Its Phase 1 implements
-local-only test configuration, explicit catalog publication and verified learner
-account checks. Welcome is worth 10 points in catalog metadata; target spawning,
-its shared-flag validation and new solve/scoring acceptance remain later
-checkpoints. The actual verification results are tracked at the top of
+The latest approved delivery is harmless Welcome testing. Phases 1 and 2 implement
+local-only configuration, explicit catalog publication, verified learner account
+checks and an isolated static target with worker-only runtime injection. Real
+browser-to-VM spawn, readiness, refresh, idempotency and stop/removal passed.
+Welcome is worth 10 points in catalog metadata; its shared-flag validation and
+solve/scoring acceptance remain Phase 3, awaiting approval. Results are at the top of
 [PLAN.md](PLAN.md). See [local setup](docs/LOCAL_DEVELOPMENT.md#harmless-welcome-accounts-and-catalog-checkpoint).
 The prior mock-preview/hardening delivery below is complete historical evidence.
 
