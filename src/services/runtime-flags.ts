@@ -1,8 +1,8 @@
 import { WELCOME_CHALLENGE_ID } from '../catalog/definitions.js';
 import { WELCOME_LAB_PUBLIC_FLAG, type WelcomeLabConfig } from '../welcome-lab-config.js';
-import { HmacInstanceFlagService, type InstanceFlagService } from './instance-flags.js';
+import { flagMatches, HmacInstanceFlagService, type InstanceFlagService } from './instance-flags.js';
 
-/** Worker injection only. Submission verification remains a separate boundary. */
+/** Worker injection only. The API verifies through `createSubmissionFlagPolicy`. */
 export function createRuntimeFlagDeriver(
   secret: string,
   welcome: WelcomeLabConfig,
@@ -19,5 +19,21 @@ export function createRuntimeFlagDeriver(
       }
       return dynamicFlags.derive(context);
     },
+  };
+}
+
+/**
+ * API verification mirrors worker injection exactly: the shared Welcome value
+ * is accepted only for Welcome's fixed ID while its test policy is enabled,
+ * and every other challenge keeps per-instance HMAC verification.
+ */
+export function createSubmissionFlagPolicy(
+  secret: string,
+  welcome: WelcomeLabConfig,
+): InstanceFlagService {
+  const runtime = createRuntimeFlagDeriver(secret, welcome);
+  return {
+    derive: (context) => runtime.derive(context),
+    verify: (context, submittedFlag) => flagMatches(submittedFlag, runtime.derive(context)),
   };
 }
