@@ -76,3 +76,27 @@ jobs:
 
       - name: Test
         run: npm test
+
+  labs:
+    name: Lab solvers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Targets run on this disposable runner, on internal networks with no published ports.
+      - name: Prove each lab is solvable and has no known shortcut
+        run: node scripts/lab-check.mjs
