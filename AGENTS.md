@@ -5,18 +5,26 @@ changing the backend.
 
 ## Scope
 
-This repository is the backend for the Cyber Range frontend at
-`C:\Users\win\Downloads\Projects\WebApps\cyber-range`.
+This repository (`cyber-lab-backend`) is the backend for the Cyber Range
+frontend in the sibling repository `cyber-lab-frontend`.
 
 The backend owns the API, authorization boundary, database access, scoring,
 queue workers, and the lab lifecycle boundary. The frontend owns presentation
 and calls this service over HTTP. The backend is the only service allowed to
 hold Docker Engine credentials.
 
+Current state: accounts, catalog, scoring, progress and the full lab lifecycle
+are implemented and tested locally. One harmless test lab (Welcome) is used
+for end-to-end checks; it is not real challenge content. Nothing is launched:
+public signup is closed and the production security gate is open. `PLAN.md`
+has the current status and next steps; `docs/PLAN_HISTORY.md` keeps the dated
+log and earlier evidence.
+
 ## Non-negotiable rules
 
-1. Never accept a user id from a request body for authorization. Read it from
-   the verified service token subject.
+1. Never accept a user id from a request body for authorization. Protected
+   routes read it from the verified service token subject; auth bootstrap
+   routes resolve it from credentials or an opaque session token.
 2. Never expose Docker, Redis, Postgres, or lab-node credentials to the
    frontend or to a target instance.
 3. Never pass arbitrary request data into Docker options. Build runtime options
@@ -31,14 +39,50 @@ hold Docker Engine credentials.
 ## Code boundaries
 
 - `src/routes/` contains HTTP adapters and request validation.
-- `src/auth/` verifies frontend-to-backend service tokens.
-- `src/db/` will contain Drizzle schema access and migrations.
-- `src/queue/` will contain BullMQ producers and workers.
-- `src/orchestrator/` will contain the narrow Docker lifecycle adapter.
-- `tests/` contains unit, contract, and lifecycle tests.
+- `src/auth/` verifies BFF credentials and service tokens, hashes passwords
+  and opaque tokens, and builds BFF rate-limit keys.
+- `src/services/` contains application rules behind typed repository,
+  mailer, and lifecycle interfaces.
+- `src/db/` contains Drizzle schema, repositories, migrations and seeds;
+  `drizzle/` holds the committed migrations.
+- `src/queue/` contains BullMQ producers and workers.
+- `src/orchestrator/` contains the narrow Docker lifecycle adapter and Traefik
+  route delivery.
+- `src/catalog/` holds validated challenge definitions and the Welcome runtime
+  manifest helper; `challenges/` holds reviewed target sources.
+- `src/plugins/` and `src/lib/` hold correlation ids, the error envelope,
+  OpenAPI and logging.
+- `tests/` contains unit, contract, integration and lifecycle tests.
+
+Read the matching document before changing an area:
+
+| Area | Document |
+|---|---|
+| Routes, OpenAPI, error envelope, Welcome contract | `docs/API.md` |
+| Accounts, sessions, BFF credential, auth rate limits | `docs/AUTHENTICATION.md` |
+| Catalog, flags, submissions, progress, leaderboard | `docs/SCORING.md` |
+| Instance lifecycle, worker, routes | `docs/LIFECYCLE.md` |
+| Docker mTLS and the lab host | `docs/DOCKER_MTLS.md` |
+| Local setup, Welcome and VM checklists | `docs/LOCAL_DEVELOPMENT.md` |
+| Launch controls and evidence | `SECURITY.md`, `docs/PHASE4_SECURITY_GATE.md` |
 
 Keep the Docker adapter small enough to audit in one sitting. Business rules
 belong in ordinary application services where possible.
+
+## Running and testing
+
+- Node 22 (`.nvmrc`). Install with `npm ci`.
+- Checks: `npm run lint`, `npm run typecheck`, `npm run build`, `npm test`.
+- Integration tests need disposable services: set `TEST_DATABASE_URL` (a
+  PostgreSQL login that can create databases) and `TEST_REDIS_URL`. Without
+  them those suites are skipped. Use `npx vitest run --no-file-parallelism`
+  for a reliable local run; a few older lifecycle tests can race in parallel.
+- Local services: `docker compose up -d` (PostgreSQL and Redis), then
+  `npm run db:migrate` and `npm run db:seed`.
+- `LOCAL_DEV_TEST=true` disables all API rate limits for local testing; it is
+  rejected in production.
+- Never run a target container on a control-plane host. Real target checks run
+  only on the isolated lab VM after `npm run worker:preflight` passes.
 
 ## Engineering principles
 
@@ -95,6 +139,11 @@ Review `git diff` and `git status` before committing, and verify that no
 secrets, certificates, local configuration, or unrelated user changes are
 included. Use the conventional commit format shown below with a scope that
 matches the affected boundary.
+
+For this delivery workflow, commit and push each verified logical batch before
+the next batch, and finish the current phase before beginning another. Update
+the status docs with implemented behavior and actual validation evidence;
+clearly label future contracts and checks that could not run locally.
 
 ## Commit format
 

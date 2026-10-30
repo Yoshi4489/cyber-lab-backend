@@ -1,13 +1,62 @@
 import 'dotenv/config';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
+import { createDatabase } from './db/client.js';
+import { DrizzleAuthRepository } from './db/auth-repository.js';
+import { createPasswordHasher } from './auth/password.js';
+import { AuthenticationService } from './services/authentication.js';
+import { createAuthMailer } from './services/create-auth-mailer.js';
+import { DrizzleCatalogRepository } from './db/catalog-repository.js';
+import { DrizzleScoringRepository } from './db/scoring-repository.js';
+import { createSubmissionFlagPolicy } from './services/runtime-flags.js';
+import { SubmissionService } from './services/submissions.js';
+import { DrizzleProgressRepository } from './db/progress-repository.js';
+import { DrizzleInstanceLifecycleRepository } from './db/instance-lifecycle-repository.js';
+import { InstanceLifecycleService } from './services/instance-lifecycle.js';
 
 const config = loadConfig();
-const app = await buildApp(config);
+if (!config.DATABASE_URL) throw new Error('DATABASE_URL is required');
+
+const database = createDatabase(config.DATABASE_URL);
+const authentication = await AuthenticationService.create({
+  repository: new DrizzleAuthRepository(database.db),
+  passwordHasher: createPasswordHasher(),
+  mailer: createAuthMailer(config),
+});
+const instanceService = new InstanceLifecycleService(
+  new DrizzleInstanceLifecycleRepository(database.db),
+  config.LAB_PUBLIC_BASE_URL,
+);
+const submissionService = new SubmissionService(
+  new DrizzleScoringRepository(database.db),
+  instanceService,
+  createSubmissionFlagPolicy(config.INSTANCE_FLAG_SECRET, config),
+);
+const app = await buildApp(config, {
+  database,
+  authentication,
+  catalog: new DrizzleCatalogRepository(database.db),
+  submissions: submissionService,
+  progress: new DrizzleProgressRepository(database.db),
+  instances: instanceService,
+});
+
+async function shutdown(signal: string) {
+  app.log.info({ signal }, 'shutting down');
+  await app.close();
+}
+
+process.once('SIGINT', () => {
+  void shutdown('SIGINT');
+});
+process.once('SIGTERM', () => {
+  void shutdown('SIGTERM');
+});
 
 try {
   await app.listen({ host: config.HOST, port: config.PORT });
 } catch (error) {
   app.log.error(error);
+  await app.close();
   process.exitCode = 1;
 }

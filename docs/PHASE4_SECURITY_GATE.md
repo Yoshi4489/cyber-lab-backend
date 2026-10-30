@@ -1,0 +1,304 @@
+# Phase 4 security gate: validation record
+
+**Status: open.** The disposable Ubuntu 26.04 VM validates several runtime
+controls, but it is not a production layout. Public signup remains closed.
+This record distinguishes observed behavior from code-level tests and
+unverified production boundaries.
+
+## Current mock-preview delivery verification (2026-10-26)
+
+The fourth approval checkpoint of the current mock-preview/lifecycle delivery
+was approved on October 25. It is distinct from the older platform roadmap's
+Phase 4 production security gate, which remains open. The user confirmed both
+historical NongBuntu validation VMs were deleted. Their evidence below remains
+historical and cannot validate the new capacity or orphan-cleanup behavior.
+
+A replacement single-target Linux VM with a Windows control plane was selected.
+On October 25 its start was memory-blocked. On October 26, after the user
+authorized closing Roblox and Discord, `CyberRangePhase4Target` completed its
+checksum-verified Ubuntu 26.04.1 Server installation. It runs one CPU and 2 GiB
+configured memory with Docker 29.9.2. Engine advertises user namespaces,
+seccomp, AppArmor and private cgroup namespaces. A real Engine mTLS request
+returned 200; no client certificate, an untrusted server CA and an incorrect
+hostname were rejected. Windows TCP baselines to host SSH/Docker passed.
+
+Before target testing the temporary NAT adapter was removed; VirtualBox reports
+only the host-only adapter and the guest has no default route. Trusted ingress
+uses a digest-pinned Traefik 3.7.16 image, non-root/capability-free/read-only
+runtime and bounded resources. A key-pinned loopback-only SSH tunnel returned
+HTTPS 404 using the fixture CA and verified localhost certificate identity.
+The committed disposable HTTP fixture was rebuilt from its pinned base; no
+real CTF content or flag was baked into an image. Lifecycle and target-side
+acceptance below subsequently passed, completing the current local delivery's
+fourth checkpoint. The production gate remains open. See the
+[local alternative](LOCAL_DEVELOPMENT.md#disposable-single-target-vm-alternative)
+and current `PLAN.md` for progress and remaining checks.
+
+The standard one-worker PostgreSQL 18.3/Redis 7.4.11 suite passed all 222 tests
+with zero skips and unchanged deadlines/isolation. This includes two new real
+Redis regressions for delivery before the queued marker and producer failure
+after enqueue. Database-backed lifecycle/capacity/cleanup and fake Engine/router
+checks are service evidence; they are not a fresh isolated-target acceptance run.
+The October 25 PostgreSQL/Redis fixtures and temporary credentials were removed
+afterward. Fresh October 26 fixtures provided a separate runtime database
+and restricted application login; the demo database remains unchanged. Verified
+player login/logout passed. Audit insert worked, while eight privileged
+operations were denied with SQLSTATE 42501 in rolled-back probes. The API and
+worker were started only for the following isolated-host acceptance work.
+
+### Replacement-host runtime acceptance
+
+The API, single serialized worker, PostgreSQL 18.3 and Redis 7.4.11 ran on
+Windows; only Engine, ingress and disposable HTTP targets ran on the VM.
+The node has two explicitly configured slots. These are disposable fixtures,
+not authored CTF challenges or hosted deployment evidence.
+
+| Control | Observed evidence on the replacement host |
+|---|---|
+| Engine and route delivery | Actual mTLS positive and three rejection cases passed. Overlapping ingress mounts initially caused intermittent Engine archive failures. Separate read-only static binds and the writable route volume fixed the fixture; five marker round trips and the actual worker preflight passed. The TLS document was preserved. |
+| Basic lifecycle and scoring | Fresh creation/idempotency, readiness, live HTTPS health, first score 10 then zero on replay, 30-minute extension within the cap, stop and subsequent ingress 404 passed. Flags stayed runtime-only. |
+| Ownership and per-player limit | Two distinct verified players had healthy simultaneous targets. Both directions of foreign read, extend and delete returned 404: six denials with zero added mutation intents. A second active start by the same player returned 409. |
+| Node capacity | With the node's persisted slot budget set to one, two concurrent creation requests were accepted; one target ran and the other became `failed` with `node_capacity_exhausted`. The refused instance held no reservation, and the winner cleaned up normally. |
+| Expiry | A running fixture's persisted expiry was moved into the past; the real worker reaper produced `expired`, removed its container/network/route, released its reservation and left ingress returning 404. No application lifetime limits were changed. |
+| Mid-spawn crash recovery | After an immediate hard kill during provisioning, the single restarted worker recovered through the normal BullMQ stalled-job lease. Spawn attempt two reused the exact original container and network and retained one allocation. Destruction then restored an empty baseline. An earlier harness attempt delayed the kill with a Windows ownership check, allowing normal cleanup first; it was recorded as incomplete and cleaned up. Pre-verifying the owned PID fixed the harness. Application timeouts and timestamps were unchanged. |
+| Missing-row orphan cleanup | Full, route-only, network-only and stopped-container-only fixtures each received one cleanup-start and one cleanup-success audit and were removed. Repeated sweeps produced no duplicate success. An unrelated container and the exact trusted ingress survived. |
+| Terminal partial cleanup and retained capacity | An unrelated endpoint attached to a terminal instance's network prevented network deletion. Cleanup removed only the managed container/route, preserved the unrelated endpoint and retained the reservation. Another accepted spawn failed with `node_capacity_exhausted`. After explicit fixture endpoint release, a later sweep removed the network and released capacity. |
+| Failed evidence prevents destruction | Actual database unavailability, paused-ingress inventory failure, a malformed managed ownership label and revoked audit INSERT each preserved the original managed IDs/routes and produced zero cleanup-start audits. Restoring dependencies/labels/grants allowed safe cleanup. |
+| Final inventory and drain | Managed containers, networks, routes and allocations were zero, as were active database instances, reservations, pending operations and owned diagnostic containers. Root independently verified the VM inventory and route directory exactly `tls.yml`. The same trusted ingress remained running, non-root and read-only. API and worker drained through their normal shutdown handlers and the API listener closed. |
+| Runtime restrictions | Both application-created targets used UID 65532 with host user-namespace offset 100000, zero capabilities, no-new-privileges, seccomp mode 2 and `docker-default` AppArmor. Inspect confirmed private namespaces, read-only roots, writable 16 MiB tmpfs, memory/swap 128 MiB, 0.5 CPU, 64 PIDs, bounded logs, no mounts and no published ports. |
+| Network isolation | Both target probes returned `ENETUNREACH` for public IPv4, metadata, host SSH/Docker, Windows control-plane addresses and the actual other instance's HTTP endpoint. Trusted ingress positively fetched both target health endpoints. Each actual host bridge had no IPv4 address; the former gateway `.1` belonged to ingress. Target IPv6 was disabled and probes to each actual host bridge's scoped IPv6 link-local SSH address also returned `ENETUNREACH`. |
+
+Probe destinations were public `1.1.1.1:80`, metadata `169.254.169.254:80`,
+target management `192.168.56.108:22` and `:2376`, and Windows
+`192.168.56.1:17903`, `:44479` and `:35239`. Windows positively reached target
+SSH/Docker, but API/PostgreSQL/Redis listeners were loopback-only. Their negative
+target probes demonstrate absence of an off-subnet route, not isolation against
+otherwise reachable control-plane listeners. Public/metadata checks establish
+absence of a route, not the presence of a live metadata service. The paired
+bridges were `br-e2ce9fee8d23` and `br-9bb9c0c89942`; target peers were
+`172.19.0.2:8080` and `172.18.0.2:8080`. Recovery polling reached the default API
+rate window; waiting for that unchanged window succeeded. Later fixture polling
+was reduced to one request per second without extending acceptance deadlines.
+No product source or dependency changed during replacement-host acceptance.
+Sanitized observations, including the incomplete first crash attempt, are
+retained under the task visualization folder's `phase4-runtime-qa`; no private
+configuration, credentials, keys, tokens or flags are included.
+
+After evidence preservation, the independent runtime database/restricted role
+and private credentials were removed, native PostgreSQL was stopped/removed and
+the owned Redis fixture was stopped/removed. API `17903`, PostgreSQL `44479` and
+Redis `35239` were confirmed closed, with no owned service processes remaining.
+The lead independently repeated the VM inventory check, closed the owned ingress
+tunnel and gracefully powered off the installed VM. The VM, server setup and
+operator identity are retained for the next separately approved milestone.
+
+## Disposable-host evidence (2026-09-26 to 2026-09-27)
+
+The same Ubuntu VM ran Docker Engine 29.8.1, the worker, Traefik, and disposable
+PostgreSQL 16 and Redis 7. On 2026-09-26, the API ran on Windows through
+loopback-only SSH tunnels. For the 2026-09-27 drills, the API also ran on the VM
+and the Windows test runner used loopback SSH forwarding. Neither layout is a
+separate target trust zone.
+
+| Control | Evidence | Result |
+|---|---|---|
+| User namespace | Target `/proc/self/uid_map` mapped container UID 0 to host UID 100000; Docker host advertised userns. | Passed on VM |
+| Non-root, capabilities, no-new-privileges | Target reported UID 65532, `CapEff=0`, `NoNewPrivs=1`; Docker inspect showed `Privileged=false`. | Passed on VM |
+| Seccomp and AppArmor | Target reported seccomp filter mode 2; inspect showed `apparmor=docker-default`. Preflight requires Docker's built-in/default seccomp profile. | Passed on VM |
+| Filesystem and resources | Root write failed; `/tmp` write succeeded. Inspect showed read-only root, 16 MiB tmpfs, 128 MiB memory and swap, 0.5 CPU, 64 PIDs, private cgroup namespace, IPC disabled, and JSON logs limited to two 10 MiB files. No mounts or host port bindings. | Passed on VM |
+| Egress and private ranges | The target's TCP probes to `1.1.1.1:80`, `169.254.169.254:80`, `10.0.2.15:5432`, and `172.17.0.1:2375` each returned `ENETUNREACH`. | Passed for these VM destinations |
+| Cross-network isolation | A labeled disposable peer container on a second internal Docker network had IP `172.20.0.2`. The target's probe to that IP returned `ENETUNREACH`. The peer was removed. | Passed for the disposable peer |
+| Isolated ingress | HTTPS reached the live target through its unguessable Traefik route; target had no host port. After destruction, the route returned 404 and managed Docker resources were absent. | Passed on VM |
+| Automatic termination | Stopped, unhealthy, and OOM targets each became instance `failed` with the corresponding `runtime_stopped`, `runtime_unhealthy`, or `runtime_oom` failure code and `instance.runtime_terminated` audit event. On 2026-09-27, suspending the target's Node process made Docker report `unhealthy`; a memory-hungry exec made Docker report `OOMKilled=true` while the main container stayed healthy. The worker removed each container, network, and route file. The drill used a 5-second maintenance interval; default is 60 seconds. | All three paths passed on disposable VM |
+| Worker shutdown | With no active target, the worker remained alive 15 seconds after SIGTERM because its duplicated BullMQ Redis client stayed open. After `aa6a603`, a VM rebuild exited within 5 seconds; CI also checks that the duplicate reaches Redis `end` state. | Passed on disposable VM and CI |
+| Audit append-only | Migrations 0003-0004 rejected direct `UPDATE`/`DELETE` with SQLSTATE 55000 and retained audit rows while user references were anonymized by foreign keys. | Passed on disposable PostgreSQL |
+| Application database grants | CI created a temporary `cyber_range_app` group and separate login, applied `scripts/db-app-role.sql`, and connected as that login. Audit insert worked; audit update/delete/truncate, table creation/alteration, and user deletion failed with SQLSTATE 42501. Test writes rolled back and both roles were removed. | Passed in CI; production role pending |
+| Remote Docker mTLS | Production config requires HTTPS host, CA, client certificate, and key and rejects a local socket or URL credentials/path. Ubuntu CI completed a generated-certificate HTTPS handshake with the worker client, required its client certificate, and rejected an untrusted server CA. No remote Engine connection was exercised. | Local handshake passed; remote Engine pending |
+| Ingress route visibility | Worker startup and preflight write a random marker beside routes and read it through the Docker archive API inside ingress, then remove it. On the disposable VM, `/etc/traefik/dynamic` passed and an incorrect container path failed; no marker remained. | Passed on disposable VM |
+| Authenticated remote route delivery | `TRAEFIK_ROUTE_DELIVERY=ingress` extracts the rendered route into the ingress container over the worker's existing authenticated Docker connection and removes it with an argument vector, never a shell. Production configuration requires that mode. Startup and preflight verify a marker round trip: write, read back, delete, confirm absent. Unit tests cover the delivered document, the USTAR entry and checksum, the removal argv, rejected route input, a traversing ingress directory, a non-zero removal exit code, and both fail-closed probe paths. | Code and unit tests only; no separate-host delivery exercised |
+
+The committed `scripts/phase4-probe.mjs` is the target-side pass/fail probe. It
+requires `PHASE4_TARGETS` to name this topology's control-plane and Docker API
+addresses as `name=host:port` pairs, records them in its output, and fails on
+any outcome other than a missing route, because `ECONNREFUSED` or a completed
+connection both mean a route exists. Confirm management destinations are reachable
+from the target host and peer services are reachable from ingress before trusting
+a pass. Record loopback-only services separately, and inspect address ownership
+instead of assuming `.1` belongs to the host. The Phase 3 exit runner verifies
+create/poll/HTTPS/submission/extend/destroy and restart recovery. Do not use its
+self-signed-certificate allowance for a non-loopback ingress.
+Final Docker label queries after both 2026-09-27 drills found no backend-managed
+containers or networks, and the dynamic route directory was empty. The API and
+worker validation processes were stopped; PostgreSQL, Redis, and Traefik stayed
+running for future disposable checks.
+
+## Two-VM live evidence (2026-10-04)
+
+The worker source and control-plane services are now on NongBuntu2
+(`192.168.56.107`), with Docker Engine 29.8.1 and ingress on NongBuntu
+(`192.168.56.106`). This is a disposable VirtualBox host-only validation
+environment; production deployment and its firewall/domain controls remain open.
+
+- The control plane completed a real Engine mTLS request. No client certificate
+  was rejected with a TLS certificate-required alert, an untrusted server CA
+  failed verification, and a mismatched IP failed the server SAN check.
+- The first worker run exposed Docker tooling's directory interpretation of
+  `DOCKER_CERT_PATH`. The worker now uses `DOCKER_CLIENT_CERT_PATH`, rejects the
+  old setting with migration guidance, and passes an actual-process-environment
+  TLS regression test on Ubuntu. Local lint, typecheck, build, and 83 tests
+  passed; 45 environment-gated cases were skipped. The Ubuntu focused suite
+  passed all seven TLS/configuration tests.
+- Remote preflight then rejected the existing read-only ingress mount. A
+  dedicated writable route volume replaced that mount, while the stopped
+  original ingress was retained for rollback. Remote preflight now reports
+  `status=ready`, `manifestCount=1`, and `routeDelivery=ingress`. The marker was
+  absent afterwards. Live HTTPS targets subsequently passed through remotely
+  delivered routes.
+- PostgreSQL and Redis are healthy and published only on control-plane
+  loopback. Migrations ran as the separate non-superuser migration owner.
+  The application login has no owner membership, superuser, role-creation,
+  database-creation, or RLS-bypass privilege. Audit insert passed; eight checks
+  denied audit mutation, user deletion, schema changes, migration-journal
+  reads, and assuming the owner role with SQLSTATE 42501. Owner DDL passed in a
+  rolled-back transaction, and seeding passed using the application login.
+  These are disposable-database results, not production role provisioning.
+- The target received only its server material. Its server private key staging
+  copies were removed from the control plane and Windows transfer directory.
+  The validation CA key remains on the control plane; production requires
+  separate offline signing-key custody.
+
+- Live probes initially connected to host SSH through each ordinary internal
+  bridge gateway. Both targets were destroyed before changing the adapter.
+  The fix requires Docker 28+ isolated IPv4/IPv6 gateway modes, a bridge driver,
+  and disabled target IPv6; newly created networks are inspected, legacy
+  networks are refused, and reconciliation terminates unsafe network drift.
+- Two application-created player instances then passed probes with UID 65532,
+  zero capabilities, seccomp mode 2, no-new-privileges, read-only root, writable
+  tmpfs, and target interface IPv6 disabled. Inspect confirmed bounded resources,
+  no mounts, and no published target ports. Neither isolated bridge had a host
+  IPv4 address. The former gateway `.1` addresses belonged to ingress, so an
+  SSH refusal there was not treated as proof of host isolation. Target probes
+  to the host bridge IPv6 link-local addresses returned `ENETUNREACH`.
+- Both targets returned `ENETUNREACH` for public `1.1.1.1:80`, metadata
+  `169.254.169.254:80`, target host SSH `.106:22`, Docker `.106:2376`, control
+  plane SSH `.107:22`, API `.107:4000`, PostgreSQL `.107:5432`, Redis `.107:6379`,
+  and the other instance's `172.19.0.2:8080` or `172.20.0.2:8080`. Here `.106`
+  and `.107` mean `192.168.56.106` and `192.168.56.107`. Host-side positive
+  baselines reached Docker and control-plane SSH; ingress reached both healthy
+  peer services. API/database/Redis bound loopback, so those probes establish
+  absence of a route to the control-plane address, not reachable non-loopback
+  services. This VM does not contain a real cloud metadata service.
+- Cross-player reads and destruction returned 404. Disconnecting one target
+  from its owned network produced `runtime_unsafe_network`, an
+  `instance.runtime_terminated` audit event, and container/network/route cleanup;
+  the other player remained healthy. The drill used a 5-second maintenance
+  interval rather than the 60-second default.
+- Full HTTPS create/poll/submission/extend/destroy passed, with once-only scoring
+  and a 404 after route removal. A controlled SIGKILL during provisioning
+  recovered on spawn attempt two, reusing the original container and network
+  with exactly one of each. A separate paused-start drill recovered after the
+  bounded startup timeout; it is not evidence of a worker crash.
+- Final label queries found zero managed containers or networks, and the
+  ingress route directory was empty. API, worker, and validation SSH tunnels
+  were stopped; disposable PostgreSQL, Redis, and ingress remain available.
+  Local lint/typecheck/build passed with 91 tests and 46 environment skips.
+  Focused Ubuntu suites passed 7 TLS/configuration, 22 adapter, and 3 lifecycle
+  database integration cases. CI passed for the isolated-network fix at
+  [run 37182974294](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37182974294).
+- A later CI run exposed queue test timing failures: the default 5-second test
+  deadline was shorter than its 10-second operation poll, and the shutdown
+  assertion read Redis status before its close event. Tests now allow the
+  bounded operation poll to finish and wait for natural Redis `end` without
+  forcing disconnect before the assertion. All five queue integration cases
+  passed against the disposable VM's PostgreSQL and Redis; lint, typecheck,
+  and build passed. Runtime shutdown behavior was unchanged.
+
+The API validation environment uses the development mailer and loopback
+self-signed HTTPS allowance. Production email, public domain/TLS, firewall
+policy, and offline CA signing-key custody remain launch requirements.
+
+## Controls still needed to close the gate
+
+Local-demo update (2026-10-05): Gmail SMTP authentication and one approved setup
+email passed through verified TLS. The adapter supports verification/reset
+links but rejects production use. Actual frontend email flows subsequently
+passed locally below; inbox receipt remains unconfirmed. This does not close
+the production-email gate;
+see [email delivery](EMAIL.md).
+
+Follow-up (2026-10-05): Resend production adapter contract tests and Node 22 CI
+passed; live provider/domain delivery remains unverified. Delivery failures now
+keep verification/reset acknowledgements generic, with sanitized append-only
+audit events. Local lint/typecheck/build and 112 tests passed; 46 environment
+cases skipped on Node 24.19.0. Sibling frontend `64afe70` implements cookie/CSRF
+and BFF auth forms; 33 focused unit checks passed. Production HTTPS/browser
+and real email-link validation remain open; this review does not close the gate.
+Sixteen additional authentication integration cases passed against a disposable
+local PostgreSQL 18.3 database, removed afterward. This supplements the CI
+PostgreSQL 16 checks and does not establish production database privileges.
+The email failure security fix passed Node 22/PostgreSQL/Redis CI at
+[run 37268528702](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268528702).
+
+Local acceptance follow-up (2026-10-05): the sibling built frontend passed
+Gmail verification/reset, token replay rejection, reset session revocation,
+HttpOnly/SameSite, refresh, foreign-origin rejection and logout against an
+isolated database copy. Both approved messages were accepted; inbox receipt
+remains unconfirmed. A snapshot restore matched all 12 table fingerprints and
+its failure-path cleanup passed. The source demo database was preserved.
+
+The real two-VM worker browser check passed start, readiness-only target URL,
+HTTPS health, refresh recovery, extension within the absolute cap, stop,
+terminal browser-storage removal and ingress route removal. The first attempt
+failed before completion; its owned spawn and destroy later succeeded. Two
+subsequent full browser runs passed. VM preflight reported ready with one
+manifest and ingress route delivery. No additional emails were sent by these
+lifecycle checks. These disposable checks do not close production requirements.
+
+The supplied https://cyber-lab-frontend.vercel.app/ deployment is READY but
+Vercel-authenticated. The connector cannot read this team's environment or
+protection bypass (403). Deployed integration needs authorized team access and
+a reachable HTTPS backend; Vercel cannot reach local loopback/private VM
+addresses. No deployment settings or environment values were changed.
+Production email/domain work is deferred by the current local-demo scope.
+See [the operations runbook](OPERATIONS.md) for remaining operational drills.
+
+1. Repeat the validated live lifecycle checks on the deployed production layout and review
+   production trust-zone/firewall controls. The two-VM setup passed real Docker
+   mTLS, live routing, and target management-route blocking on 2026-10-04;
+   production firewall and trust-zone controls still need deployment evidence.
+   [The Docker mTLS
+   procedure](DOCKER_MTLS.md) covers issuing the certificate set, configuring
+   the Engine, and the negative checks that prove client authentication is
+   enforced. Route delivery for that topology is
+   now implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` pushes each rendered route
+   into the ingress container over the same authenticated Docker connection, so
+   the target host holds no control-plane credential and exposes no inbound
+   management route. Remote delivery preflight passed against the real Engine;
+   live HTTPS lifecycle also proved Traefik loaded the delivered configuration.
+2. Repeat egress, metadata, private-address, control-plane, IPv6, and cross-instance
+   probes on the actual production topology. Two application-created instances
+   passed on the disposable two-VM layout after the bridge isolation fix.
+3. Repeat worker crash/retry with the production separate-host topology. The
+   two-VM setup passed a mid-spawn SIGKILL with resource reuse, and the earlier
+   disposable VM passed stopped, unhealthy, and OOM cleanup and audit drills,
+   but Phase 3 supports one worker on one node; concurrent workers need a
+   per-instance distributed lock before scale-out.
+4. Provision the production application and migration-owner roles separately
+   using [the database role procedure](DATABASE_ROLES.md). Apply the reviewed
+   grants, verify direct and inherited privileges, and run the API and worker
+   with the application login. The CI login test does not prove production
+   grants or prevent a database owner from disabling the audit trigger.
+5. Complete the remaining launch controls in `SECURITY.md`: frontend secure
+   cookie/CSRF integration, production email handling, operational backup and
+   restore, credential rotation, and incident response. Review auth/session,
+   logging/redaction, scoring, and lifecycle evidence together before any
+   public signup decision.
+
+The Phase 4 gate is not satisfied by a passing VM probe or CI suite alone.
+Hosted-demo follow-up: a separate free Neon PostgreSQL 18 project now has
+migrations and distinct owner/runtime logins. Actual audit/DDL/journal denial
+checks, restricted-login seeding and player login/session/logout passed. This
+is hosted database evidence only: deployed API/worker acceptance, networking,
+backups and provider/production controls remain open. See [Render evidence](RENDER.md).
+`SIGNUPS_OPEN` must remain `false` until the production-topology checks and
+separate launch review pass.

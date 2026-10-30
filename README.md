@@ -1,45 +1,365 @@
 # Cyber Range Backend
 
-The backend service for the Cyber Range frontend. It owns the application API,
-authentication boundary, database access, scoring, and the privileged lab
-orchestrator boundary.
+Control-plane API for a beginner-friendly security lab platform. The backend
+owns accounts, authorization, catalog data, scoring, and disposable lab
+instances. Only the backend worker may hold Docker Engine credentials.
 
-This repository is separate from the frontend repository:
+Read [AGENTS.md](AGENTS.md), [PLAN.md](PLAN.md),
+[ARCHITECTURE.md](ARCHITECTURE.md), and [SECURITY.md](SECURITY.md) before changing
+the backend.
 
-- Frontend: `C:\Users\win\Downloads\Projects\WebApps\cyber-range`
-- Backend: `C:\Users\win\Downloads\Projects\WebApps\cyber-range-backend`
+The separate frontend repository is
+`C:\Users\win\Downloads\Projects\WebApps\cyber-range`.
+This repository is
+`C:\Users\win\Downloads\Projects\WebApps\cyber-range-backend`.
 
-## Current status
+## Project status
 
-The service is scaffolded with Fastify, TypeScript, Zod, security headers,
-rate limiting, CORS, health checks, and a versioned API namespace. Domain
-features and Docker lifecycle workers are added in the phases in `PLAN.md`.
+The latest approved delivery is harmless Welcome testing. Phases 1 and 2 implement
+local-only configuration, explicit catalog publication, verified learner account
+checks and an isolated static target with worker-only runtime injection. Real
+browser-to-VM spawn, readiness, refresh, idempotency and stop/removal passed.
+Welcome is worth 10 points in catalog metadata; its shared-flag validation and
+solve/scoring acceptance remain Phase 3, awaiting approval. Results are at the top of
+[PLAN.md](PLAN.md). See [local setup](docs/LOCAL_DEVELOPMENT.md#harmless-welcome-accounts-and-catalog-checkpoint).
+The prior mock-preview/hardening delivery below is complete historical evidence.
 
-## Run locally
+Current delivery checkpoint (2026-10-26): the approved work targets an isolated
+mock frontend preview and local backend security/lifecycle hardening. Phase 1
+adds current persisted-email verification for creation and rejects nonempty
+extend/delete bodies, preserving existing owner access. Lint/typecheck/build
+passed; disposable PostgreSQL tests passed 160 with six environment skips, and
+the final focused 19-test security/ownership rerun passed. Temporary clusters
+were removed without changing the demo database. Phase 2 now adds explicit node
+capacity, serialized admission and retry reservations, and read-only resource
+inventory that keeps leftovers charged until absence is confirmed. The full
+disposable-PostgreSQL suite passed 185 tests with five Redis-dependent skips;
+lint/typecheck/build also passed. Phase 3 adds audited orphan cleanup, complete
+ownership validation, retry-safe capacity release and serialization with lifecycle
+execution, including shutdown drain. Its final disposable-PostgreSQL/TLS suite
+passed 215 tests with five Redis-dependent skips; final static gates passed.
+Phase 4 verification was approved October 25. A fresh PostgreSQL 18.3 and
+Redis 7.4.11 run passed all 222 tests with no skips. It reproduced and fixed a
+fast-worker delivery race before the producer's queued marker; two regression
+cases now cover delayed marking and producer failure after enqueue.
+Final lint, typecheck, build and whitespace checks passed on Node 24.19.0;
+Node 22 remains the project's configured CI/runtime target and was not rerun here.
+The user confirmed the historical VMs were deleted. The replacement target-only
+Ubuntu 26.04.1 Server VM is installed with Docker 29.9.2, user namespaces,
+AppArmor, seccomp and verified Engine mTLS. Its temporary NAT adapter was removed
+before target testing; only private management networking remains. A constrained,
+digest-pinned ingress and the committed disposable HTTP fixture are prepared.
+Real HTTPS lifecycle/scoring, two-player ownership/isolation, capacity, expiry,
+mid-spawn crash recovery, orphan cleanup and failed-evidence preservation all
+passed on this replacement host. The current delivery's fourth local checkpoint
+is complete. Managed resources and disposable services/credentials were removed;
+the installed VM is retained powered off. Production and real CTF delivery
+remain open. See the
+[single-VM alternative](docs/LOCAL_DEVELOPMENT.md#disposable-single-target-vm-alternative),
+[the current plan](PLAN.md) and
+[approved contract](docs/API.md). Historical hosting evidence below does not
+authorize further deployment work or public signup.
 
-```powershell
-npm install
-Copy-Item .env.example .env
-# Replace BACKEND_SERVICE_TOKEN_SECRET with a generated value (32+ characters).
-npm run dev
+### Historical platform and hosting checkpoint
+
+**Now:** Phase 3 passed; Phase 4 disposable-host hardening and isolation probes passed.
+Authenticated remote route delivery is implemented and unit-tested. Both VMs
+were running during validation. Real remote Engine mTLS, fail-closed route delivery preflight, and
+separate validation database logins passed on 2026-10-04.
+Live HTTPS lifecycle, two-player isolation, network-drift cleanup, and mid-spawn
+worker crash recovery also passed on that topology.
+Local Gmail verification/reset and real VM worker lifecycle browser acceptance
+passed on 2026-10-05. An isolated database restore drill matched all 12 tables.
+**Next:** Finish deployed frontend integration and operational launch controls.
+**Blocked/waiting:** Vercel team access and server configuration for deployed
+frontend integration, plus hosted lab-worker networking and ingress. Verified
+sender-domain email and production topology evidence remain open.
+**Last updated:** 2026-10-06.
+Hosted-demo follow-up (2026-10-06): the Free Render API is live at
+https://cyber-range-api.onrender.com with a separate Free Neon database and
+restricted runtime login. HTTPS health/readiness, catalog and authentication
+acceptance passed. Vercel integration, live email and hosted lab-worker
+networking remain open; see [Render deployment evidence](docs/RENDER.md).
+
+API hosting is complete for the free demo. Deployed frontend and hosted
+lifecycle acceptance remain pending; see [Render deployment steps](docs/RENDER.md).
+
+Working today: Fastify/TypeScript, PostgreSQL through `pg` and Drizzle,
+committed migrations, account seeds, Argon2id credentials, opaque sessions,
+verification/reset flows, player/admin roles, BFF auth routes, session-bound
+service tokens, generated OpenAPI, PostgreSQL readiness, seeded catalog reads,
+transactional submissions/first solves, player progress, public leaderboard,
+per-instance flag derivation, owned/idempotent instance APIs, PostgreSQL
+lifecycle state, BullMQ delivery/recovery, expiry/reconciliation, a separate
+worker, restricted Docker options, and generated Traefik file-provider routes
+delivered either beside the worker or into the ingress container over the
+worker's authenticated Docker connection.
+
+Frontend cookie/CSRF, catalog and learner lifecycle controls are implemented;
+local real-worker browser acceptance passed; deployed acceptance remains open.
+Submissions/progress
+and leaderboard UI integration, authored player challenges, production-topology
+evidence and deployment remain unfinished. The Resend delivery adapter is
+implemented, but verified-domain live sending is unverified. A disposable HTTP target and runtime
+manifest were used for the Phase 3 exit check. Dynamic submission scoring is
+active only for an owned, running, unexpired instance. Development email defaults
+to the ignored `.local-mail` directory; Gmail delivery is an explicit local-demo option.
+
+Verification: 158 Vitest cases are defined; the local run on 2026-10-05 passes
+112 and skips 46 environment-gated cases, across 20 passed and 14 skipped files.
+Lint, type checking, and build pass locally on Node 24.19.0. The repo supports
+Node 22; the Resend adapter's Node 22 CI passed at
+[run 37268300486](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268300486).
+Node 22 is aligned across package engines, type definitions, .nvmrc, Docker,
+and CI. Compose and CI YAML parse successfully. PostgreSQL 16 and Redis 7 were
+started with Docker Desktop, reached healthy status, accepted direct client
+operations, and exposed reachable loopback ports. PostgreSQL used the supported
+`DEV_POSTGRES_PORT=55432` override because port 5432 was unavailable on the
+verification machine. CI starts disposable PostgreSQL for migration, auth,
+catalog, scoring, and progress integration tests, validates Compose
+configuration, and runs linting, type checking, building, and tests on Node 22.
+CI now starts disposable Redis as well as PostgreSQL. Docker Desktop 29.7.2 was
+reachable, but its engine did not advertise user namespaces or AppArmor; the
+worker preflight correctly rejected the host before any Docker resource was
+created. The verification observed zero backend-managed containers and
+networks after the command. Run `npm run worker:preflight` on the intended
+isolated host before starting a worker; it verifies host isolation, ingress,
+and reviewed images without creating a target.
+
+On 2026-09-26, the Ubuntu 26.04 VM with Docker Engine 29.8.1 advertised
+AppArmor, seccomp and user namespaces. The disposable Traefik ingress was
+running, and the pinned `sample-web-a` validation image was present. The actual
+`worker:preflight` command returned `{"status":"ready","manifestCount":1}`;
+zero backend-managed containers and networks existed afterward. PostgreSQL 16
+and Redis 7 then ran as disposable Compose services on the VM; the API used
+loopback SSH tunnels and the worker ran on Ubuntu. The disposable target reached
+`running` through HTTPS ingress, yielded a runtime-derived flag, awarded 10
+points once and zero on replay, extended within the cap, stopped, and lost its
+route. A pending operation recovered after the worker restarted. Both runs left
+zero backend-managed containers, networks, and dynamic routes. This single-host
+validation topology does not establish production trust-zone separation.
+Phase 4 VM probes additionally observed user-namespace remapping, seccomp,
+AppArmor, bounded resources, and `ENETUNREACH` to public, metadata, private,
+Docker-gateway, and separate-network peer destinations. A killed target was
+automatically removed and audited. On 2026-09-27, live unhealthy and OOM target
+drills also reached failed/audited state and removed Docker resources and routes.
+The worker's Redis-connection shutdown fix exited within five seconds of
+SIGTERM on that VM. Audit rows reject direct update/delete.
+The restricted application-role grants pass a disposable-PostgreSQL test through
+a separate login. CI also verifies a disposable Docker mTLS handshake and rejects
+an untrusted server CA. On 2026-10-04, real remote Engine mTLS and delivered
+HTTPS routes passed on two Ubuntu VMs. Live probes exposed host SSH access
+through ordinary internal bridge gateways; isolated gateway modes now remove
+host bridge IPv4 addresses, and both application-created targets passed the
+corrected probes with target IPv6 disabled. Network drift was terminated and
+audited. A mid-spawn SIGKILL recovered on attempt two using the same container
+and network. Final cleanup found zero managed targets, networks, or routes.
+Production role provisioning remains open.
+See the [Phase 4 security gate record](docs/PHASE4_SECURITY_GATE.md) for exact
+evidence and open checks. Remote CI passed on `develop`
+for the isolated-network fix
+([run 37182974294](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37182974294)).
+
+The earlier Phase 0 finishing script is absent from the current repository.
+Use reviewed commands and focused commits; no automatic commit/push cleanup
+script is retained.
+
+## Roadmap
+
+| Phase | Deliverable | State |
+|---|---|---|
+| 0 | API foundation, Node 22 alignment, local services, generated OpenAPI, agreed docs | Implemented |
+| 1 | PostgreSQL schema/migrations, backend auth, sessions, player/admin roles, BFF contract | Implemented |
+| 2 | Seeded persistent catalog, submissions, first-solve scoring, progress, leaderboard | Implemented |
+| 3 | Queued HTTP instance lifecycle, Docker adapter, routing, idempotency, reconciliation | Implemented; Ubuntu VM lifecycle and restart recovery passed |
+| 4 | Isolation hardening and security review; required gate for public signup | VM controls passed; production gate open |
+| 5 | Admin tools, monitoring, backup/restore, operational deployment | Planned |
+| 6 | Browser terminal, TCP/VPN access, multi-node scheduling, advanced progression/auth | Deferred |
+
+See [PLAN.md](PLAN.md) for ordered tasks, dependencies, effort, and exit criteria.
+There is no fixed delivery deadline. The immediate milestone is Phase 4
+production-topology verification; the frontend lifecycle contract checkpoint
+remains open.
+
+Public signup stays closed until every required control in
+[SECURITY.md](SECURITY.md) is implemented and reviewed.
+
+## Agreed development choices
+
+| Area | Decision |
+|---|---|
+| Runtime | Node 22, npm, Fastify 5, strict TypeScript, Zod |
+| Identity | Backend owns credentials and opaque PostgreSQL sessions; frontend BFF mediates browser access |
+| Authentication | Argon2id; player/admin roles; seeded or operator-created accounts |
+| Database | Local PostgreSQL, Drizzle migrations; managed Neon in production |
+| Email | Explicit development-only delivery locally; Resend after domain setup |
+| Catalog | Reviewed repository manifests and seeded read-only catalog |
+| Scoring | Per-instance dynamic flags; points awarded once per user/challenge |
+| Labs | HTTP first; one active instance/player; 60-minute default, 2-hour maximum |
+| Operations | API and worker on a VM with Compose; managed data services; separate target hosts |
+
+These are implementation decisions, not claims that later phases already work.
+The [authentication contract](docs/AUTHENTICATION.md) defines the implemented
+backend trust boundary and the remaining frontend checkpoint. The
+[scoring contract](docs/SCORING.md) defines Phase 2 behavior and the Phase 3
+instance dependency. The [lifecycle contract](docs/LIFECYCLE.md) defines the
+Phase 3 API, worker, manifest, recovery, and deployment boundaries. The
+[Docker mTLS procedure](docs/DOCKER_MTLS.md) covers issuing the worker's remote
+Engine credentials and verifying that the Engine enforces them.
+
+## Quick start
+
+Use Node 22, then:
+
+```sh
+npm ci
+cp .env.example .env
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 ```
 
-The API listens on `http://127.0.0.1:4000` by default. Run `npm run build`,
-`npm run typecheck`, and `npm test` to verify the scaffold. Database and queue
-connections are added in later phases; lifecycle routes currently return 501
-after authentication and request validation.
+Generate independent values for `BFF_AUTH_SECRET`,
+`BACKEND_SERVICE_TOKEN_SECRET`, `INSTANCE_FLAG_SECRET`, and
+`DEV_POSTGRES_PASSWORD`. Start Compose, set `DATABASE_URL`, run
+`npm run db:migrate`, provide the seed variables, and run `npm run db:seed`
+before `npm run dev`. In PowerShell, use
+`Copy-Item .env.example .env`. If you already have a local `.env`, update it
+without replacing existing values.
 
-## Documentation
+The API listens on `http://127.0.0.1:4000`. Read
+[local development](docs/LOCAL_DEVELOPMENT.md) to start PostgreSQL and Redis,
+generate their local password, change ports, or retain data when stopping them.
+Never commit credentials, `.env`, certificates, TLS material, or real flags.
 
-- `AGENTS.md` — backend-specific rules and security boundaries.
-- `PLAN.md` — implementation order and frontend integration contract.
-- `ARCHITECTURE.md` — service topology and request flows.
-- `SECURITY.md` — backend threat model and launch controls.
+## Scripts and checks
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Watch mode through tsx |
+| `npm run build` | Compile TypeScript to dist |
+| `npm start` | Run the compiled server |
+| `npm run worker` | Run the lifecycle worker from TypeScript |
+| `npm run worker:start` | Run the compiled lifecycle worker |
+| `npm run worker:preflight` | Isolated-host readiness check; also verifies route delivery with a temporary marker and removes it |
+| `npm run worker:preflight:start` | Run the compiled host preflight |
+| `npm run db:generate` | Generate a reviewed migration after schema changes |
+| `npm run db:migrate` | Apply committed PostgreSQL migrations |
+| `npm run db:seed` | Idempotently seed the catalog and configured player/admin accounts |
+| `npm test` | Unit/contracts; PostgreSQL/Redis integrations run when their test URLs are set |
+| `npm run lint` | ESLint and focused promise-safety rules |
+| `npm run typecheck` | Strict type checking for source and tests |
+
+CI validates Compose configuration and runs lint, type checking, build, and
+tests on pushes and pull requests targeting `main` or `develop`. A local pass
+does not establish a remote CI result.
+
+Lint deliberately enables `no-floating-promises`, `no-misused-promises`,
+and `await-thenable` without the entire type-checked recommended preset.
+
+## Configuration
+
+`src/config.ts` validates API settings at startup. The example file also
+contains separate worker settings. Docker credentials are parsed only by
+`src/worker-config.ts`, never by the API configuration.
+
+| Variable | Current consumer | Requirement |
+|---|---|---|
+| `NODE_ENV` | API | development/test/production; defaults to development |
+| `HOST`, `PORT` | API | Defaults to 127.0.0.1:4000 |
+| `FRONTEND_ORIGIN` | API | Required exact CORS origin; not an authorization mechanism |
+| `BFF_AUTH_SECRET` | API and frontend server | Dedicated auth bootstrap credential; distinct from signing key |
+| `BACKEND_SERVICE_TOKEN_SECRET` | API and frontend server | Signs/verifies five-minute user JWTs; never browser-visible |
+| `INSTANCE_FLAG_SECRET` | API and worker | Derives per-user/challenge/instance flags; backend-only and distinct |
+| `SERVICE_TOKEN_ISSUER`, `SERVICE_TOKEN_AUDIENCE` | API | Required JWT checks |
+| `DATABASE_URL` | API and database commands | Required PostgreSQL URL |
+| `SIGNUPS_OPEN` | API | Must remain `false`; open signup is not implemented |
+| `AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW` | API | Login, verification and reset limits keyed by the learner address the BFF forwards |
+| `SESSION_RATE_LIMIT_MAX`, `SESSION_RATE_LIMIT_WINDOW` | API | Session resolution and logout limits keyed per session token |
+| `SUBMISSION_RATE_LIMIT_MAX`, `SUBMISSION_RATE_LIMIT_WINDOW_MS` | API | Fixed-window limits keyed by verified user identity |
+| `INSTANCE_RATE_LIMIT_MAX`, `INSTANCE_RATE_LIMIT_WINDOW_MS` | API | Instance-create limits keyed by verified user identity |
+| `LOCAL_DEV_TEST` | API | Development/test only. `true` disables all API rate limits; rejected in production when set |
+| `LAB_PUBLIC_BASE_URL` | API | Base URL used only when a target is running and has an unguessable route |
+| `LOCAL_MAIL_DIRECTORY` | Development API | Ignored local verification/reset delivery directory |
+| `MAIL_PROVIDER` | API | `local` by default; `gmail` for local demos; production requires `resend` |
+| `SMTP_USER`, `SMTP_APP_PASSWORD` | Development API | Gmail sender and backend-only app password; required when `MAIL_PROVIDER=gmail` |
+| `RESEND_API_KEY`, `EMAIL_FROM` | API | Backend-only provider key and sender on a verified domain; required when `MAIL_PROVIDER=resend` |
+| `EMAIL_SENDER_NAME` | API | Custom sender display name; defaults to Cyber Range |
+| `DEV_POSTGRES_PASSWORD` | Local Compose | Required to initialize local PostgreSQL |
+| `DEV_POSTGRES_PORT`, `DEV_REDIS_PORT` | Local Compose | Default 5432 and 6379, loopback only |
+| `REDIS_URL` | Worker | BullMQ connection; never sent to targets or frontend |
+| `RUNTIME_MANIFEST_PATH` | Worker/preflight | Reviewed JSON array of pinned runtime manifests |
+| `TRAEFIK_ROUTE_DELIVERY` | Worker/preflight | `file` writes routes beside the worker; `ingress` delivers them into the ingress container over the worker's Docker connection. Defaults to `file`; production requires `ingress` |
+| `TRAEFIK_DYNAMIC_DIRECTORY` | Worker/preflight | Worker route directory; required for `file` delivery only |
+| `LAB_INGRESS_CONTAINER` | Worker/preflight | Isolated ingress container name |
+| `TRAEFIK_CONTAINER_DYNAMIC_DIRECTORY` | Worker/preflight | Route directory inside ingress; required for `ingress` delivery, and with `file` delivery it enables the startup visibility probe |
+| `LAB_NODE_NAME` | Worker/preflight | Non-secret scheduling identity stored in PostgreSQL |
+| `LAB_NODE_CAPACITY_SLOTS` | Worker/preflight | Required positive integer maximum lab allocations for this node; no runtime default |
+| `DOCKER_HOST`, `DOCKER_CA_PATH`, `DOCKER_CLIENT_CERT_PATH`, `DOCKER_KEY_PATH` | Production worker/preflight | Complete remote Docker mTLS configuration |
+| `DOCKER_SOCKET_PATH` | Development worker/preflight only | Local disposable testing; rejected in production |
+
+Seed variables are consumed only by `npm run db:seed`; normal repeated seeding
+does not replace an existing password hash or profile.
+
+For Gmail local-demo delivery, see [email setup](docs/EMAIL.md). Gmail accepted
+one operator-approved setup message on 2026-10-05. Inbox receipt and frontend
+verification/reset completion remain unverified; production delivery remains
+an open launch requirement.
+
+The Resend production adapter is implemented with contract coverage and passing
+Node 22 CI. Verified-domain live delivery remains pending. Provider failures keep
+verification/reset acknowledgements generic and create a sanitized audit event.
+The frontend cookie/CSRF implementation is present in the sibling repo;
+33 focused unit checks passed on 2026-10-05. Production HTTPS/browser validation
+and real worker UI acceptance remain open.
+
+## Current API
+
+The full generated contract is available at `GET /v1/openapi.json`.
+See [API guidance](docs/API.md) for schema conventions and compatibility rules.
+
+| Method | Endpoint | Auth | Behavior |
+|---|---|---|---|
+| GET | /healthz | None | Liveness |
+| GET | /readyz | None | Readiness, including PostgreSQL in the running API |
+| GET | /v1/meta | None | API metadata |
+| GET | /v1/openapi.json | None | Generated OpenAPI 3.0.3 |
+| GET | /v1/categories | None | Published database categories |
+| GET | /v1/challenges | None | Published database catalog |
+| GET | /v1/challenges/:slug | None | Published challenge metadata |
+| POST | /v1/auth/login | BFF credential | Verify credentials and issue opaque session |
+| POST | /v1/auth/session | BFF credential | Resolve and refresh a live session |
+| POST | /v1/auth/logout | BFF credential | Idempotently revoke a session |
+| POST | /v1/auth/verification/request | BFF credential | Generic acknowledgement; local delivery when eligible |
+| POST | /v1/auth/verification/confirm | BFF credential | Consume verification token once |
+| POST | /v1/auth/password-reset/request | BFF credential | Generic acknowledgement; local delivery when eligible |
+| POST | /v1/auth/password-reset/confirm | BFF credential | Reset password and revoke sessions |
+| POST | /v1/auth/signup | BFF credential | Always 403 while signup is closed |
+| POST | /v1/submissions | submissions:write | Verify against an owned running instance and record scoring transactionally |
+| GET | /v1/profile | profile:read | Current player progress from verified subject |
+| GET | /v1/leaderboard | None | Top 100 active-player display names and scores |
+| POST | /v1/instances | instances:write + Idempotency-Key | Persist pending spawn intent; return 202 |
+| GET | /v1/instances/:id | instances:read | Owner-only polling; URL appears only while running |
+| POST | /v1/instances/:id/extend | instances:write + Idempotency-Key | Add 30 minutes up to the 2-hour cap; return 202 |
+| DELETE | /v1/instances/:id | instances:write + Idempotency-Key | Persist retry-safe stop intent; return 202 |
+
+Errors use `{ code, message, correlationId }`. All responses echo
+`x-request-id`. The existing readiness exception returns its check results
+with HTTP 503, not the ordinary error envelope.
+
+The seeded entries remain catalog fixtures rather than authored challenge
+content. Catalog lists use `source: "database"`. Successful submission handling
+uses `recorded: true` and `source: "database"`; points are nonzero only for the
+first correct solve. No expected or submitted flag is persisted.
 
 ## Frontend connection
 
-The frontend calls this service through `NEXT_PUBLIC_BACKEND_URL`, for example
-`http://localhost:4000`. Browser requests are allowed only from the configured
-`FRONTEND_ORIGIN`. The frontend never receives Docker credentials and never
-connects directly to Redis, Postgres, or a lab node.
-"# cyber-lab-backend" 
+Authenticated browser actions go through the frontend BFF. The BFF holds the
+backend URL and both server credentials in server-only configuration. It
+resolves the opaque backend session, then signs short-lived service tokens with
+the trusted `sub`, `sid`, and allowed scope. The backend rechecks session
+ownership, liveness, account status, and current role on every protected call.
+Public catalog requests may remain browser-accessible under the configured
+CORS origin. Neither a public backend URL nor CORS proves user identity.
+
+Docker, database, Redis, and lab-node credentials never cross into the frontend.
+Players access targets through isolated lab ingress; they never
+access the Docker Engine or administrative node interfaces.

@@ -1,0 +1,22 @@
+# Send only files used by the reviewed Dockerfile to the build service.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!package-lock.json
+!tsconfig.json
+!src/
+!src/**
+!drizzle/
+!drizzle/**
+
+# Always exclude local credentials and certificate material, even under src.
+**/.env
+**/.env.*
+**/*.pem
+**/*.crt
+**/*.cer
+**/*.csr
+**/*.key
+**/*.p12
+**/*.pfx

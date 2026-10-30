@@ -1,22 +1,94 @@
 import { z } from 'zod';
+import { loadWelcomeLabConfig, type WelcomeLabConfig } from './welcome-lab-config.js';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().min(1).default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   FRONTEND_ORIGIN: z.url(),
+  BFF_AUTH_SECRET: z.string().min(32),
   BACKEND_SERVICE_TOKEN_SECRET: z.string().min(32),
+  INSTANCE_FLAG_SECRET: z.string().min(32),
   SERVICE_TOKEN_ISSUER: z.string().min(1),
   SERVICE_TOKEN_AUDIENCE: z.string().min(1),
-  DATABASE_URL: z.string().optional(),
+  DATABASE_URL: z.url().optional(),
+  REDIS_URL: z.url().optional(),
+  LAB_PUBLIC_BASE_URL: z.url().optional(),
+  SIGNUPS_OPEN: z.enum(['false']).default('false').transform(() => false as const),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
+  AUTH_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
+  SESSION_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1_000).default(120),
+  SESSION_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
+  SUBMISSION_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1_000).default(20),
+  SUBMISSION_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
+  INSTANCE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(5),
+  INSTANCE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
+  // Local development/test only: disables every API rate limit when true.
+  LOCAL_DEV_TEST: z.enum(['false', 'true']).default('false').transform((value) => value === 'true'),
+  LOCAL_MAIL_DIRECTORY: z.string().min(1).default('.local-mail'),
+  MAIL_PROVIDER: z.enum(['local', 'gmail', 'resend']).default('local'),
+  SMTP_USER: z.email().optional(),
+  SMTP_APP_PASSWORD: z.string().trim().min(1).optional(),
+  RESEND_API_KEY: z.string().trim().min(1).optional(),
+  EMAIL_FROM: z.email().optional(),
+  EMAIL_SENDER_NAME: z.string().trim().min(1).max(100).regex(/^[^\r\n]+$/u).default('Cyber Range'),
 });
 
-export type Config = z.infer<typeof envSchema>;
+export type Config = z.infer<typeof envSchema> & WelcomeLabConfig;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  const welcome = loadWelcomeLabConfig(env);
   const config = envSchema.parse(env);
+  if (config.NODE_ENV === 'production' && env.LOCAL_DEV_TEST !== undefined) {
+    throw new Error('LOCAL_DEV_TEST is disabled in production');
+  }
+  if (config.MAIL_PROVIDER === 'gmail') {
+    if (!config.SMTP_USER || !config.SMTP_APP_PASSWORD) {
+      throw new Error('Gmail delivery requires SMTP_USER and SMTP_APP_PASSWORD');
+    }
+    if (config.NODE_ENV === 'production') {
+      throw new Error('Gmail demo delivery is disabled in production');
+    }
+  }
+  if (config.MAIL_PROVIDER === 'resend' && (!config.RESEND_API_KEY || !config.EMAIL_FROM)) {
+    throw new Error('Resend delivery requires RESEND_API_KEY and EMAIL_FROM');
+  }
+  if (config.MAIL_PROVIDER !== 'local') {
+    const frontend = new URL(config.FRONTEND_ORIGIN);
+    if (!['http:', 'https:'].includes(frontend.protocol) || frontend.username || frontend.password) {
+      throw new Error('Email links require an HTTP(S) frontend origin without credentials');
+    }
+    if (frontend.search || frontend.hash || frontend.pathname !== '/') {
+      throw new Error('Email links require a frontend origin without a path, query or fragment');
+    }
+    if (config.NODE_ENV === 'production' && (
+      frontend.protocol !== 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(frontend.hostname)
+    )) {
+      throw new Error('Production email links require a public HTTPS frontend origin');
+    }
+  }
+  if (config.NODE_ENV === 'production' && config.MAIL_PROVIDER !== 'resend') {
+    throw new Error('Production authentication requires Resend email delivery');
+  }
   if (config.BACKEND_SERVICE_TOKEN_SECRET.startsWith('replace-with-')) {
     throw new Error('Set a generated BACKEND_SERVICE_TOKEN_SECRET before starting the server');
   }
-  return config;
+  if (config.BFF_AUTH_SECRET.startsWith('replace-with-')) {
+    throw new Error('Set a generated BFF_AUTH_SECRET before starting the server');
+  }
+  if (config.INSTANCE_FLAG_SECRET.startsWith('replace-with-')) {
+    throw new Error('Set a generated INSTANCE_FLAG_SECRET before starting the server');
+  }
+  if (
+    new Set([
+      config.BFF_AUTH_SECRET,
+      config.BACKEND_SERVICE_TOKEN_SECRET,
+      config.INSTANCE_FLAG_SECRET,
+    ]).size !== 3
+  ) {
+    throw new Error(
+      'BFF_AUTH_SECRET, BACKEND_SERVICE_TOKEN_SECRET, and INSTANCE_FLAG_SECRET must be different',
+    );
+  }
+  return { ...config, ...welcome };
 }

@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'vitest';
+import { buildApp } from '../src/app.js';
+import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
+import { testAppDependencies, testConfig } from './helpers.js';
+
+const SAMPLE = CHALLENGE_DEFINITIONS[0];
+const HEX_64 = /[0-9a-f]{64}/;
+
+if (SAMPLE === undefined) throw new Error('CHALLENGE_DEFINITIONS must not be empty');
+
+describe('persistent catalog contract', () => {
+  it('lists every published challenge and labels the data as database-backed', async () => {
+    const app = await buildApp(testConfig, testAppDependencies);
+    try {
+      const response = await app.inject('/v1/challenges');
+      const body = response.json<{ challenges: unknown[]; source: string }>();
+
+      expect(response.statusCode).toBe(200);
+      expect(body.source).toBe('database');
+      expect(body.challenges).toHaveLength(
+        CHALLENGE_DEFINITIONS.filter((challenge) => challenge.published).length,
+      );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('returns a single challenge by slug', async () => {
+    const app = await buildApp(testConfig, testAppDependencies);
+    try {
+      const response = await app.inject(`/v1/challenges/${SAMPLE.slug}`);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json<{ id: string }>().id).toBe(SAMPLE.id);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('answers an unknown slug with NOT_FOUND', async () => {
+    const app = await buildApp(testConfig, testAppDependencies);
+    try {
+      const response = await app.inject('/v1/challenges/no-such-challenge');
+
+      expect(response.statusCode).toBe(404);
+      expect(response.json<{ code: string }>().code).toBe('NOT_FOUND');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('exposes no flag and no flag hash anywhere in the catalog', async () => {
+    const app = await buildApp(testConfig, testAppDependencies);
+    try {
+      const list = await app.inject('/v1/challenges');
+      const detail = await app.inject(`/v1/challenges/${SAMPLE.slug}`);
+
+      for (const body of [list.body, detail.body]) {
+        expect(body).not.toContain('CTF{');
+        expect(body).not.toMatch(HEX_64);
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('lists the distinct categories', async () => {
+    const app = await buildApp(testConfig, testAppDependencies);
+    try {
+      const response = await app.inject('/v1/categories');
+      const { categories } = response.json<{ categories: string[] }>();
+
+      expect(response.statusCode).toBe(200);
+      expect(categories).toContain(SAMPLE.category);
+      expect(new Set(categories).size).toBe(categories.length);
+    } finally {
+      await app.close();
+    }
+  });
+});

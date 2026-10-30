@@ -1,53 +1,180 @@
-# Backend Security Model
+# Backend security model
 
-The backend is a control-plane component. A bug here can create containers,
-expose targets, disclose flags, or let one player control another player's
-instance.
+This control plane can authorize users, award scores, create containers and
+expose targets. Backend authorization, lab isolation and recovery from partial
+failures are required security boundaries.
 
-## Required controls
+Phases 1 through 3 implement the database-backed authentication, catalog,
+scoring, dynamic-flag, progress, lifecycle, queue and restricted Docker adapter
+controls described below. Browser cookie/CSRF and frontend lifecycle integration,
+production email, operations, and production-topology isolation evidence remain
+launch requirements. A disposable target completed the Phase 3 lifecycle check on
+the Ubuntu VM; no production target has been launched.
 
-### API and authorization
+## API and authorization
 
-- Verify service-token signature, issuer, audience, expiry, algorithm, and
-  scope.
-- Derive user identity only from the verified token subject.
-- Check instance ownership on every read, extend, reset, and destroy action.
-- Validate all request bodies, parameters, query strings, and challenge
-  manifests with Zod.
-- Rate-limit authentication, catalog-sensitive, submission, and spawn routes.
-- Return stable error codes without stack traces, tokens, flags, or internal
-  network details.
-- Use correlation ids for investigation without logging secrets.
+- Verify service-token signature, HS256 algorithm, issuer, audience, expiry,
+  issued-at, required subject and narrow operation scope.
+- Derive the acting user for protected resources only from the verified sub.
+  Reject body fields that attempt to select the acting user or runtime options.
+- Verify the signed token's backend session reference belongs to
+  sub, is active/unexpired, and the account is enabled. Check current roles
+  for privileged actions; BFF possession alone must not grant admin rights.
+- Check instance ownership on every read, extend, reset and destroy action.
+- Require current persisted email verification for creation after live session
+  and scope authorization; never trust verification claims from a token or body.
+  Owners retain normal read, extension and stop access if verification changes.
+- Reject nonempty extend/delete command bodies after authorization, including
+  empty JSON objects. Acting-user and runtime fields never reach lifecycle intent.
+- Validate external bodies, parameters, queries and manifests through Zod.
+  Generated OpenAPI must use the same route schemas.
+- Rate-limit auth, catalog-sensitive, submission and spawn operations. Derive
+  per-user keys from verified identity and trust forwarded IPs only from
+  explicitly configured proxies.
+- Keep stable error codes/correlation IDs without exposing stack traces, flags,
+  secrets or topology. Never log credentials through exception causes.
+- Treat CORS as browser policy, not authentication.
 
-### Docker boundary
+## Authentication requirements (Phase 1)
 
-- Keep Docker Engine credentials in the backend worker only.
-- Use Docker Engine mTLS; never mount the Docker socket into the backend or a
-  target when remote TLS is available.
-- Construct container options from a trusted manifest parser and fixed defaults.
-- Reject `privileged`, host networking, host PID/IPC, arbitrary devices, socket
-  mounts, and unapproved capabilities.
-- Apply user namespaces, dropped capabilities, no-new-privileges, seccomp,
-  AppArmor, read-only root filesystems, tmpfs, CPU, memory, PID, and storage
-  limits.
+- Store Argon2id password hashes, never passwords or reversible encryption.
+- Keep the dedicated BFF auth credential separate from the service-token signing
+  key. Use TLS and redact both. Neither credential may reach the browser.
+- An auth bootstrap credential proves the BFF, not the player. Login must verify
+  credentials; session operations must resolve the stored opaque-session hash.
+- Store only hashes of session, verification and reset tokens. Use strong random
+  tokens, single-use email tokens and transactional consumption.
+- Enforce 30-day inactivity and 90-day absolute session limits using backend
+  time. Issue a fresh session token on login, revoke on logout, and revoke
+  existing sessions on password reset or account disable.
+- Keep browser cookies HttpOnly, Secure in production, and appropriately
+  SameSite. The BFF enforces origin/CSRF checks on browser mutations. Do not put
+  bearer credentials into browser local storage.
+- Keep auth/reset responses resistant to account enumeration. Add configurable
+  route-specific rate limits before enabling any self-service account flow.
+- Public signup remains closed. Seeded/operator-created accounts are the initial
+  path; account seeds must not overwrite credentials on a normal retry.
+- Development email links use an explicit local-only delivery path and never
+  production request/audit logs. Opt-in Gmail delivery for local demos uses a
+  backend-only app password, verified TLS, no protocol logging, and sanitized
+  provider failures; it is disabled in production. See [email setup](docs/EMAIL.md).
+  Production delivery uses Resend after domain
+  verification. Test captured logs for password, session and email-token leaks.
 
-### Network boundary
+The backend now enforces these Phase 1 rules, including captured-log redaction
+tests and a signup configuration that accepts only `false`. Frontend cookie/CSRF
+implementation and the production Resend adapter are implemented. Deployment
+HTTPS/browser validation and verified-domain live delivery remain incomplete. See
+[AUTHENTICATION.md](docs/AUTHENTICATION.md) for the implemented contract.
 
-- Keep the backend and lab nodes on separate hosts or trust zones.
-- Deny target access to private ranges, metadata services, the backend, and the
-  frontend control plane.
-- Default-deny target egress.
-- Use unguessable instance routes and do not return another user's URL.
+## Docker boundary
 
-### Data and flags
+- Keep Docker credentials only in the backend worker.
+- Use Docker Engine mTLS for remote nodes. Never mount a Docker socket into a
+  target or the deployed backend services.
+- Construct options only from a trusted validated manifest and fixed defaults.
+- Reject privileged mode, host networking, host PID/IPC, arbitrary devices,
+  socket mounts, and unapproved capabilities.
+- Enforce user namespaces, dropped capabilities, no-new-privileges, seccomp,
+  AppArmor, read-only roots, bounded tmpfs, CPU, memory, PID and storage limits.
+- Use pinned images and backend-controlled resource labels. Bound health
+  checks, retries and startup times; failed starts must clean up resources.
+- Require an explicit positive per-node lab-slot budget. Serialize admission,
+  count durable reservations and orphan/partial managed allocations, and retain
+  capacity until all resources are confirmed absent. Failed inventory, stripped
+  or mismatched labels, and duplicate allocations must refuse new admission.
+- Reconcile runtime inventory against database intent before orphan cleanup.
+  Validate every candidate and commit cleanup-start audits before deleting any
+  resources. Preserve active targets, trusted ingress and unrelated endpoints.
+  Serialize maintenance with lifecycle execution; retain reservations and safe
+  failure audits until a complete inventory confirms cleanup succeeded.
 
-- Store only flag hashes or key references.
-- Derive dynamic flags at runtime and verify them server side.
-- Never include flags in API responses, logs, client bundles, or images.
-- Append failed submissions and destructive actions to an audit log.
+The adapter applies these defaults now and refuses hosts that do not advertise
+user namespaces, seccomp and AppArmor. `npm run worker:preflight` checks those
+controls, the configured ingress state, and local availability of every
+reviewed pinned image before operators start a worker on a target host. Phase 4
+records isolated-host evidence and hardens the boundary; it does not defer the
+basic restrictions. The Phase 4 VM probe observed user-namespace remapping,
+seccomp filtering, AppArmor, zero effective capabilities, read-only root,
+bounded tmpfs/memory/swap/CPU/PIDs/logs, no mounts or host ports, and blocked
+egress. Two-VM remote mTLS and live isolation checks passed on 2026-10-04;
+this disposable topology does not establish production deployment controls.
+CI verifies the worker's client certificate against a disposable HTTPS server
+and rejects an untrusted server CA. Production worker configuration requires
+authenticated delivery into the ingress container over the Docker connection;
+startup round-trips a temporary marker and fails closed if delivery fails.
+Unit tests cover that delivery path, while the disposable VM passed the local
+route-directory visibility probe and rejected an incorrect path. Neither test
+establishes Traefik reload of a delivered route or separate-host trust-zone
+isolation. On 2026-10-04 the two-VM setup separately passed a real Engine mTLS
+connection, no-client/untrusted-CA/wrong-IP rejection checks, and remote
+delivery preflight. Live HTTPS routing and both application-created targets'
+network probes then passed after fixing host access through internal bridges.
+Isolated gateway modes removed host bridge IPv4 addresses, and target IPv6 was
+disabled. Network drift triggered audited cleanup; a worker killed mid-spawn
+recovered without duplicate resources. See the gate record for probe scope.
 
-## Launch gates
+## Network boundary
 
-Public signup remains closed until the controls above are implemented and
-reviewed. A health endpoint and scaffolded `501` lifecycle routes do not mean
-the platform is ready to host hostile targets.
+- Keep target hosts and control-plane services on separate hosts/trust zones.
+- Deny target access to private ranges, metadata services, database, Redis,
+  Docker Engine, backend and frontend control-plane addresses.
+- Default-deny target egress and cross-instance traffic.
+- Use isolated bridge gateway modes, not only an internal network: ordinary
+  internal bridges can still reach host services bound to their bridge address.
+  Require Docker Engine 28+, verify driver/gateway options and disabled IPv6,
+  reject legacy networks on retries, and terminate network drift during
+  reconciliation. Drain active targets before deploying a changed network policy.
+- Route player HTTP traffic through isolated ingress, never through a host
+  management endpoint. Use unguessable instance routes and owner-only URL reads.
+- Never attach targets to the local development Compose network or publish
+  its unauthenticated Redis beyond loopback.
+
+## Data, flags, retries and audit
+
+The approved local Welcome delivery has one explicit public-placeholder
+exception, specified in `docs/API.md`. Phase 2 injects that value through the
+worker only for Welcome's fixed ID; its harmless target page intentionally
+displays it. API verification remains dynamic until the separate Phase 3
+checkpoint. The test settings are rejected in production, and no control-plane
+API returns an expected flag. All other lab identities retain dynamic flags.
+
+- Derive per-instance flags from a dedicated backend secret and runtime identity;
+  persist neither expected flags nor submitted values. Verify only after an
+  ownership resolver binds user, challenge, and instance.
+- Never include expected or submitted flags in API responses, logs, browser
+  bundles, images or audit details.
+- Award points once per user/challenge through a database uniqueness/transaction
+  guarantee, including concurrent requests.
+- Make lifecycle mutations ownership-checked and retry-safe, with scoped
+  idempotency records and reconciliation of database, queue and Docker state.
+- Audit failed submissions and destructive/admin actions without flag/token
+  contents; enforce append-only access for application audit writers.
+- Reap expired instances and enforce the active-instance quota and lifetime cap.
+
+Phases 2 and 3 enforce the flag, solve uniqueness, audit content, subject-bound
+progress, verified-user rate limits, real owned-instance resolution, runtime-only
+flag derivation, idempotent lifecycle intent and reaping. Phase 4 migrations
+reject direct audit `UPDATE` and `DELETE` while retaining rows during user
+reference anonymization. Automatic stopped, unhealthy, and OOM-target cleanup,
+including matching audit events, passed live disposable-VM drills. A production
+application role without table ownership, DDL, or audit mutation grants and
+full production-topology isolation evidence remain required. The reviewed
+`scripts/db-app-role.sql` grants and a separate-login PostgreSQL privilege test
+passed CI; no production role has been provisioned.
+
+## Launch evidence
+
+Public signup remains closed until every required control is implemented and
+reviewed. Track evidence for token/session abuse, cross-user access, flag/log
+leakage, concurrent solves, retries/crash recovery, container restrictions,
+egress/private-range blocking and cross-instance isolation.
+
+The [Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) lists observed VM
+evidence and every open production-topology check. The gate is not complete.
+
+A completed security gate authorizes a separate launch decision; it never
+automatically flips signup open. Health endpoints, a passing mock suite,
+Compose configuration, or 501 lifecycle routes are not evidence of target
+isolation. Operator backups/restore drills and incident procedures must be
+ready before accepting production user data.

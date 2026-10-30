@@ -1,4 +1,4 @@
-# Backend Architecture
+# Backend architecture
 
 ## Responsibility split
 
@@ -6,75 +6,201 @@
 Player browser
     |
     v
-Cyber Range frontend (Next.js on Vercel)
-    |  server-side HTTPS calls with short-lived signed service token
+Frontend BFF (Next.js)
+    | dedicated auth credential + opaque session for auth operations
+    | short-lived, scoped user JWT for domain operations
     v
-Cyber Range backend (Fastify on a separate service)
-    |\
-    | \-- Neon PostgreSQL: catalog, users, scores, instances, audit data
-    |\
-    |  \-- Redis/BullMQ: durable spawn, destroy, reap, reconcile jobs
+Backend API (Fastify)
+    |-- PostgreSQL: identities, sessions, catalog, scores, instance intent
+    |-- Redis/BullMQ: lifecycle job delivery
     |
-    \---- Docker Engine over mTLS: lab-node lifecycle only
-                   |
-                   v
-          Disposable lab nodes + Traefik
-                   |
-                   v
-             Hostile target instances
+Backend worker (separate process)
+    |-- PostgreSQL/Redis
+    |-- Docker Engine over mTLS
+    v
+Separate lab hosts + isolated Traefik ingress
+    |
+Disposable hostile targets
 ```
 
-The browser never talks directly to Docker, Redis, Postgres, or a lab node.
-The frontend server authenticates the user, issues a short-lived service token,
-and calls the backend. The backend trusts the verified token subject as the
-user identity.
+The backend owns passwords, account state, sessions, authorization, scoring,
+and persistence. The frontend owns presentation and the BFF browser boundary.
+The BFF transports credentials to backend auth services and signs short-lived
+service tokens only after resolving a backend session. It does not keep a
+second independent user/account authority.
 
-## Service layout
+Only the worker holds Docker Engine credentials. The frontend and targets
+receive no Docker, database, Redis, or lab-node administrative credentials.
+Players may reach their target through lab ingress; this is distinct from
+access to the host, Docker Engine, or control plane.
 
-```text
-backend/
-├── src/
-│   ├── auth/                 Service-token verification
-│   ├── db/                   Database client and future schema access
-│   ├── routes/               HTTP routes and boundary validation
-│   ├── app.ts                Fastify composition
-│   ├── config.ts             Environment validation
-│   └── server.ts             Process entry point
-├── tests/                    Contract and unit tests
-├── Dockerfile                Non-root production image
-├── .env.example              Local configuration template
-└── PLAN.md                   Implementation order
-```
+Phases 1 through 3 implement PostgreSQL identity, catalog, scoring, progress,
+repositories; authentication services; BFF bootstrap routes; session-bound
+authorization; public catalog/leaderboard reads; lifecycle intent; durable queue
+delivery; worker transitions; and the restricted Docker/Traefik boundary.
 
-## Token flow
+## Module boundaries
 
-1. A player signs in through the frontend's auth system.
-2. A frontend server action checks the session and selects the requested
-   operation.
-3. The frontend signs a short-lived HS256 token with `sub=userId`, issuer,
-   audience, and a narrow scope.
-4. The backend verifies signature, issuer, audience, expiry, algorithm, and
-   scope before handling the request.
-5. Ownership checks use the verified `sub` claim and the instance id from the
-   URL. A request body cannot select another user.
+| Boundary | Responsibility |
+|---|---|
+| src/routes | HTTP schemas, validation, serialization, auth entry checks |
+| src/auth | Service-token verification; Phase 1 credentials/session boundary |
+| src/services | Business rules and coordination through typed dependencies |
+| src/db | Database client, repositories, schema and migrations |
+| src/queue | Job production, delivery, retry policy and worker entry point |
+| src/orchestrator | Narrow Docker lifecycle adapter consuming trusted runtime specs |
+| src/plugins | Error handling, correlation IDs, generated OpenAPI |
+| tests | Units, contracts and later service/lifecycle integration tests |
 
-The token secret is shared only between the frontend server and backend. It is
-never sent to the browser or a target container.
+Business services depend on small interfaces where implementations can vary:
+repositories, mailer, queue, trusted manifest loader, and orchestrator.
+Introduce each interface with its real consumer rather than prebuilding a
+generic repository framework.
 
-## Instance lifecycle boundary
+## Identity and token flow
 
-The backend will store intent in Postgres and enqueue idempotent jobs. A worker
-will perform the following sequence:
+1. Browser submits login to the frontend BFF under its own CSRF protection.
+2. BFF sends credentials to the backend with a dedicated auth credential.
+3. Backend verifies Argon2id password/account state and creates an opaque
+   session. PostgreSQL stores only its hash and expiry/revocation metadata.
+4. BFF binds the opaque session to its secure browser-session flow and resolves
+   it at the backend before signing a user operation token.
+5. BFF signs HS256 claims including sub, issuer, audience, issued-at, expiry,
+   narrow scope, and the backend `sid` session reference.
+6. Backend verifies the token and uses the verified sub as the acting user.
+   Phase 1 also validates session ownership/liveness and current account/role
+   state, so revocation is not bypassed by an unexpired service token.
+7. Domain services apply ownership and permission checks to resource IDs.
 
-1. Validate the challenge manifest and user quota.
-2. Select a healthy lab node with capacity.
-3. Create one network for the instance.
-4. Start the pinned image with security and resource defaults.
-5. Configure the Traefik route.
-6. Poll the declared health check.
-7. Mark the instance running only after the check succeeds.
-8. Reap expired instances and reconcile database intent with Docker reality.
+The dedicated BFF credential identifies a trusted caller, not a signed-in user.
+User identity never comes from an acting-user field in a request body. The
+verifier validates signature, algorithm, issuer, audience, required claims,
+five-minute max token age, scope, session ownership/liveness, current account
+status, and current role permissions.
 
-The Docker adapter will accept a typed internal runtime specification, not raw
-HTTP input. It will reject privileged mode, socket mounts, host networking,
-host PID/IPC namespaces, and unapproved capabilities.
+Creating an instance also checks the current account's email verification from
+that live lookup and returns 403 before intent is persisted for an unverified
+account. Read/extend/stop keep their existing owner rules. Extend and delete
+commands accept no body and reject supplied JSON, including `{}`, after
+authorization. The frontend's preview default makes no backend calls; explicit
+live frontend mode retains this BFF flow.
+
+The [auth contract](docs/AUTHENTICATION.md) describes bootstrap, cookie handling,
+expiry/revocation and the frontend integration checkpoint.
+
+The API selects a narrow authentication mailer: local file delivery by default,
+Gmail for explicitly configured local demos, or Resend in production. Only the
+API holds provider credentials. Links point at frontend BFF forms, and the
+database stores token hashes. Provider failures retain generic request
+acknowledgements and append only safe failure metadata to the audit log.
+Delivery is synchronous; there is no durable email outbox. See [email delivery](docs/EMAIL.md).
+
+## Data and challenge definitions
+
+Phase 1 replaced the unused Neon HTTP factory with a transactional PostgreSQL
+connection adapter supporting local PostgreSQL and managed Neon. Drizzle defines
+identity, catalog, submission, solve, and audit data through reviewed committed
+SQL migrations. Database transactions enforce single-use auth tokens and one
+scored solve per user/challenge.
+
+Validated repository definitions seed public catalog metadata into PostgreSQL.
+Separate worker-only runtime manifests bind challenge IDs to pinned images,
+resource limits, non-root users, and bounded health checks. Flags are HMAC-derived per user/challenge/instance at
+runtime; no expected or submitted flag is persisted. Target flag injection uses
+a narrow runtime path, never an image layer, public API response, or unrestricted
+Docker option.
+
+The approved harmless Welcome milestone adds one development/test exception:
+validated configuration selects a worker-only derive interface that supplies the
+public placeholder for Welcome's exact stable ID. Other identities retain HMAC
+derivation. The standalone `challenges/welcome/` handler reads only the injected
+runtime value; its health endpoint contains no flag. Its reviewed manifest fixes
+non-root execution, health and resource bounds around an operator-supplied
+immutable image identity. The API submission verifier is unchanged in Phase 2;
+Welcome scoring and live progress integration remain Phase 3. See `docs/API.md`
+for the approved semantics and `PLAN.md` for actual local acceptance evidence.
+
+The submission service resolves a running, unexpired instance through a narrow
+ownership interface before deriving or checking a flag, then records attempts,
+audits, and first solves transactionally. Progress reads use only the verified token subject; the public
+leaderboard exposes display names and aggregate scores without account IDs.
+
+## Lifecycle intent and recovery (Phase 3)
+
+The API persists owned instance intent and idempotency records. A worker sweep
+adds pending operations to BullMQ using the operation UUID as the job ID and
+marks delivery only after enqueue succeeds. This closes the database/enqueue
+gap and recovers stale running operations.
+Delivery can reach a worker before the producer saves its queued marker.
+The worker therefore claims an existing durable pending operation as well as
+queued/retrying work. The producer's pending-only marker cannot rewind a
+running or completed operation. Real PostgreSQL/Redis regressions cover delayed
+marking and producer failure after enqueue; terminal operations are not claimed.
+
+Workers validate the manifest/quota, choose the registered node, create an isolated
+network, start the pinned image with fixed restrictions, configure ingress,
+poll health, and mark the instance running. URLs are exposed only to the owner
+after readiness. Reapers expire instances; reconciliation compares persisted
+intent with Docker resources labeled by backend-owned IDs and repairs drift.
+
+Before starting a worker on an isolated host, `npm run worker:preflight` uses
+the same Docker credential boundary to read the required host controls, inspect
+the ingress container, and confirm every trusted pinned image is present. When
+configured, it writes and removes a temporary ingress visibility marker. It
+does not create Docker resources or connect to PostgreSQL or Redis.
+
+Create/extend/destroy accept client idempotency keys. Repeated deliveries,
+partial creates, lost replies and worker restarts must not duplicate resources
+or points. One player has at most one active instance, a default 60-minute
+lifetime and a 2-hour absolute maximum. HTTP targets ship first.
+
+The current single-node worker serializes lifecycle jobs. Per-node PostgreSQL
+admission locks bound allocations to the explicit
+`LAB_NODE_CAPACITY_SLOTS` budget. Durable instance reservations are combined
+with read-only container/network/route inventory, including partial and orphan
+allocations. Cleanup failure retains capacity until complete inventory confirms
+absence. Inventory failures and ambiguous labels fail closed. Maintenance now
+sweeps missing/terminal-instance resources through a gate shared with lifecycle
+execution. It validates the complete plan, including canonical route contents,
+before auditing starts and removing anything. Success requires fresh absence
+evidence before releasing reservations. Partial failures are audited and retried;
+unrelated resources and network endpoints are preserved. Shutdown drains this
+single-process gate; it does not provide distributed-worker locking.
+Startup maintenance
+skips reconciliation while a spawn operation is active, so both jobs cannot
+race over the same Docker network. A second worker process requires a
+distributed per-instance lock; multi-node scheduling remains deferred. The
+adapter writes Traefik file-provider YAML, and runtime reconciliation destroys
+and audits stopped, unhealthy, OOM-killed, or missing targets.
+The queue owns its duplicated BullMQ Redis client and closes it on shutdown;
+the idle worker exited within five seconds of SIGTERM on the validation VM.
+
+The file router writes to the worker's local filesystem for disposable local
+setups; startup and preflight check that the directory is visible inside
+ingress. Production instead requires `TRAEFIK_ROUTE_DELIVERY=ingress`, which
+copies and removes each rendered route inside the ingress container over the
+worker's authenticated Docker connection. Startup and preflight round-trip a
+temporary marker through that channel and fail closed if delivery fails. Unit
+tests cover this path. Real Engine mTLS and remote delivery preflight passed on
+the two-VM validation setup on 2026-10-04. Live HTTPS lifecycle, two-instance
+isolation, network-drift termination, and mid-spawn crash recovery also passed.
+Targets require Docker 28+ isolated bridge gateway modes with IPv6 disabled;
+ordinary internal bridges permit access to host bridge services. Production
+firewall, domain/TLS, and deployment evidence remain Phase 4 requirements.
+
+## Deployment boundaries
+
+Local Compose runs PostgreSQL/Redis on loopback with named data volumes.
+The API runs separately through npm and consumes PostgreSQL; Redis is a worker
+dependency. Never run challenge targets on that control-plane
+Compose network.
+
+The production control-plane VM will run separate API and worker processes
+with managed Neon and Redis. Lab targets run on separate hosts/trust zones via
+Docker mTLS and isolated ingress. Readiness will check active dependencies;
+liveness stays independent of them. A domain/TLS setup is required before
+remote target routing, and every SECURITY.md gate must pass before public signup.
+The API and worker will use a restricted PostgreSQL application login; migrations
+will use a separate table owner. The reviewed grants and operational checks are
+described in [database roles](docs/DATABASE_ROLES.md). Production provisioning
+remains an open Phase 4 gate.

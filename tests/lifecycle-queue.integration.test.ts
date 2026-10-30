@@ -1,0 +1,257 @@
+import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import type { Worker } from 'bullmq';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
+import { seedCatalog } from '../src/db/catalog-seed.js';
+import { createDatabase, type DatabaseClient } from '../src/db/client.js';
+import { DrizzleLifecycleJobRepository } from '../src/db/lifecycle-job-repository.js';
+import { instanceOperations, instances, users } from '../src/db/schema.js';
+import type { LifecycleJobData, LifecycleOperationType } from '../src/queue/contracts.js';
+import {
+  createRedisConnection,
+  LifecycleQueue,
+  lifecycleJobOptions,
+} from '../src/queue/lifecycle-queue.js';
+
+const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+const testRedisUrl = process.env.TEST_REDIS_URL;
+const describeInfrastructure = testDatabaseUrl && testRedisUrl ? describe : describe.skip;
+
+describeInfrastructure('durable lifecycle queue', () => {
+  let database: DatabaseClient;
+  let repository: DrizzleLifecycleJobRepository;
+  let queue: LifecycleQueue;
+  let worker: Worker<LifecycleJobData, void, LifecycleOperationType>;
+  const userId = randomUUID();
+  let instanceId: string;
+
+  beforeAll(async () => {
+    if (!testDatabaseUrl || !testRedisUrl) throw new Error('Test infrastructure is required');
+    const challenge = CHALLENGE_DEFINITIONS[0];
+    if (!challenge) throw new Error('Challenge definitions must not be empty');
+    database = createDatabase(testDatabaseUrl);
+    await migrate(database.db, { migrationsFolder: 'drizzle' });
+    await seedCatalog(database.db);
+    await database.db.insert(users).values({
+      id: userId,
+      email: `queue-${userId}@example.test`,
+      passwordHash: 'test-only-placeholder-hash',
+    });
+    const now = new Date();
+    const [instance] = await database.db
+      .insert(instances)
+      .values({
+        userId,
+        challengeId: challenge.id,
+        expiresAt: new Date(now.getTime() + 60 * 60 * 1_000),
+        absoluteExpiresAt: new Date(now.getTime() + 2 * 60 * 60 * 1_000),
+      })
+      .returning({ id: instances.id });
+    if (!instance) throw new Error('Instance insert returned no id');
+    instanceId = instance.id;
+    repository = new DrizzleLifecycleJobRepository(database.db);
+    queue = new LifecycleQueue(
+      createRedisConnection(testRedisUrl),
+      repository,
+      `lifecycle-test-${randomUUID()}`,
+      () => new Date(),
+      {
+        ...lifecycleJobOptions,
+        attempts: 2,
+        backoff: { type: 'fixed', delay: 10 },
+      },
+    );
+    worker = queue.createWorker({
+      handle: async (operation) => {
+        if (operation.type === 'reconcile') throw new Error('deliberate test failure');
+      },
+    });
+    await worker.waitUntilReady();
+  }, 30_000);
+
+  afterAll(async () => {
+    await worker?.close();
+    await queue?.close();
+    await database?.db.delete(users).where(eq(users.id, userId));
+    await database?.close();
+  });
+
+  it('delivers a pending operation once with its database id as the job id', async () => {
+    const operationId = await insertOperation('spawn', 'queue-spawn-001');
+
+    await expect(queue.dispatchPending()).resolves.toBe(1);
+    await expect(queue.dispatchPending()).resolves.toBe(0);
+    await waitForOperation(operationId, 'succeeded');
+
+    const operation = await readOperation(operationId);
+    expect(operation).toMatchObject({ status: 'succeeded', attempts: 1 });
+  }, 15_000);
+
+  it('bounds retries and retains failed jobs for inspection', async () => {
+    const operationId = await insertOperation('reconcile', 'queue-reconcile-001');
+
+    await expect(queue.dispatchPending()).resolves.toBe(1);
+    await waitForOperation(operationId, 'failed');
+
+    const operation = await readOperation(operationId);
+    expect(operation).toMatchObject({
+      status: 'failed',
+      attempts: 2,
+      failureCode: 'execution_failed',
+    });
+    const failed = await queue.getFailed();
+    expect(failed.some((job) => job.id === operationId)).toBe(true);
+  }, 15_000);
+
+  it.each([false, true])('processes delivery before the queued marker, including producer failure: %s', async (producerFails) => {
+    const operationId = await insertOperation('extend', `queue-fast-delivery-${producerFails ? 'failed' : 'late'}-001`);
+    let claimed!: () => void;
+    const firstClaim = new Promise<void>((resolve) => { claimed = resolve; });
+    let firstClaimAccepted = false;
+    const claim = repository.claimOperation.bind(repository);
+    const markQueued = repository.markQueued.bind(repository);
+    const claimSpy = vi.spyOn(repository, 'claimOperation').mockImplementationOnce(async (id, now) => {
+      const result = await claim(id, now);
+      firstClaimAccepted = result !== null;
+      claimed();
+      return result;
+    });
+    const markerSpy = vi.spyOn(repository, 'markQueued').mockImplementationOnce(async (id, now) => {
+      await firstClaim;
+      if (producerFails) throw new Error('simulated producer failure after enqueue');
+      await markQueued(id, now);
+    });
+    try {
+      if (producerFails) await expect(queue.dispatchPending()).rejects.toThrow('simulated producer failure');
+      else await queue.dispatchPending();
+      expect(firstClaimAccepted).toBe(true);
+      await waitForOperation(operationId, 'succeeded');
+      expect(await readOperation(operationId)).toMatchObject({ status: 'succeeded', attempts: 1 });
+      await expect(queue.dispatchPending()).resolves.toBe(0);
+    } finally {
+      claimSpy.mockRestore();
+      markerSpy.mockRestore();
+    }
+  }, 15_000);
+
+  it('creates idempotent reaper and reconciliation intent from persisted state', async () => {
+    const expiredAt = new Date(Date.now() - 1_000);
+    await database.db
+      .update(instances)
+      .set({ status: 'running', expiresAt: expiredAt, updatedAt: expiredAt })
+      .where(eq(instances.id, instanceId));
+
+    const maintenanceAt = new Date();
+    await repository.createMaintenanceIntents(maintenanceAt, '2026-01-01T00:00');
+    await repository.createMaintenanceIntents(maintenanceAt, '2026-01-01T00:00');
+
+    const instance = await database.db.query.instances.findFirst({
+      where: eq(instances.id, instanceId),
+    });
+    expect(instance?.status).toBe('stopping');
+    const operations = await database.db
+      .select({
+        type: instanceOperations.type,
+        idempotencyKey: instanceOperations.idempotencyKey,
+      })
+      .from(instanceOperations)
+      .where(eq(instanceOperations.instanceId, instanceId));
+    expect(operations.filter(({ type }) => type === 'reap')).toHaveLength(1);
+    expect(
+      operations.filter(({ idempotencyKey }) => idempotencyKey === 'reconcile-2026-01-01T00:00'),
+    ).toHaveLength(1);
+  });
+
+  it('does not reconcile an instance while its spawn operation is active', async () => {
+    const challenge = CHALLENGE_DEFINITIONS[0];
+    if (!challenge) throw new Error('Challenge definitions must not be empty');
+    const anotherUserId = randomUUID();
+    await database.db.insert(users).values({
+      id: anotherUserId,
+      email: `queue-spawn-${anotherUserId}@example.test`,
+      passwordHash: 'test-only-placeholder-hash',
+    });
+    try {
+      const now = new Date();
+      const [anotherInstance] = await database.db.insert(instances).values({
+        userId: anotherUserId,
+        challengeId: challenge.id,
+        expiresAt: new Date(now.getTime() + 60 * 60_000),
+        absoluteExpiresAt: new Date(now.getTime() + 2 * 60 * 60_000),
+      }).returning({ id: instances.id });
+      if (!anotherInstance) throw new Error('Instance insert returned no id');
+      await database.db.insert(instanceOperations).values({
+        instanceId: anotherInstance.id,
+        userId: anotherUserId,
+        type: 'spawn',
+        idempotencyKey: 'queue-active-spawn',
+        requestHash: 'a'.repeat(64),
+      });
+
+      await repository.createMaintenanceIntents(now, '2026-01-01T00:01');
+      const operations = await database.db.select({ type: instanceOperations.type })
+        .from(instanceOperations)
+        .where(eq(instanceOperations.instanceId, anotherInstance.id));
+      expect(operations.map(({ type }) => type)).toEqual(['spawn']);
+    } finally {
+      await database.db.delete(users).where(eq(users.id, anotherUserId));
+    }
+  });
+
+  it('releases the duplicated worker Redis connection on shutdown', async () => {
+    if (!testRedisUrl) throw new Error('Test Redis is required');
+    const shutdownQueue = new LifecycleQueue(
+      createRedisConnection(testRedisUrl),
+      repository,
+      `lifecycle-shutdown-${randomUUID()}`,
+    );
+    const shutdownWorker = shutdownQueue.createWorker({ handle: async () => undefined });
+    await shutdownWorker.waitUntilReady();
+    const workerClient = await shutdownWorker.client;
+    try {
+      await shutdownWorker.close();
+      await shutdownQueue.close();
+      // QUIT resolves before ioredis necessarily emits its socket-close event.
+      // Observe natural shutdown; only force disconnect in cleanup on failure.
+      await expect.poll(() => workerClient.status, { timeout: 2_000 }).toBe('end');
+    } finally {
+      if (workerClient.status !== 'end') workerClient.disconnect();
+    }
+  });
+
+  async function insertOperation(type: LifecycleOperationType, idempotencyKey: string) {
+    const [operation] = await database.db
+      .insert(instanceOperations)
+      .values({
+        instanceId,
+        userId,
+        type,
+        idempotencyKey,
+        requestHash: 'a'.repeat(64),
+      })
+      .returning({ id: instanceOperations.id });
+    if (!operation) throw new Error('Operation insert returned no id');
+    return operation.id;
+  }
+
+  async function readOperation(operationId: string) {
+    return database.db.query.instanceOperations.findFirst({
+      where: eq(instanceOperations.id, operationId),
+    });
+  }
+
+  async function waitForOperation(
+    operationId: string,
+    expectedStatus: 'succeeded' | 'failed',
+  ): Promise<void> {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const operation = await readOperation(operationId);
+      if (operation?.status === expectedStatus) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(`Operation ${operationId} did not become ${expectedStatus}`);
+  }
+});

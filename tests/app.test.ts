@@ -6,13 +6,29 @@ import type { Config } from '../src/config.js';
 const config: Config = {
   NODE_ENV: 'test', HOST: '127.0.0.1', PORT: 4000,
   FRONTEND_ORIGIN: 'http://localhost:3000',
+  BFF_AUTH_SECRET: 'test-bff-secret-at-least-thirty-two-characters',
   BACKEND_SERVICE_TOKEN_SECRET: 'test-secret-at-least-thirty-two-characters',
+  INSTANCE_FLAG_SECRET: 'test-instance-flag-secret-at-least-thirty-two-characters',
   SERVICE_TOKEN_ISSUER: 'cyber-range-frontend',
   SERVICE_TOKEN_AUDIENCE: 'cyber-range-backend',
+  SIGNUPS_OPEN: false,
+  WELCOME_LAB_TEST_ENABLED: false,
+  AUTH_RATE_LIMIT_MAX: 10,
+  AUTH_RATE_LIMIT_WINDOW: '1 minute',
+  SESSION_RATE_LIMIT_MAX: 120,
+  SESSION_RATE_LIMIT_WINDOW: '1 minute',
+  SUBMISSION_RATE_LIMIT_MAX: 20,
+  SUBMISSION_RATE_LIMIT_WINDOW_MS: 60_000,
+  INSTANCE_RATE_LIMIT_MAX: 5,
+  INSTANCE_RATE_LIMIT_WINDOW_MS: 60_000,
+  LOCAL_DEV_TEST: false,
+  LOCAL_MAIL_DIRECTORY: '.local-mail',
+  MAIL_PROVIDER: 'local',
+  EMAIL_SENDER_NAME: 'Cyber Range',
 };
 
 async function token(scope: string) {
-  return new SignJWT({ scope })
+  return new SignJWT({ scope, sid: '00000000-0000-4000-8000-000000000002' })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject('player-1')
     .setIssuer(config.SERVICE_TOKEN_ISSUER)
@@ -22,9 +38,17 @@ async function token(scope: string) {
     .sign(new TextEncoder().encode(config.BACKEND_SERVICE_TOKEN_SECRET));
 }
 
+const dependencies = {
+  sessionAuthorizer: {
+    validateServiceSession: async () => ({
+      allowedScopes: ['instances:read', 'instances:write'],
+    }),
+  },
+};
+
 describe('API scaffold', () => {
   it('serves health and version metadata', async () => {
-    const app = await buildApp(config);
+    const app = await buildApp(config, dependencies);
     try {
       expect((await app.inject('/healthz')).json()).toEqual({ status: 'ok' });
       expect((await app.inject('/v1/meta')).json()).toEqual({ name: 'cyber-range-backend', version: 'v1' });
@@ -32,7 +56,7 @@ describe('API scaffold', () => {
   });
 
   it('gates unfinished lifecycle routes behind a verified token', async () => {
-    const app = await buildApp(config);
+    const app = await buildApp(config, dependencies);
     try {
       const path = '/v1/instances/00000000-0000-4000-8000-000000000001';
       expect((await app.inject(path)).statusCode).toBe(401);
