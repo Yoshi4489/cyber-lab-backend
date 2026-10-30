@@ -17,6 +17,8 @@ const envSchema = z.object({
   SIGNUPS_OPEN: z.enum(['false']).default('false').transform(() => false as const),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
   AUTH_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
+  SESSION_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1_000).default(120),
+  SESSION_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
   SUBMISSION_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1_000).default(20),
   SUBMISSION_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
   INSTANCE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(5),

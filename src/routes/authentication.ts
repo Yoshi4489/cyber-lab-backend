@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { bffClientKey, bffSessionKey } from '../auth/bff-rate-keys.js';
 import { requireBff } from '../auth/require-bff.js';
 import type { Config } from '../config.js';
 import { forbidden } from '../lib/errors.js';
@@ -41,9 +42,19 @@ export async function registerAuthenticationRoutes(
   options: { config: Config; authentication: AuthenticationService },
 ) {
   const routes = app.withTypeProvider<ZodTypeProvider>();
+  // preHandler runs after BFF authorization and body validation, so keys can
+  // use the trusted forwarded client address or the submitted session token.
   const rateLimit = {
     max: options.config.AUTH_RATE_LIMIT_MAX,
     timeWindow: options.config.AUTH_RATE_LIMIT_WINDOW,
+    hook: 'preHandler' as const,
+    keyGenerator: bffClientKey,
+  };
+  const sessionRateLimit = {
+    max: options.config.SESSION_RATE_LIMIT_MAX,
+    timeWindow: options.config.SESSION_RATE_LIMIT_WINDOW,
+    hook: 'preHandler' as const,
+    keyGenerator: bffSessionKey,
   };
   const authorize = async (request: FastifyRequest): Promise<void> => {
     requireBff(request.headers.authorization, options.config);
@@ -69,7 +80,7 @@ export async function registerAuthenticationRoutes(
   });
 
   routes.post('/auth/session', {
-    config: { rateLimit },
+    config: { rateLimit: sessionRateLimit },
     preValidation: authorize,
     schema: {
       operationId: 'resolveSession',
@@ -83,7 +94,7 @@ export async function registerAuthenticationRoutes(
     serializeSession(await options.authentication.resolveSession(request.body.sessionToken)));
 
   routes.post('/auth/logout', {
-    config: { rateLimit },
+    config: { rateLimit: sessionRateLimit },
     preValidation: authorize,
     schema: {
       operationId: 'logout',
