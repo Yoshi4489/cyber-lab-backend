@@ -1,0 +1,23 @@
+{
+  "id": "a1000000-0000-4000-8000-000000000004",
+  "slug": "ping-tool",
+  "title": "Ping Tool",
+  "summary": "A network team's reachability checker blocks some dangerous characters. Not all of them.",
+  "category": "web",
+  "difficulty": "medium",
+  "points": 250,
+  "kind": "web",
+  "tags": ["command-injection", "filter-bypass"],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": ["Work out how the tool runs its check", "Get past the character filter", "Find and read the team's runbook on the server"],
+  "learningOutcomes": ["Identify OS command injection", "Explain why denylists fail", "Replace shell execution with argument-based APIs and allowlists"],
+  "references": [
+    { "label": "CWE-78: OS Command Injection", "url": "https://cwe.mitre.org/data/definitions/78.html" },
+    { "label": "MITRE ATT&CK T1059: Command and Scripting Interpreter", "url": "https://attack.mitre.org/techniques/T1059/" }
+  ],
+  "hints": [
+    { "cost": 25, "bodyMd": "Semicolons and ampersands are blocked. A shell has other ways to chain commands." },
+    { "cost": 50, "bodyMd": "The lab has no outbound network, so results must come back in the page. Try a pipe, and start by listing /tmp." }
+  ]
+}

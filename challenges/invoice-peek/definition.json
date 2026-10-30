@@ -1,0 +1,23 @@
+{
+  "id": "a1000000-0000-4000-8000-000000000001",
+  "slug": "invoice-peek",
+  "title": "Invoice Peek",
+  "summary": "A billing portal lets you see your own invoices. Find out whose else you can reach.",
+  "category": "web",
+  "difficulty": "easy",
+  "points": 100,
+  "kind": "web",
+  "tags": ["idor", "access-control", "beginner"],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": ["Sign in with the demo account", "Work out how the portal identifies an invoice", "Recover the approval code from a confidential invoice"],
+  "learningOutcomes": ["Recognise insecure direct object references", "Explain why authentication does not imply authorization", "Describe a server-side ownership check that fixes the flaw"],
+  "references": [
+    { "label": "CWE-639: Authorization Bypass Through User-Controlled Key", "url": "https://cwe.mitre.org/data/definitions/639.html" },
+    { "label": "OWASP Top 10: Broken Access Control", "url": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/" }
+  ],
+  "hints": [
+    { "cost": 10, "bodyMd": "Look closely at the address bar when you open one of your invoices." },
+    { "cost": 25, "bodyMd": "Invoice numbers are sequential, and your own start at 1042. What about lower numbers?" }
+  ]
+}

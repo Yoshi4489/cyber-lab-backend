@@ -1,0 +1,7 @@
+{
+  "containerPort": 8080,
+  "user": "65532:65532",
+  "flagDelivery": { "mode": "exec", "command": ["node", "/app/_lab/load-flag.mjs"], "user": "65532:65532" },
+  "healthcheck": { "test": ["CMD", "node", "/app/_lab/healthcheck.mjs"], "intervalSeconds": 5, "timeoutSeconds": 3, "retries": 5, "startupSeconds": 60 },
+  "resources": { "memoryMb": 128, "cpuCores": 0.5, "pids": 64, "tmpfsMb": 16 }
+}

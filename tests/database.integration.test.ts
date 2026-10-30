@@ -4,6 +4,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
+import { loadChallengePackages } from '../src/catalog/packages.js';
 import { seedCatalog } from '../src/db/catalog-seed.js';
 import { createDatabase, type DatabaseClient } from '../src/db/client.js';
 import { challenges, solves, submissions, users } from '../src/db/schema.js';
@@ -78,7 +79,13 @@ describeDatabase('PostgreSQL foundation', () => {
       })
       .from(challenges)
       .orderBy(challenges.id);
-    expect(rows).toEqual([...CHALLENGE_DEFINITIONS].sort((left, right) => left.id.localeCompare(right.id)));
+    const definitionIds = new Set(CHALLENGE_DEFINITIONS.map(({ id }) => id));
+    expect(rows.filter(({ id }) => definitionIds.has(id)))
+      .toEqual([...CHALLENGE_DEFINITIONS].sort((left, right) => left.id.localeCompare(right.id)));
+    // Lab packages are seeded too, but stay hidden unless publishing is requested.
+    const packageRows = rows.filter(({ id }) => !definitionIds.has(id));
+    expect(packageRows).toHaveLength((await loadChallengePackages()).length);
+    expect(packageRows.every(({ published }) => !published)).toBe(true);
 
     const columns = await database.db.execute(
       sql<{ column_name: string }>`
