@@ -280,7 +280,12 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
   /v1/challenges/:slug/walkthrough/unlock` require `submissions:write`, share
   the submission rate limit, and are safe to retry. `solves[].points` on the
   profile can now be 0.
-- Submissions require `submissions:write`, an `instanceId`, and an owned running
+- `GET /v1/challenges/:slug/content` also lists `artifacts` (filename, size,
+  SHA-256). `GET /v1/challenges/:slug/artifacts/:filename` requires `profile:read`,
+  shares the submission rate limit, and returns a forced attachment. Files are
+  served from `ARTIFACT_STORE_DIRECTORY` only if they match their manifest checksum.
+- Artifact challenges omit `instanceId` on submission; see the scoring contract.
+- Other submissions require `submissions:write`, an `instanceId`, and an owned running
   challenge instance. They persist the attempt and return
   `{ correct, points, recorded: true, source: "database" }`; only the first
   correct solve awards points. The server-wired resolver accepts only an owned,

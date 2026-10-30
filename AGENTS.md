@@ -16,8 +16,8 @@ hold Docker Engine credentials.
 Current state: accounts, catalog, scoring, progress and the full lab lifecycle
 are implemented and tested locally. One harmless test lab (Welcome) is used
 for end-to-end checks; it is not real challenge content. Four real web labs
-live in `challenges/` and are published only with `CATALOG_PUBLISH_LABS=true`
-outside production. Nothing is launched:
+and five download challenges live in `challenges/` and are published only with
+`CATALOG_PUBLISH_LABS=true` outside production. Nothing is launched:
 public signup is closed and the production security gate is open. `PLAN.md`
 has the current status and next steps; `docs/PLAN_HISTORY.md` keeps the dated
 log and earlier evidence.

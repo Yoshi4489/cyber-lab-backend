@@ -143,6 +143,10 @@ API returns an expected flag. All other lab identities retain dynamic flags.
   exec`), never through the container environment. The package loader refuses a
   lab with env delivery or a flag value in its published text, and
   `scripts/lab-check.mjs` proves the solver and the absence of known shortcuts.
+- Artifact files contain flags, so the store stays outside Git and every image.
+  The build needs `INSTANCE_FLAG_SECRET`, so run it only on a trusted operator host.
+  Artifacts must be synthetic, with no real personal data or live malware.
+  `scripts/artifact-check.mjs` proves each is solvable.
 - Derive per-instance flags from a dedicated backend secret and runtime identity;
   persist neither expected flags nor submitted values. Verify only after an
   ownership resolver binds user, challenge, and instance.

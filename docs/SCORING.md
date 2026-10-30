@@ -20,6 +20,14 @@ After a solve, hints and the walkthrough are free and don't change the award.
 Unlocks and awards take the same per-player, per-challenge lock, so an unlock
 racing a solve can't apply a cost twice or lose it. Unlocks are safe to retry.
 
+## Artifact challenges
+
+Download challenges omit `instanceId`. Their flag is an HMAC of the challenge ID and
+`definitionVersion`, baked into the files by `scripts/build-artifacts.mjs` and derived
+again at submission, so no flag is stored. Omitting `instanceId` for any other kind
+returns 404, and so does sending one for an artifact challenge. Bump
+`definitionVersion` and rebuild when a challenge's files change.
+
 ## Dynamic submissions
 
 `POST /v1/submissions` requires a live session-bound service token with

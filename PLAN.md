@@ -7,7 +7,8 @@ The dated delivery log and all earlier evidence are in
 ## Where things stand
 
 The backend is a working local platform with one harmless test lab (Welcome)
-and four real web labs, verified on the local VM. It is not launched: public signup is closed and the production security gate
+four real web labs and five download challenges, verified locally. It is not
+launched: public signup is closed and the production security gate
 is open.
 
 | Area | State |
@@ -156,10 +157,50 @@ Not done or not run:
 - The plan's `expert` difficulty, category table and `scored` column were not
   needed yet. A forfeited solve is stored with 0 points instead.
 
+### Phase 2: artifact challenges (2026-10-31)
+
+Implemented: the `artifact` challenge kind, optional `instanceId` on submissions
+for that kind only, one derived flag per challenge version, a local artifact store
+outside Git, signed-in downloads through the BFF, and an operator build. Ships
+Caesar's Memo, Small e, Leaky Capture, Lost Photo and License Check.
+
+Evidence, using real services on the local machine:
+
+- `scripts/artifact-check.mjs`: 15/15 across five challenges. Each solver recovers
+  the exact flag, the flag is not in the files as plain text, and a different flag
+  gives a different answer.
+- Real browser: every file downloaded through the BFF, each solver run on the
+  downloaded copies, then submitted. Awards: one hint 90, 250, 100, 100, walkthrough
+  first 0. All 10 submissions stored with a null instance. Signed-out download
+  returned 401. Phone width had no overflow, and the session page redirects to the
+  briefing. 19/20 checks passed on the first run. The other was a timing mistake in
+  the check, and a separate wait confirmed the redirect.
+- Integration tests: tampered files refused, traversal rejected, the manifest not
+  servable, and no-instance submissions refused for web labs.
+- Real tools: Chromium decodes the PNG. `tcpdump` reads all 35 packets with correct
+  checksums and shows the 4 login attempts.
+- Regression through the VM: web labs 50/51 with the same 365-point total. The one
+  failure was a brief 502 just after a stop (see Known issues); the final state was
+  0 lab containers and only `tls.yml` in the route directory. No flags in logs or
+  tracked files.
+
+Not done or not run:
+
+- Wireshark, `exiftool` and `binwalk` were not run against the files, although the
+  walkthroughs mention them. Small e's `encrypt.py` is illustrative and was not run.
+- The `Lab solvers` CI job, which now also runs `artifact-check`, still hasn't run.
+- License Check is JavaScript rather than a native binary, so it needs no compiler
+  and is safe to run. Native reversing challenges wait for the Phase 4 workstation.
+- Instead of the planned `challenge_artifacts` table and `flag_policy` column, file
+  metadata lives in the store's manifest and the policy follows from `kind`.
+- Anyone who solves an artifact challenge can share its flag, as the plan accepted.
+  Rotating `INSTANCE_FLAG_SECRET` requires rebuilding the artifacts.
+
 ## Next steps, in order
 
-1. **Approve CTF Phase 2 (artifact challenges), or choose another milestone.**
-   Hosted rollout needs separate approval. Before more VM runs:
+1. **Approve CTF Phase 3 (subdomains and multi-service labs), or choose another
+   milestone.** Phase 3 needs more VM memory first, about 4 CPU and 8 GiB. Hosted
+   rollout needs separate approval. Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
    - The ingress HTTPS certificate on the VM still expires **2026-11-01** and
@@ -186,7 +227,7 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- Whether to start CTF Phase 2 next, or hosted rollout and the production
+- Whether to start CTF Phase 3 next, or hosted rollout and the production
   security gate.
 - How to key the general rate limit (point 2 above).
 - Any hosted change, dependency, migration or contract change.
@@ -207,7 +248,8 @@ open signup by itself.
 
 - A new route can return 404 for a moment after an instance reports `running`,
   while Traefik reloads. The longest gap measured was 837 ms over 12 starts, so
-  people won't normally notice it, but scripts should wait for a 200.
+  people won't normally notice it, but scripts should wait for a 200. A stopped
+  lab can likewise return 502 briefly before its route disappears.
 
 - With default file parallelism, three older lifecycle integration tests
   occasionally race on the shared test database. Run
