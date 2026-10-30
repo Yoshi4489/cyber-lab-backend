@@ -57,9 +57,10 @@ change, and review the generated SQL before committing it. The worker consumes
 
 ## Disabling rate limits for local testing
 
-Every protected BFF call resolves its session through `/v1/auth/session`, which
-shares the per-IP auth limit (default 10/minute). One browser polling an
-instance can exhaust it. For local development and test runs only, set:
+Session checks are limited per session (default 120/minute) and logins per
+learner address, so ordinary local use stays within limits. Locally every
+browser shares the loopback address, so many logins from automated runs can
+still hit the 10/minute login limit. For local development and test runs only, set:
 
 ```
 LOCAL_DEV_TEST=true

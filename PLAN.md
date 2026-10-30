@@ -21,13 +21,18 @@ fresh seeded database and built live frontend passed the same journey; the
 running state was set in that disposable database because no target may run on
 the control-plane host. Real VM target acceptance is not repeated here.
 
-Open question: the BFF resolves `/v1/auth/session` on every protected call and
-that route shares the per-IP auth limiter (default 10/minute), so all learners
-behind one BFF share the budget; polling plus progress reads exhausted it in
-acceptance until `AUTH_RATE_LIMIT_MAX=100`. For local testing the user added
-`LOCAL_DEV_TEST=true` (development/test only, rejected in production), which
-disables all API rate limits; see `docs/LOCAL_DEVELOPMENT.md`. The production
-limiter design still needs a contract decision before any hosted multi-user use. **Pause for Phase 4 approval.**
+Resolved (user-approved): the BFF resolves `/v1/auth/session` on every
+protected call, and that route used to share the per-IP auth limiter, so all
+learners behind one BFF shared 10 checks per minute. Session resolution and
+logout are now limited per hashed session token (`SESSION_RATE_LIMIT_MAX`,
+default 120/minute). Login, verification and reset are limited per learner
+address that the authenticated BFF forwards in `X-Cyber-Range-Client-IP`,
+falling back to the shared BFF address when absent. The frontend forwards it
+only from the header named by its `TRUSTED_CLIENT_IP_HEADER`, because Next.js
+passes browser-supplied `X-Forwarded-For` through unchanged. `LOCAL_DEV_TEST=true`
+(development/test only) still disables all limits for heavy local runs. The
+global 100/minute per-IP limiter still covers the other routes the BFF calls;
+keying those by identity remains a separate decision. **Pause for Phase 4 approval.**
 
 ## Harmless Welcome lab: Phase 2 complete locally (2026-10-26)
 
