@@ -33,7 +33,7 @@ either set. Every other challenge uses per-instance HMAC flags.
 | 1. Accounts and catalog | Done |
 | 2. Spawn and running | Done on the local VM (2026-10-26) |
 | 3. Submission and persistence | Done (merged to `develop`) |
-| 4. Two-user isolation | Control-plane half done and pushed; **real-container half waiting on the VM** |
+| 4. Two-user isolation | Done on the local VM (2026-10-30) |
 | 5. Expiry and cleanup | Not started; needs approval |
 | 6. Regression and replacement readiness | Not started |
 
@@ -42,34 +42,46 @@ Phase 4 control-plane evidence: `tests/welcome-phase-four.integration.test.ts`
 and the frontend's `tests/e2e/welcome-isolation.spec.ts`. Both prove ownership
 denial and per-instance identities, not real container separation.
 
+Phase 4 real-container evidence (2026-10-30, `CyberRangePhase4Target`, API,
+worker and disposable PostgreSQL/Redis on Windows, two slots, 24/24 checks):
+
+| Check | Observed |
+|---|---|
+| mTLS, freshly issued set | Valid client 200 (Engine 29.9.2); no client certificate, untrusted CA and wrong hostname rejected. `npm run worker:preflight` ready. |
+| Both learners running | 2 containers, 2 networks, 2 routes, labels matching both instance ids; both pages 200 through ingress |
+| Container options (both) | Unprivileged, read-only root, all capabilities dropped, no-new-privileges, AppArmor `docker-default`, 64 PIDs, 128 MiB, 0.5 CPU, no ports or mounts, bounded noexec `/tmp` |
+| Networks (both) | Internal, isolated IPv4/IPv6 gateway mode, IPv6 disabled |
+| B against A through the BFF | Read, extend, stop and submit each 404 `NOT_FOUND`; A unchanged |
+| Reachability | Each target reached its own address (200); A to B and B to A blocked (`ENETUNREACH`) |
+| Stop A | 1 container, 1 network, 1 route left, all B's; A's link 404; B's page and health 200; B's flag scored 10 |
+| Stop B | 0 containers, 0 networks, 0 routes |
+
+Limits: learners were separate cookie-holding HTTP clients against the real BFF
+(frontend `origin/develop` 63151ff in development mode), not separate browser
+profiles, so the UI was not exercised. Seccomp was not probed separately in
+this run; the shared flag cannot prove per-user flag separation. This is local
+evidence, not production-topology evidence.
+
 ## Next steps, in order
 
-1. **Finish Phase 4 on the lab VM.** Follow the Phase 4 checklist in
-   [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) and record the
-   container, network and route counts here. VM state as of 2026-10-30:
-   - VM `CyberRangePhase4Target`, user `laboperator`, Engine with mTLS on
-     `192.168.56.108:2376`, no default route. SSH is key-only; the operator
-     has a working key (kept outside Git).
-   - The Engine server certificate expires **2026-11-01**. The CA key and the
-     worker's client certificate were not found on the Windows host, so a
-     fresh set must be issued with [docs/DOCKER_MTLS.md](docs/DOCKER_MTLS.md)
-     (use `192.168.56.108` as the server address) before the worker can
-     connect.
-   - Still to confirm with `sudo docker ...` (the user is not in the docker
-     group): isolation options, the Traefik ingress container, the Welcome
-     image id, and zero leftover managed resources.
-2. **Get approval for and run Phase 5** (expiry, repeated stop, capacity
-   refusal, partial-cleanup retry), then Phase 6.
-3. **Decide the general per-IP limit.** Routes other than auth still share one
+1. **Get approval for and run Phase 5** (expiry, repeated stop, capacity
+   refusal, partial-cleanup retry), then Phase 6. Before Phase 5 on the VM:
+   - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
+     the keys are outside Git on the Windows host.
+   - The ingress HTTPS certificate on the VM still expires **2026-11-01** and
+     must be reissued before later use. Its CA was not found on the host.
+   - Disposable PostgreSQL/Redis were removed, so migrate and seed fresh ones.
+     Start `phase4-traefik` (left stopped) and the loopback SSH tunnel.
+2. **Decide the general per-IP limit.** Routes other than auth still share one
    100/minute per-IP budget across all learners behind the BFF. Keying them by
    verified user is a separate API decision.
-4. **Close the production security gate** before any public lab hosting. See
+3. **Close the production security gate** before any public lab hosting. See
    [docs/PHASE4_SECURITY_GATE.md](docs/PHASE4_SECURITY_GATE.md). Open items:
    production firewall and domain/TLS review, separate production application
    and migration database roles ([docs/DATABASE_ROLES.md](docs/DATABASE_ROLES.md)),
    verified-domain email, deployed frontend HTTPS cookie and email-link
    checks, and a worker plus separate lab host for the hosted API.
-5. **Later work:** admin and operations (account/instance admin, metrics and
+4. **Later work:** admin and operations (account/instance admin, metrics and
    alerts, credential rotation, staged deployment with rollback), a
    per-instance distributed lock for more than one worker, and the deferred
    items (browser terminal, raw TCP/WireGuard, multi-node scheduling,
@@ -80,8 +92,8 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- Approval for Phase 5 after the Phase 4 VM evidence.
-- How to key the general rate limit (point 3 above).
+- Approval for Phase 5, now that the Phase 4 VM evidence is recorded.
+- How to key the general rate limit (point 2 above).
 - Any hosted change, dependency, migration or contract change.
 
 ## How work is delivered
