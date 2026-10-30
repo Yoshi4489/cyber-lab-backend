@@ -1,9 +1,8 @@
 # Catalog and scoring contract
 
-Status: Phase 2 backend implemented. Catalog, submission persistence, first
-solves, profile progress, leaderboard queries, dynamic flag derivation, and
-verified-user rate limiting are active code paths. Phase 3 connects the
-production resolver to owned running instances.
+Status: implemented. Catalog, submission persistence, first solves, profile
+progress, leaderboard queries, dynamic flag derivation, verified-user rate
+limiting and the owned running-instance resolver are active code paths.
 
 ## Catalog
 
@@ -51,6 +50,10 @@ keys on the verified user identity after live-session authorization.
 The server-wired resolver reads persisted instance ownership and accepts only a
 running instance before its expiry. Foreign, stopped, expired, or mismatched
 instances return ownership-safe `NOT_FOUND`.
+
+The local Welcome test policy (`docs/API.md`) is the only exception to dynamic
+flags: while enabled outside production, Welcome's fixed ID verifies the shared
+public value through the same checks. No other ID ever accepts it.
 
 ## Progress and leaderboard
 

@@ -123,8 +123,9 @@ access. Re-run `npm run worker:preflight` before creating any learner instance.
 With the validated local Welcome settings enabled, the worker injects the
 configured public placeholder only for Welcome's exact challenge identity.
 All other challenge IDs retain dynamic derivation. No flag is baked into the
-image, manifest or database. At this checkpoint API submission verification is
-still unchanged; flag submission and scoring acceptance belong to Phase 3.
+image, manifest or database. The API verifies submissions with the same policy,
+so the Welcome value scores only for Welcome; set the same two settings for the
+API and the worker.
 Use learner `localhost` and target `127.0.0.1` so browser session cookies cannot
 follow the target link. Different ports alone do not separate cookie domains.
 
