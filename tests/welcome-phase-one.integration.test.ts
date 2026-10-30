@@ -13,7 +13,7 @@ import { createDatabase, type DatabaseClient } from '../src/db/client.js';
 import { challenges, solves, submissions } from '../src/db/schema.js';
 import { AuthenticationService } from '../src/services/authentication.js';
 import { loadWelcomeLabConfig, WELCOME_LAB_PUBLIC_FLAG } from '../src/welcome-lab-config.js';
-import { testConfig } from './helpers.js';
+import { dropDisposableDatabase, testConfig } from './helpers.js';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const describeDatabase = testDatabaseUrl ? describe : describe.skip;
@@ -69,8 +69,7 @@ describeDatabase('Welcome accounts and explicit catalog seed', () => {
     if (owner) {
       try {
         if (createdDatabase) {
-          if (!/^welcome_phase_one_[a-f0-9]{32}$/u.test(databaseName)) throw new Error('Unsafe disposable database name');
-          await owner.query(`drop database "${databaseName}" with (force)`);
+          await dropDisposableDatabase(owner, databaseName, /^welcome_phase_one_[a-f0-9]{32}$/u);
         }
       } finally { await owner.end(); }
     }

@@ -15,7 +15,7 @@ import { InstanceLifecycleService } from '../src/services/instance-lifecycle.js'
 import { createSubmissionFlagPolicy } from '../src/services/runtime-flags.js';
 import { SubmissionService } from '../src/services/submissions.js';
 import { loadWelcomeLabConfig, WELCOME_LAB_PUBLIC_FLAG } from '../src/welcome-lab-config.js';
-import { signToken, testConfig } from './helpers.js';
+import { dropDisposableDatabase, signToken, testConfig } from './helpers.js';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const describeDatabase = testDatabaseUrl ? describe : describe.skip;
@@ -96,8 +96,7 @@ describeDatabase('Welcome submission and persistence', () => {
     if (owner) {
       try {
         if (createdDatabase) {
-          if (!/^welcome_phase_three_[a-f0-9]{32}$/u.test(databaseName)) throw new Error('Unsafe disposable database name');
-          await owner.query(`drop database "${databaseName}" with (force)`);
+          await dropDisposableDatabase(owner, databaseName, /^welcome_phase_three_[a-f0-9]{32}$/u);
         }
       } finally { await owner.end(); }
     }

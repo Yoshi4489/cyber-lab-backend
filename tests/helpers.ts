@@ -1,4 +1,5 @@
 import { SignJWT } from 'jose';
+import type { Pool } from 'pg';
 import type { Config } from '../src/config.js';
 import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
 
@@ -86,3 +87,20 @@ export function signToken(
 
 export const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Drops a per-suite disposable database. `pool.end()` can resolve before the
+ * server has released its backends, and a forced drop then terminates a
+ * closing client with an unhandled 57P01; wait briefly for them to drain.
+ */
+export async function dropDisposableDatabase(owner: Pool, name: string, pattern: RegExp): Promise<void> {
+  if (!pattern.test(name)) throw new Error('Unsafe disposable database name');
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const { rows } = await owner.query<{ count: string }>(
+      'select count(*) from pg_stat_activity where datname = $1', [name],
+    );
+    if (rows[0]?.count === '0') break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await owner.query(`drop database "${name}" with (force)`);
+}
