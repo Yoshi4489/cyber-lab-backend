@@ -9,7 +9,7 @@ export const challengeDefinitionSchema = z
     category: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u).max(64),
     difficulty: z.enum(['easy', 'medium', 'hard']),
     points: z.number().int().positive().max(10_000),
-    kind: z.enum(['web', 'shell']),
+    kind: z.enum(['web', 'shell', 'artifact']),
     tags: z.array(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u).max(64)).max(20),
     definitionVersion: z.number().int().positive(),
     published: z.boolean(),

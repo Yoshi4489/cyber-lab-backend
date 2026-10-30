@@ -22,7 +22,7 @@ export const emailTokenPurpose = pgEnum('email_token_purpose', [
   'password_reset',
 ]);
 export const challengeDifficulty = pgEnum('challenge_difficulty', ['easy', 'medium', 'hard']);
-export const challengeKind = pgEnum('challenge_kind', ['web', 'shell']);
+export const challengeKind = pgEnum('challenge_kind', ['web', 'shell', 'artifact']);
 export const labNodeStatus = pgEnum('lab_node_status', ['active', 'draining', 'offline']);
 export const instanceStatus = pgEnum('instance_status', [
   'pending',
@@ -314,7 +314,8 @@ export const submissions = pgTable(
     challengeId: uuid('challenge_id')
       .notNull()
       .references(() => challenges.id, { onDelete: 'restrict' }),
-    instanceId: uuid('instance_id').notNull(),
+    // Null only for artifact challenges, which have no instance. `SubmissionService` enforces this.
+    instanceId: uuid('instance_id'),
     correct: boolean('correct').notNull(),
     pointsAwarded: integer('points_awarded').default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

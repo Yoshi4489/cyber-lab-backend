@@ -9,7 +9,7 @@ export type ScoringRepository = {
   recordSubmission: (input: {
     userId: string;
     challengeId: string;
-    instanceId: string;
+    instanceId: string | null;
     correct: boolean;
     correlationId?: string;
     now: Date;
