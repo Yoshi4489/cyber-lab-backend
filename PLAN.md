@@ -35,7 +35,7 @@ either set. Every other challenge uses per-instance HMAC flags.
 | 3. Submission and persistence | Done (merged to `develop`) |
 | 4. Two-user isolation | Done on the local VM (2026-10-30) |
 | 5. Expiry and cleanup | Done on the local VM (2026-10-30) |
-| 6. Regression and replacement readiness | Not started |
+| 6. Regression and replacement readiness | Done on the local VM (2026-10-30) |
 
 Phase 4 control-plane evidence: `tests/welcome-phase-four.integration.test.ts`
 (real API, database and lifecycle state machine with a recording Docker fake)
@@ -80,12 +80,39 @@ Finding fixed after this run: automatic expiry and failed stop attempts wrote no
 audit event. They now record `instance.expired`, `instance.stopped` and
 `instance.stop_failed` (see [docs/LIFECYCLE.md](docs/LIFECYCLE.md)). Verified by
 integration tests with a fake Docker (276 tests passed on disposable
-PostgreSQL/Redis); not yet re-run on the VM.
+PostgreSQL/Redis), then confirmed on the VM in Phase 6.
+
+Phase 6 evidence (2026-10-30, backend 11d820c, frontend `origin/develop` 63151ff
+production build in live mode, real API limits, same VM):
+
+| Check | Observed |
+|---|---|
+| Backend gates | Lint, typecheck, build, 276/276 tests with no skips |
+| Frontend gates | Lint, typecheck, 130/130 unit tests, build, preview isolation, BFF smoke, 57/57 preview and 117/117 live-fixture browser tests |
+| Generated types | Regenerated from the running API; identical apart from line endings |
+| Browser journey | Closed signup, wrong password refused, login, refresh, briefing, keyboard spawn, target page, incorrect, correct (10 points) and repeat flag, one solve, extend, profile, leaderboard, stop, route 404, logout, relogin keeps points |
+| Cookie hosts | Learner on `localhost`, target on `127.0.0.1`: no cookie or referrer reached the target, and the browser held no target cookie |
+| Responsive and theme | Four pages at desktop, tablet and mobile in light and dark with no horizontal overflow |
+| Keyboard | Focus visible at each stop up to Spawn Instance, reached in 12 tabs |
+| Audit events | `instance.stopped` and `instance.expired` once each; `instance.stop_failed` once with the lab still `stopping`, then `instance.stopped` once after recovery; no flag or route in details |
+| Final state | 0 containers, 0 networks, 0 routes, 0 reservations; route directory only `tls.yml`; disposable services and frontend snapshot removed |
+
+43 of 44 journey checks passed first time. The failure was the driver reading
+the dashboard heading too early; a retest over three reloads showed the session
+valid and the name replacing a generic heading within about 250 ms.
+
+Limits: gates ran on Node 24, not the pinned 22. Only three screenshots were
+reviewed by eye. Expiry used a moved row, and this is local evidence, not
+production-topology evidence.
+
+Frontend observations, not fixed: the signed-in dashboard briefly shows its
+generic heading on reload; the navigation labels Leaderboard and Profile "Coming
+soon" although both read real data; "View your profile" wraps its arrow.
 
 ## Next steps, in order
 
-1. **Get approval for and run Phase 6**, which should also confirm the new audit
-   events on the VM. Before more VM runs:
+1. **Choose the next milestone.** The Welcome phases are complete; real content
+   and hosted rollout each need separate approval. Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
    - The ingress HTTPS certificate on the VM still expires **2026-11-01** and
@@ -112,7 +139,8 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- Approval for Phase 6.
+- The next milestone after Welcome: real content, or hosted rollout and the
+  production security gate.
 - How to key the general rate limit (point 2 above).
 - Any hosted change, dependency, migration or contract change.
 
