@@ -17,6 +17,7 @@ import type { AuthenticationService } from './services/authentication.js';
 import { registerAuthenticationRoutes } from './routes/authentication.js';
 import type { ServiceSessionAuthorizer } from './auth/require-scope.js';
 import type { CatalogRepository } from './services/catalog-repository.js';
+import type { ChallengeContentRepository } from './services/challenge-content.js';
 import type { SubmissionService } from './services/submissions.js';
 import { FixedWindowUserRateLimiter, unlimitedRateLimiter } from './services/user-rate-limiter.js';
 import type { ProgressRepository } from './services/progress-repository.js';
@@ -28,6 +29,7 @@ export type AppDependencies = {
   authentication?: AuthenticationService;
   sessionAuthorizer?: ServiceSessionAuthorizer;
   catalog?: CatalogRepository;
+  challengeContent?: ChallengeContentRepository;
   submissions?: SubmissionService;
   progress?: ProgressRepository;
   instances?: InstanceLifecycleService;
@@ -37,6 +39,13 @@ const unavailableCatalog: CatalogRepository = {
   listCategories: () => Promise.reject(new Error('Catalog repository unavailable')),
   listPublishedChallenges: () => Promise.reject(new Error('Catalog repository unavailable')),
   findPublishedChallengeBySlug: () => Promise.reject(new Error('Catalog repository unavailable')),
+};
+
+const unavailableChallengeContent: ChallengeContentRepository = {
+  findContent: () => Promise.reject(new Error('Challenge content repository unavailable')),
+  findPlayerState: () => Promise.reject(new Error('Challenge content repository unavailable')),
+  unlockHint: () => Promise.reject(new Error('Challenge content repository unavailable')),
+  unlockWalkthrough: () => Promise.reject(new Error('Challenge content repository unavailable')),
 };
 
 export async function buildApp(config: Config, dependencies: AppDependencies = {}) {
@@ -94,6 +103,10 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
   await app.register(registerChallengeRoutes, {
     prefix: '/v1',
     catalog: dependencies.catalog ?? unavailableCatalog,
+    content: dependencies.challengeContent ?? unavailableChallengeContent,
+    config,
+    sessionAuthorizer,
+    rateLimiter: submissionRateLimiter,
   });
   await app.register(registerSubmissionRoutes, {
     prefix: '/v1',

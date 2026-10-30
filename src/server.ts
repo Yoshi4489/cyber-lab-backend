@@ -7,6 +7,7 @@ import { createPasswordHasher } from './auth/password.js';
 import { AuthenticationService } from './services/authentication.js';
 import { createAuthMailer } from './services/create-auth-mailer.js';
 import { DrizzleCatalogRepository } from './db/catalog-repository.js';
+import { DrizzleChallengeContentRepository } from './db/challenge-content-repository.js';
 import { DrizzleScoringRepository } from './db/scoring-repository.js';
 import { createSubmissionFlagPolicy } from './services/runtime-flags.js';
 import { SubmissionService } from './services/submissions.js';
@@ -36,6 +37,7 @@ const app = await buildApp(config, {
   database,
   authentication,
   catalog: new DrizzleCatalogRepository(database.db),
+  challengeContent: new DrizzleChallengeContentRepository(database.db),
   submissions: submissionService,
   progress: new DrizzleProgressRepository(database.db),
   instances: instanceService,

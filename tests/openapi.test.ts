@@ -17,7 +17,9 @@ describe('generated OpenAPI contract', () => {
       expect(document.openapi).toBe('3.0.3');
       expect(Object.keys(document.paths).sort()).toEqual([
         '/healthz', '/readyz', '/v1/meta', '/v1/categories', '/v1/challenges',
-        '/v1/challenges/{slug}', '/v1/submissions', '/v1/instances',
+        '/v1/challenges/{slug}', '/v1/challenges/{slug}/content', '/v1/challenges/{slug}/state',
+        '/v1/challenges/{slug}/hints/{position}/unlock', '/v1/challenges/{slug}/walkthrough/unlock',
+        '/v1/submissions', '/v1/instances',
         '/v1/profile', '/v1/leaderboard',
         '/v1/instances/{id}', '/v1/instances/{id}/extend',
       ].sort());
