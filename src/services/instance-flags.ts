@@ -31,8 +31,13 @@ export class HmacInstanceFlagService implements InstanceFlagService {
   }
 
   verify(context: InstanceFlagContext, submittedFlag: string): boolean {
-    const actual = Buffer.from(submittedFlag.trim(), 'utf8');
-    const expected = Buffer.from(this.derive(context), 'utf8');
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
+    return flagMatches(submittedFlag, this.derive(context));
   }
+}
+
+/** Case-sensitive comparison that tolerates pasted surrounding whitespace. */
+export function flagMatches(submittedFlag: string, expectedFlag: string): boolean {
+  const actual = Buffer.from(submittedFlag.trim(), 'utf8');
+  const expected = Buffer.from(expectedFlag, 'utf8');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }

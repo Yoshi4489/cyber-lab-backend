@@ -55,6 +55,22 @@ with `npm run db:migrate`. Use `npm run db:generate` only after a reviewed schem
 change, and review the generated SQL before committing it. The worker consumes
 `REDIS_URL`.
 
+## Disabling rate limits for local testing
+
+Session checks are limited per session (default 120/minute) and logins per
+learner address, so ordinary local use stays within limits. Locally every
+browser shares the loopback address, so many logins from automated runs can
+still hit the 10/minute login limit. For local development and test runs only, set:
+
+```
+LOCAL_DEV_TEST=true
+```
+
+This disables the per-IP limiter (including login and session resolution) and
+the per-user submission and instance-create limiters, and the API logs a
+warning at startup. It defaults to `false`. Any value, including `false`, is
+rejected when `NODE_ENV=production`; never set it on Render or other hosts.
+
 ## Harmless Welcome: accounts and catalog checkpoint
 
 Use a fresh disposable database for the Welcome delivery. Phase 1 adds account
@@ -123,8 +139,9 @@ access. Re-run `npm run worker:preflight` before creating any learner instance.
 With the validated local Welcome settings enabled, the worker injects the
 configured public placeholder only for Welcome's exact challenge identity.
 All other challenge IDs retain dynamic derivation. No flag is baked into the
-image, manifest or database. At this checkpoint API submission verification is
-still unchanged; flag submission and scoring acceptance belong to Phase 3.
+image, manifest or database. The API verifies submissions with the same policy,
+so the Welcome value scores only for Welcome; set the same two settings for the
+API and the worker.
 Use learner `localhost` and target `127.0.0.1` so browser session cookies cannot
 follow the target link. Different ports alone do not separate cookie domains.
 

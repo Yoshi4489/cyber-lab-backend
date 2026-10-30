@@ -8,7 +8,7 @@ import { AuthenticationService } from './services/authentication.js';
 import { createAuthMailer } from './services/create-auth-mailer.js';
 import { DrizzleCatalogRepository } from './db/catalog-repository.js';
 import { DrizzleScoringRepository } from './db/scoring-repository.js';
-import { HmacInstanceFlagService } from './services/instance-flags.js';
+import { createSubmissionFlagPolicy } from './services/runtime-flags.js';
 import { SubmissionService } from './services/submissions.js';
 import { DrizzleProgressRepository } from './db/progress-repository.js';
 import { DrizzleInstanceLifecycleRepository } from './db/instance-lifecycle-repository.js';
@@ -30,7 +30,7 @@ const instanceService = new InstanceLifecycleService(
 const submissionService = new SubmissionService(
   new DrizzleScoringRepository(database.db),
   instanceService,
-  new HmacInstanceFlagService(config.INSTANCE_FLAG_SECRET),
+  createSubmissionFlagPolicy(config.INSTANCE_FLAG_SECRET, config),
 );
 const app = await buildApp(config, {
   database,

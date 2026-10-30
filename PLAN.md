@@ -1,5 +1,39 @@
 # Backend development plan
 
+## Harmless Welcome lab: Phase 3 implemented (2026-10-30)
+
+The user approved Phase 3. `createSubmissionFlagPolicy` makes API verification
+mirror worker injection: the shared public Welcome value verifies only for
+Welcome's fixed ID while its development/test policy is enabled; every other ID,
+and Welcome when disabled, keeps per-instance HMAC verification. Owner,
+challenge-match, running-state and expiry checks are unchanged. No endpoint,
+scope, DTO, migration or dependency changed.
+
+Evidence: lint, typecheck, build and all 259 tests across 45 files passed on
+Node 22 with disposable PostgreSQL 16 and Redis 7 (`--no-file-parallelism`; the
+default parallel run intermittently races three existing lifecycle cases on one
+shared database). `tests/welcome-phase-three.integration.test.ts` covers
+incorrect/correct/padded/repeated/concurrent attempts, one 10-point award per
+learner, a scorable non-Welcome challenge rejecting the shared value, and
+foreign/mismatched/stopped/expired/malformed denial without recording, plus
+flag-free profile, leaderboard and audit rows. A browser run of the real API,
+fresh seeded database and built live frontend passed the same journey; the
+running state was set in that disposable database because no target may run on
+the control-plane host. Real VM target acceptance is not repeated here.
+
+Resolved (user-approved): the BFF resolves `/v1/auth/session` on every
+protected call, and that route used to share the per-IP auth limiter, so all
+learners behind one BFF shared 10 checks per minute. Session resolution and
+logout are now limited per hashed session token (`SESSION_RATE_LIMIT_MAX`,
+default 120/minute). Login, verification and reset are limited per learner
+address that the authenticated BFF forwards in `X-Cyber-Range-Client-IP`,
+falling back to the shared BFF address when absent. The frontend forwards it
+only from the header named by its `TRUSTED_CLIENT_IP_HEADER`, because Next.js
+passes browser-supplied `X-Forwarded-For` through unchanged. `LOCAL_DEV_TEST=true`
+(development/test only) still disables all limits for heavy local runs. The
+global 100/minute per-IP limiter still covers the other routes the BFF calls;
+keying those by identity remains a separate decision. **Pause for Phase 4 approval.**
+
 ## Harmless Welcome lab: Phase 2 complete locally (2026-10-26)
 
 The user requested implementation of the harmless Welcome test plan, replacing

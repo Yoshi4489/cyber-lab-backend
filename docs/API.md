@@ -94,8 +94,9 @@ the next phase. This review does not close any production security gate.
 Implementation status: Phase 1 local settings, conditional catalog seeding and
 real learner account/catalog acceptance are complete. Approved Phase 2 harmless
 target spawning and worker-only injection passed local browser-to-VM acceptance.
-API submission verification and profile/rankings BFF reads below remain planned
-for Phase 3. This status note does not change the approved contract.
+Approved Phase 3 Welcome-only verification, once-only scoring and the
+profile/rankings BFF reads are implemented and passed local acceptance on
+2026-10-30. This status note does not change the approved contract.
 
 The user requested implementation of the harmless Welcome test plan and chose
 the exact shared flag, local isolated VM and 10 points awarded once. This

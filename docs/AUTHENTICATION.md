@@ -34,7 +34,13 @@ email token. No request accepts an acting-user ID for authorization.
 ## HTTP surface
 
 These routes are generated into OpenAPI. All are behind the dedicated BFF
-credential and configurable auth rate limits.
+credential and configurable auth rate limits. Limits run after the BFF
+credential is verified. `/auth/session` and `/auth/logout` are keyed by a hash
+of the submitted session token (`SESSION_RATE_LIMIT_MAX`/`_WINDOW`, default 120
+per minute). The other routes are keyed by the learner address the BFF sends in
+`X-Cyber-Range-Client-IP` (`AUTH_RATE_LIMIT_MAX`/`_WINDOW`, default 10 per
+minute); a missing or malformed value falls back to the BFF's own address.
+Requests without the BFF credential are rejected before any limit is counted.
 
 | Method and path | Input | Intended behavior |
 |---|---|---|

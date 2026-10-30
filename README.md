@@ -272,9 +272,11 @@ contains separate worker settings. Docker credentials are parsed only by
 | `SERVICE_TOKEN_ISSUER`, `SERVICE_TOKEN_AUDIENCE` | API | Required JWT checks |
 | `DATABASE_URL` | API and database commands | Required PostgreSQL URL |
 | `SIGNUPS_OPEN` | API | Must remain `false`; open signup is not implemented |
-| `AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW` | API | Per-route auth request limits |
+| `AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW` | API | Login, verification and reset limits keyed by the learner address the BFF forwards |
+| `SESSION_RATE_LIMIT_MAX`, `SESSION_RATE_LIMIT_WINDOW` | API | Session resolution and logout limits keyed per session token |
 | `SUBMISSION_RATE_LIMIT_MAX`, `SUBMISSION_RATE_LIMIT_WINDOW_MS` | API | Fixed-window limits keyed by verified user identity |
 | `INSTANCE_RATE_LIMIT_MAX`, `INSTANCE_RATE_LIMIT_WINDOW_MS` | API | Instance-create limits keyed by verified user identity |
+| `LOCAL_DEV_TEST` | API | Development/test only. `true` disables all API rate limits; rejected in production when set |
 | `LAB_PUBLIC_BASE_URL` | API | Base URL used only when a target is running and has an unguessable route |
 | `LOCAL_MAIL_DIRECTORY` | Development API | Ignored local verification/reset delivery directory |
 | `MAIL_PROVIDER` | API | `local` by default; `gmail` for local demos; production requires `resend` |
