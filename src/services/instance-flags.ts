@@ -35,6 +35,23 @@ export class HmacInstanceFlagService implements InstanceFlagService {
   }
 }
 
+/**
+ * Download challenges have no instance, so one flag per challenge version is
+ * baked into the files by the operator build. Derived, never stored.
+ */
+export function deriveArtifactFlag(secret: string, context: { challengeId: string; version: number }): string {
+  if (Buffer.byteLength(secret, 'utf8') < 32) {
+    throw new Error('Instance flag secret must be at least 32 bytes');
+  }
+  const digest = createHmac('sha256', secret)
+    .update('cyber-range-artifact-flag-v1\0', 'utf8')
+    .update(context.challengeId, 'utf8')
+    .update('\0', 'utf8')
+    .update(String(context.version), 'utf8')
+    .digest('base64url');
+  return `CTF{v1_${digest}}`;
+}
+
 /** Case-sensitive comparison that tolerates pasted surrounding whitespace. */
 export function flagMatches(submittedFlag: string, expectedFlag: string): boolean {
   const actual = Buffer.from(submittedFlag.trim(), 'utf8');

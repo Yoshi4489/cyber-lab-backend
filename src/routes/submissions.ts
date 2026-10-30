@@ -12,7 +12,7 @@ import { errorResponses, serviceTokenSecurity } from './schemas.js';
 const submissionBody = z
   .object({
     challengeId: z.uuid(),
-    instanceId: z.uuid(),
+    instanceId: z.uuid().optional(),
     flag: z.string().min(1).max(256),
   })
   .strict();
@@ -46,7 +46,7 @@ export async function registerSubmissionRoutes(
     schema: {
       operationId: 'submitFlag',
       tags: ['Submissions'],
-      description: 'Requires submissions:write and an owned running challenge instance.',
+      description: 'Requires submissions:write. Instance labs need an owned running instanceId; artifact challenges omit it.',
       security: serviceTokenSecurity,
       body: submissionBody,
       response: {
@@ -69,7 +69,7 @@ export async function registerSubmissionRoutes(
     return options.submissions.submit({
       userId: identity.userId,
       challengeId: request.body.challengeId,
-      instanceId: request.body.instanceId,
+      ...(request.body.instanceId ? { instanceId: request.body.instanceId } : {}),
       flag: request.body.flag,
       correlationId: request.id,
     });
