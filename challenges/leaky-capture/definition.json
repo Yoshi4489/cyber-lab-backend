@@ -1,0 +1,47 @@
+{
+  "id": "a2000000-0000-4000-8000-000000000003",
+  "slug": "leaky-capture",
+  "title": "Leaky Capture",
+  "summary": "Someone reached the backup area of a file server. All you have is a short network capture.",
+  "category": "forensics",
+  "difficulty": "easy",
+  "points": 100,
+  "kind": "artifact",
+  "tags": [
+    "pcap",
+    "http",
+    "beginner"
+  ],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": [
+    "Open the capture in an analysis tool",
+    "Follow the login attempts",
+    "Recover the password of the login that worked"
+  ],
+  "learningOutcomes": [
+    "Read HTTP traffic from a packet capture",
+    "Explain why Basic authentication needs TLS",
+    "Separate failed attempts from the successful one"
+  ],
+  "references": [
+    {
+      "label": "CWE-319: Cleartext Transmission of Sensitive Information",
+      "url": "https://cwe.mitre.org/data/definitions/319.html"
+    },
+    {
+      "label": "MITRE ATT&CK T1040: Network Sniffing",
+      "url": "https://attack.mitre.org/techniques/T1040/"
+    }
+  ],
+  "hints": [
+    {
+      "cost": 10,
+      "bodyMd": "In Wireshark, try the display filter `http` and read the requests in order."
+    },
+    {
+      "cost": 25,
+      "bodyMd": "Several logins fail. Find the response with status 200, then read the `Authorization` header of the request before it."
+    }
+  ]
+}

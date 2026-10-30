@@ -8,7 +8,7 @@ const { runtimeManifestSchema } = await import('../dist/orchestrator/runtime-man
 
 const raw = await readFile(process.argv[2], 'utf8');
 const images = JSON.parse(raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw);
-const manifests = (await loadChallengePackages()).map((lab) => {
+const manifests = (await loadChallengePackages()).filter((lab) => lab.runtime).map((lab) => {
   const image = images[lab.slug];
   if (!image) throw new Error(`No image identity for ${lab.slug}`);
   return runtimeManifestSchema.parse({ ...lab.runtime, challengeId: lab.id, image });

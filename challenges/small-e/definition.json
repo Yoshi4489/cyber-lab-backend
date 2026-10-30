@@ -1,0 +1,47 @@
+{
+  "id": "a2000000-0000-4000-8000-000000000002",
+  "slug": "small-e",
+  "title": "Small e",
+  "summary": "A vault encrypts its secrets with 2048-bit RSA. The key size is fine, so why is the secret not safe?",
+  "category": "crypto",
+  "difficulty": "medium",
+  "points": 250,
+  "kind": "artifact",
+  "tags": [
+    "rsa",
+    "textbook-crypto",
+    "math"
+  ],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": [
+    "Read the encryption script",
+    "Find what is missing from how RSA is used",
+    "Recover the secret without factoring n"
+  ],
+  "learningOutcomes": [
+    "Explain why textbook RSA is unsafe",
+    "Recover a message when m^e is smaller than n",
+    "Describe what OAEP padding prevents"
+  ],
+  "references": [
+    {
+      "label": "CWE-326: Inadequate Encryption Strength",
+      "url": "https://cwe.mitre.org/data/definitions/326.html"
+    },
+    {
+      "label": "CWE-780: Use of RSA Algorithm without OAEP",
+      "url": "https://cwe.mitre.org/data/definitions/780.html"
+    }
+  ],
+  "hints": [
+    {
+      "cost": 25,
+      "bodyMd": "Factoring a 2048-bit modulus is not realistic, so the weakness is elsewhere. Look at `e` and at what is encrypted."
+    },
+    {
+      "cost": 60,
+      "bodyMd": "Encryption reduces `m^e` modulo `n`. What if `m^3` is smaller than `n`, so the reduction never happens?"
+    }
+  ]
+}

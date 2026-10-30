@@ -100,3 +100,6 @@ jobs:
       # Targets run on this disposable runner, on internal networks with no published ports.
       - name: Prove each lab is solvable and has no known shortcut
         run: node scripts/lab-check.mjs
+
+      - name: Prove each artifact challenge is solvable
+        run: node scripts/artifact-check.mjs

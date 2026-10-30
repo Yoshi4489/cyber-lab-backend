@@ -30,7 +30,7 @@ const only = new Set(process.argv.slice(2));
 const images = {};
 
 for (const lab of await loadChallengePackages()) {
-  if (only.size && !only.has(lab.slug)) continue;
+  if (!lab.runtime || (only.size && !only.has(lab.slug))) continue;
   const tag = `cyber-range-lab-${lab.slug}:check`;
   const suffix = randomBytes(6).toString('hex');
   const network = `labcheck-${suffix}`;
