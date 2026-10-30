@@ -110,6 +110,11 @@ processes require a distributed per-instance lock before scale-out.
 
 ## Trusted runtime manifests
 
+Real labs set `flagDelivery: { mode: "exec", command, user }`: after start and
+before the route is written, the worker runs that fixed command with the flag in
+that one exec's environment. Only Welcome uses the default `env` mode. Generate
+lab entries with `scripts/lab-manifests.mjs` from observed image IDs.
+
 The worker reads a reviewed JSON array from `RUNTIME_MANIFEST_PATH`. Runtime
 fields never come from an API request. Each published runnable HTTP challenge
 needs an entry shaped like:

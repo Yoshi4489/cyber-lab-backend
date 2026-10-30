@@ -11,6 +11,15 @@ limiting and the owned running-instance resolver are active code paths.
 validated repository definitions. Existing challenge fields remain stable and
 the list reports `source: "database"`. Definitions contain no flag material.
 
+## Hints and walkthroughs
+
+Each lab package sets its hints and their costs. The award is the base points
+minus unlocked hint costs, with a floor of 10% of base, rounded up. Opening the
+walkthrough before solving makes the award 0; the solve is still recorded.
+After a solve, hints and the walkthrough are free and don't change the award.
+Unlocks and awards take the same per-player, per-challenge lock, so an unlock
+racing a solve can't apply a cost twice or lose it. Unlocks are safe to retry.
+
 ## Dynamic submissions
 
 `POST /v1/submissions` requires a live session-bound service token with

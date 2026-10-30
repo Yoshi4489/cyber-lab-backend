@@ -273,6 +273,13 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
   and current role permissions in PostgreSQL.
 - Catalog reads are public, include published database rows only, preserve the
   original public fields, and return `source: "database"` on the list.
+- `GET /v1/challenges/:slug/content` is public and never includes hint bodies or
+  walkthroughs. `GET /v1/challenges/:slug/state` requires `profile:read` and
+  returns only what this player has unlocked. `POST
+  /v1/challenges/:slug/hints/:position/unlock` and `POST
+  /v1/challenges/:slug/walkthrough/unlock` require `submissions:write`, share
+  the submission rate limit, and are safe to retry. `solves[].points` on the
+  profile can now be 0.
 - Submissions require `submissions:write`, an `instanceId`, and an owned running
   challenge instance. They persist the attempt and return
   `{ correct, points, recorded: true, source: "database" }`; only the first

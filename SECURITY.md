@@ -139,6 +139,10 @@ displays it. API verification remains dynamic until the separate Phase 3
 checkpoint. The test settings are rejected in production, and no control-plane
 API returns an expected flag. All other lab identities retain dynamic flags.
 
+- Real labs receive their flag by a one-shot exec after start (`flagDelivery:
+  exec`), never through the container environment. The package loader refuses a
+  lab with env delivery or a flag value in its published text, and
+  `scripts/lab-check.mjs` proves the solver and the absence of known shortcuts.
 - Derive per-instance flags from a dedicated backend secret and runtime identity;
   persist neither expected flags nor submitted values. Verify only after an
   ownership resolver binds user, challenge, and instance.

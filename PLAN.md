@@ -6,8 +6,8 @@ The dated delivery log and all earlier evidence are in
 
 ## Where things stand
 
-The backend is a working local platform for one harmless test lab (Welcome).
-It is not launched: public signup is closed and the production security gate
+The backend is a working local platform with one harmless test lab (Welcome)
+and four real web labs, verified on the local VM. It is not launched: public signup is closed and the production security gate
 is open.
 
 | Area | State |
@@ -109,10 +109,57 @@ Frontend observations, not fixed: the signed-in dashboard briefly shows its
 generic heading on reload; the navigation labels Leaderboard and Profile "Coming
 soon" although both read real data; "View your profile" wraps its arrow.
 
+## CTF platform
+
+Plan: [docs/CTF_PLAN.md](docs/CTF_PLAN.md). Phases stop for approval.
+
+### Phase 1: content framework and first web labs (2026-10-30)
+
+Implemented: challenge packages in `challenges/<slug>/`, exec flag delivery
+(no flag in container config or process environments), hints, walkthroughs and
+award calculation, and four labs: Invoice Peek, Staff Login, Log Viewer and
+Ping Tool. Labs are published only with `CATALOG_PUBLISH_LABS=true`, which
+production refuses. The frontend briefing, hints and walkthrough are on its
+`feat/ctf-phase-1` branch.
+
+Evidence on the local lab VM (`CyberRangePhase4Target`), Engine 29.9.2:
+
+- `scripts/lab-check.mjs`: 32/32 checks across four labs under production
+  runtime limits, using flags in the real `CTF{v1_...}` format: healthy, solver
+  recovers the exact flag, flag absent from container config, PID 1 and all
+  process environments, delivery file gone, flag absent from `/app`, no outbound
+  network.
+- Full stack through the BFF, Traefik and the worker, with two users: 50
+  of 51 driver checks passed. The one failure was a wrong driver expectation:
+  it wanted admins on the leaderboard, which lists players only. Awards observed:
+  one hint 90, no hints 100, walkthrough first 0, two hints (250 - 75) 175,
+  repeat submission 0, profile total 365. Wrong flags and another user's flag
+  were rejected, per-instance flags differed, another user's instance read
+  returned 404, and a traversal to `/proc/self/environ` did not reveal the flag.
+- Real browser (Playwright): 13/13 checks, covering the signed-out briefing,
+  hint charge, forfeit confirmation, phone width with no overflow, solving the
+  lab by hand behind the route prefix, award, and stop.
+- Welcome still works with its env delivery (10 points). Final VM state: 0 lab
+  containers, 0 lab networks, only `tls.yml` in the route directory; no flags in
+  API, worker or frontend logs.
+
+Found and fixed during verification: solvers matched `FLAG{...}` while real
+flags are `CTF{v1_...}`. The first VM check passed only because it used a fake
+flag in the solver's format, so the check now uses the real format.
+
+Not done or not run:
+
+- The new `Lab solvers` CI job has not run yet; it first runs on a PR to
+  `develop` or `main`.
+- The Welcome page copy is still special-cased in the frontend (`isWelcome`),
+  because it has no content package.
+- The plan's `expert` difficulty, category table and `scored` column were not
+  needed yet. A forfeited solve is stored with 0 points instead.
+
 ## Next steps, in order
 
-1. **Choose the next milestone.** The Welcome phases are complete; real content
-   and hosted rollout each need separate approval. Before more VM runs:
+1. **Approve CTF Phase 2 (artifact challenges), or choose another milestone.**
+   Hosted rollout needs separate approval. Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
    - The ingress HTTPS certificate on the VM still expires **2026-11-01** and
@@ -139,8 +186,8 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- The next milestone after Welcome: real content, or hosted rollout and the
-  production security gate.
+- Whether to start CTF Phase 2 next, or hosted rollout and the production
+  security gate.
 - How to key the general rate limit (point 2 above).
 - Any hosted change, dependency, migration or contract change.
 
@@ -157,6 +204,10 @@ open signup by itself.
   out of Git.
 
 ## Known issues
+
+- A new route can return 404 for a moment after an instance reports `running`,
+  while Traefik reloads. The longest gap measured was 837 ms over 12 starts, so
+  people won't normally notice it, but scripts should wait for a 200.
 
 - With default file parallelism, three older lifecycle integration tests
   occasionally race on the shared test database. Run
