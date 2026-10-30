@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CHALLENGE_DEFINITIONS } from '../src/catalog/definitions.js';
 import { seedCatalog } from '../src/db/catalog-seed.js';
 import { createDatabase, type DatabaseClient } from '../src/db/client.js';
+import { DrizzleLifecycleJobRepository } from '../src/db/lifecycle-job-repository.js';
 import { DrizzleLifecycleStateRepository } from '../src/db/lifecycle-state-repository.js';
-import { auditEvents, instances, labNodes, users } from '../src/db/schema.js';
+import { auditEvents, instanceOperations, instances, labNodes, users } from '../src/db/schema.js';
 import type { DockerOrchestrator, RuntimeStatus } from '../src/orchestrator/docker-adapter.js';
 import { RuntimeManifestRegistry } from '../src/orchestrator/runtime-manifests.js';
 import type { ClaimedLifecycleOperation } from '../src/queue/contracts.js';
@@ -161,6 +162,54 @@ describeDatabase('Docker lifecycle state machine', () => {
       expect.objectContaining({ details: { instanceId, failureCode: `runtime_${runtime}` } }),
     ]));
   });
+
+  it.each([
+    ['reap', 'expired'],
+    ['destroy', 'stopped'],
+  ] as const)('audits a %s completion once across retries', async (type, status) => {
+    const instanceId = await insertInstance('stopping');
+    await handler.handle(operation(type, instanceId, 'stopping'));
+    await handler.handle(operation(type, instanceId, status));
+    // A late operation of the other kind must not relabel or re-audit the instance.
+    await handler.handle(operation(type === 'reap' ? 'destroy' : 'reap', instanceId, status));
+
+    expect(await state.findInstance(instanceId)).toMatchObject({ status });
+    expect(await auditsFor(instanceId)).toEqual([
+      expect.objectContaining({ eventType: `instance.${status}`, targetUserId: userId, details: { instanceId } }),
+    ]);
+  });
+
+  it('audits an exhausted stop but not an exhausted reconcile', async () => {
+    const jobs = new DrizzleLifecycleJobRepository(database.db);
+    const instanceId = await insertInstance('stopping');
+    const insertRunning = async (type: 'destroy' | 'reconcile') => {
+      const [row] = await database.db.insert(instanceOperations).values({
+        instanceId, userId, type, status: 'running',
+        idempotencyKey: `audit-${randomUUID()}`, requestHash: 'a'.repeat(64),
+        createdAt: now, updatedAt: now,
+      }).returning({ id: instanceOperations.id });
+      if (!row) throw new Error('Operation insert returned no id');
+      return row.id;
+    };
+
+    await jobs.markFailed(await insertRunning('reconcile'), 'execution_failed', now);
+    expect(await auditsFor(instanceId)).toEqual([]);
+
+    const destroyId = await insertRunning('destroy');
+    await jobs.markFailed(destroyId, 'execution_failed', now);
+    await jobs.markFailed(destroyId, 'execution_failed', now);
+    expect(await auditsFor(instanceId)).toEqual([expect.objectContaining({
+      eventType: 'instance.stop_failed',
+      targetUserId: userId,
+      details: { instanceId, operationType: 'destroy', failureCode: 'execution_failed' },
+    })]);
+    expect(await state.findInstance(instanceId)).toMatchObject({ status: 'stopping' });
+  });
+
+  function auditsFor(instanceId: string) {
+    return database.db.select().from(auditEvents)
+      .where(sql`${auditEvents.details}->>'instanceId' = ${instanceId}`);
+  }
 
   async function insertInstance(status: 'pending' | 'stopping'): Promise<string> {
     if (!challenge) throw new Error('Challenge definitions must not be empty');
