@@ -10,6 +10,15 @@ export const runtimeManifestSchema = z
     containerPort: z.number().int().min(1).max(65_535),
     user: z.string().regex(/^[1-9][0-9]{0,9}:[1-9][0-9]{0,9}$/u),
     command: z.array(z.string().min(1).max(512)).min(1).max(32).optional(),
+    // `env` persists in the container config and /proc; real labs use `exec`.
+    flagDelivery: z.discriminatedUnion('mode', [
+      z.object({ mode: z.literal('env') }).strict(),
+      z.object({
+        mode: z.literal('exec'),
+        command: z.array(z.string().min(1).max(512)).min(1).max(8),
+        user: z.string().regex(/^[1-9][0-9]{0,9}:[1-9][0-9]{0,9}$/u),
+      }).strict(),
+    ]).default({ mode: 'env' }),
     healthcheck: z.object({
       test: z.array(z.string().min(1).max(512)).min(2).max(16)
         .refine((test) => test[0] === 'CMD' || test[0] === 'CMD-SHELL', {

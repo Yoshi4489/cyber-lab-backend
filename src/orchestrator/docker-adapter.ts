@@ -6,6 +6,7 @@ import type { ManagedRuntimeAllocation, ManagedRuntimeInventory } from '../servi
 const MANAGED_LABEL = 'cyber-range.managed';
 const INSTANCE_LABEL = 'cyber-range.instance-id';
 const CHALLENGE_LABEL = 'cyber-range.challenge-id';
+const FLAG_DELIVERY_TIMEOUT_MS = 15_000;
 const ISOLATED_GATEWAY_OPTIONS = {
   'com.docker.network.bridge.gateway_mode_ipv4': 'isolated',
   'com.docker.network.bridge.gateway_mode_ipv6': 'isolated',
@@ -165,6 +166,7 @@ export class DockerOrchestrator {
       try {
         await this.ensureIngressConnected(network.network);
         await startContainer(existing.container);
+        await deliverFlag(existing.container, input);
         await this.router.upsert({
           instanceId: input.instanceId,
           routeKey: input.routeKey,
@@ -190,6 +192,7 @@ export class DockerOrchestrator {
         buildContainerOptions(input, names.container, names.network),
       );
       await startContainer(container);
+      await deliverFlag(container, input);
       await this.router.upsert({
         instanceId: input.instanceId,
         routeKey: input.routeKey,
@@ -429,7 +432,7 @@ function buildContainerOptions(
     Image: input.manifest.image,
     User: input.manifest.user,
     Cmd: input.manifest.command,
-    Env: [`CYBER_RANGE_FLAG=${input.flag}`],
+    Env: input.manifest.flagDelivery.mode === 'env' ? [`CYBER_RANGE_FLAG=${input.flag}`] : [],
     Labels: managedLabels(input.instanceId, input.challengeId),
     ExposedPorts: { [port]: {} },
     StopTimeout: 10,
@@ -465,6 +468,37 @@ function buildContainerOptions(
       },
     },
   };
+}
+
+/**
+ * Runs before the route exists, so no learner can observe the short-lived
+ * process. The flag stays out of the container config and PID 1's environment.
+ */
+async function deliverFlag(container: Docker.Container, input: SpawnTargetInput): Promise<void> {
+  const delivery = input.manifest.flagDelivery;
+  if (delivery.mode !== 'exec') return;
+  try {
+    const exec = await container.exec({
+      Cmd: delivery.command,
+      User: delivery.user,
+      Env: [`CYBER_RANGE_FLAG=${input.flag}`],
+      AttachStdout: false,
+      AttachStderr: false,
+    });
+    await exec.start({ Detach: true });
+    const deadline = Date.now() + FLAG_DELIVERY_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const details = await exec.inspect();
+      if (!details.Running) {
+        if (details.ExitCode === 0) return;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  } catch {
+    // Engine errors can echo request data; keep the flag out of logs and job failures.
+  }
+  throw new Error('Runtime flag delivery failed');
 }
 
 function managedLabels(instanceId: string, challengeId: string): Record<string, string> {

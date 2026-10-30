@@ -21,6 +21,7 @@ const manifest: RuntimeManifest = {
   image: IMAGE,
   containerPort: 8080,
   user: '65532:65532',
+  flagDelivery: { mode: 'env' },
   healthcheck: {
     test: ['CMD', '/app/healthcheck'],
     intervalSeconds: 5,
@@ -253,6 +254,51 @@ describe('Docker orchestrator', () => {
     })).rejects.toThrow('without matching ownership labels');
     expect(fixture.containerRemove).not.toHaveBeenCalled();
     expect(fixture.networkRemove).not.toHaveBeenCalled();
+  });
+});
+
+describe('exec flag delivery', () => {
+  const delivery = { mode: 'exec' as const, command: ['node', '/app/load-flag.mjs'], user: '65532:65532' };
+  const execInput = () => ({ ...spawnInput(), manifest: { ...manifest, flagDelivery: delivery } });
+  function withExec(exitCode: number) {
+    const fixture = dockerFixture();
+    const inspect = vi.fn(async () => ({ Running: false, ExitCode: exitCode }));
+    const exec = vi.fn(async (_options: Docker.ExecCreateOptions) => ({
+      start: vi.fn(async () => undefined),
+      inspect,
+    }));
+    const created = fixture.createContainer.getMockImplementation();
+    fixture.createContainer.mockImplementation(async (options) => {
+      const container = await created!(options);
+      return Object.assign(container, { exec });
+    });
+    return { fixture, exec };
+  }
+
+  it('keeps the flag out of the container config and passes it only to the exec', async () => {
+    const { fixture, exec } = withExec(0);
+    const router = routerFixture();
+    await new DockerOrchestrator(fixture.docker, router).spawn(execInput());
+
+    expect(fixture.createContainer.mock.calls[0]?.[0].Env).toEqual([]);
+    expect(JSON.stringify(fixture.createContainer.mock.calls[0]?.[0])).not.toContain('test-only');
+    expect(exec).toHaveBeenCalledWith(expect.objectContaining({
+      Cmd: delivery.command,
+      User: delivery.user,
+      Env: ['CYBER_RANGE_FLAG=CTF{test-only}'],
+    }));
+    expect(exec.mock.invocationCallOrder[0]).toBeLessThan(router.upsert.mock.invocationCallOrder[0]!);
+  });
+
+  it('fails closed without a route or the flag in the error when delivery fails', async () => {
+    const { fixture } = withExec(1);
+    const router = routerFixture();
+    const failure = new DockerOrchestrator(fixture.docker, router).spawn(execInput());
+
+    await expect(failure).rejects.toThrow('Runtime flag delivery failed');
+    await expect(failure).rejects.not.toThrow('test-only');
+    expect(router.upsert).not.toHaveBeenCalled();
+    expect(fixture.containerRemove).toHaveBeenCalled();
   });
 });
 
