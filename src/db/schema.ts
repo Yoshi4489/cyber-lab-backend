@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -89,6 +90,10 @@ export const challenges = pgTable(
     tags: jsonb('tags').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
     definitionVersion: integer('definition_version').default(1).notNull(),
     published: boolean('published').default(false).notNull(),
+    briefingMd: text('briefing_md').default('').notNull(),
+    objectives: jsonb('objectives').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    learningOutcomes: jsonb('learning_outcomes').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    references: jsonb('references').$type<Array<{ label: string; url?: string | undefined }>>().default(sql`'[]'::jsonb`).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -99,6 +104,51 @@ export const challenges = pgTable(
     check('challenges_category_normalized', sql`${table.category} = lower(${table.category})`),
     check('challenges_points_positive', sql`${table.points} > 0`),
     check('challenges_definition_version_positive', sql`${table.definitionVersion} > 0`),
+  ],
+);
+
+export const challengeHints = pgTable(
+  'challenge_hints',
+  {
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => challenges.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    bodyMd: text('body_md').notNull(),
+    cost: integer('cost').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.challengeId, table.position] }),
+    check('challenge_hints_position_positive', sql`${table.position} > 0`),
+    check('challenge_hints_cost_nonnegative', sql`${table.cost} >= 0`),
+  ],
+);
+
+// Separate from `challenges` so a catalog query cannot select it by accident.
+export const challengeWalkthroughs = pgTable('challenge_walkthroughs', {
+  challengeId: uuid('challenge_id')
+    .primaryKey()
+    .references(() => challenges.id, { onDelete: 'cascade' }),
+  bodyMd: text('body_md').notNull(),
+});
+
+export const challengeUnlocks = pgTable(
+  'challenge_unlocks',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => challenges.id, { onDelete: 'restrict' }),
+    // `hint:<position>` or `walkthrough`.
+    item: varchar('item', { length: 32 }).notNull(),
+    costApplied: integer('cost_applied').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.challengeId, table.item] }),
+    check('challenge_unlocks_cost_nonnegative', sql`${table.costApplied} >= 0`),
   ],
 );
 
@@ -305,7 +355,8 @@ export const solves = pgTable(
     uniqueIndex('solves_first_submission_unique').on(table.firstSubmissionId),
     index('solves_user_solved_at_idx').on(table.userId, table.solvedAt),
     index('solves_leaderboard_idx').on(table.points, table.solvedAt),
-    check('solves_points_positive', sql`${table.points} > 0`),
+    // Zero records a solve whose points were forfeited by opening the walkthrough first.
+    check('solves_points_nonnegative', sql`${table.points} >= 0`),
   ],
 );
 

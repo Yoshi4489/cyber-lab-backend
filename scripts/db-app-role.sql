@@ -14,5 +14,8 @@ GRANT UPDATE ON TABLE
   instances, instance_operations, submissions
 TO cyber_range_app;
 
+GRANT SELECT ON TABLE challenge_hints, challenge_walkthroughs TO cyber_range_app;
+GRANT SELECT, INSERT ON TABLE challenge_unlocks TO cyber_range_app;
+
 -- No DELETE or TRUNCATE grants. In particular, audit_events is insert-only
 -- for the application. New tables receive no grants until explicitly reviewed.
