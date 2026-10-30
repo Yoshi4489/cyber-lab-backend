@@ -27,9 +27,13 @@ describe('challenge packages', () => {
 
   it('loads every committed lab with exec flag delivery and unique ids', async () => {
     const packages = await loadChallengePackages();
-    expect(packages.map(({ slug }) => slug)).toEqual(['invoice-peek', 'log-viewer', 'ping-tool', 'staff-login']);
+    expect(packages.map(({ slug }) => slug)).toEqual([
+      'caesars-memo', 'invoice-peek', 'leaky-capture', 'license-check', 'log-viewer',
+      'lost-photo', 'ping-tool', 'small-e', 'staff-login',
+    ]);
     for (const lab of packages) {
-      expect(lab.runtime.flagDelivery.mode).toBe('exec');
+      if (lab.kind === 'artifact') expect(lab.runtime).toBeNull();
+      else expect(lab.runtime?.flagDelivery.mode).toBe('exec');
       expect(CHALLENGE_DEFINITIONS.some(({ id }) => id === lab.id)).toBe(false);
     }
   });

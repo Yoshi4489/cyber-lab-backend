@@ -69,7 +69,10 @@ describeDatabase('challenge content, hints and walkthroughs', () => {
 
   it('publishes real labs and hides samples only when asked', async () => {
     const published = await database.db.select({ slug: challenges.slug }).from(challenges).where(eq(challenges.published, true));
-    expect(published.map(({ slug }) => slug).sort()).toEqual(['invoice-peek', 'log-viewer', 'ping-tool', 'staff-login']);
+    expect(published.map(({ slug }) => slug).sort()).toEqual([
+      'caesars-memo', 'invoice-peek', 'leaky-capture', 'license-check', 'log-viewer',
+      'lost-photo', 'ping-tool', 'small-e', 'staff-login',
+    ]);
     await seedCatalog(database.db);
     expect(await database.db.select().from(challenges).where(eq(challenges.published, true))).not.toHaveLength(0);
     await seedCatalog(database.db, undefined, { publishLabs: true });
