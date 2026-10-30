@@ -34,7 +34,7 @@ either set. Every other challenge uses per-instance HMAC flags.
 | 2. Spawn and running | Done on the local VM (2026-10-26) |
 | 3. Submission and persistence | Done (merged to `develop`) |
 | 4. Two-user isolation | Done on the local VM (2026-10-30) |
-| 5. Expiry and cleanup | Done on the local VM (2026-10-30); one audit gap open |
+| 5. Expiry and cleanup | Done on the local VM (2026-10-30) |
 | 6. Regression and replacement readiness | Not started |
 
 Phase 4 control-plane evidence: `tests/welcome-phase-four.integration.test.ts`
@@ -76,14 +76,16 @@ maintenance interval, `LOCAL_DEV_TEST=true`, 32/32 checks):
 Limits: the real 60-minute timer was not waited out, and the terminal-instance
 orphan sweep audits were not exercised in this run (see the gate record).
 
-Open finding: automatic expiry and failed stop attempts write no audit event.
-This run's audit table held only login, spawn-requested, destroy-requested and
-capacity-refused events. `SECURITY.md` requires auditing destructive actions.
+Finding fixed after this run: automatic expiry and failed stop attempts wrote no
+audit event. They now record `instance.expired`, `instance.stopped` and
+`instance.stop_failed` (see [docs/LIFECYCLE.md](docs/LIFECYCLE.md)). Verified by
+integration tests with a fake Docker (276 tests passed on disposable
+PostgreSQL/Redis); not yet re-run on the VM.
 
 ## Next steps, in order
 
-1. **Decide on the audit gap above**, then get approval for and run Phase 6.
-   Before more VM runs:
+1. **Get approval for and run Phase 6**, which should also confirm the new audit
+   events on the VM. Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
    - The ingress HTTPS certificate on the VM still expires **2026-11-01** and
@@ -110,7 +112,7 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- Approval for Phase 6, and whether the expiry audit gap is fixed first.
+- Approval for Phase 6.
 - How to key the general rate limit (point 2 above).
 - Any hosted change, dependency, migration or contract change.
 

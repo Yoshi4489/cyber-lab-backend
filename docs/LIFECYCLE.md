@@ -92,6 +92,13 @@ after enqueue succeeds, so a crash between database commit and Redis delivery
 is recoverable. Jobs use five attempts with exponential backoff and remain in
 the failed set for inspection.
 
+A stop or expiry records `instance.stopped` or `instance.expired` once, in the
+same transaction as the terminal state, so retries add no duplicates. A `destroy`
+or `reap` operation that exhausts its attempts records `instance.stop_failed`;
+the instance stays `stopping`, keeps its slot, and the next reconcile retries.
+Reconcile failures are not audited individually because a stuck stop would
+append one every minute.
+
 The maintenance sweep creates idempotent reaper intent for expired instances
 and minute-bucketed reconciliation intent for active instances. Stale running
 operations return to pending delivery. Docker resources carry backend-owned
