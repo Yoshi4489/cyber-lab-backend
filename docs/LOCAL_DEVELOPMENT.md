@@ -248,7 +248,7 @@ runtime manifest. No real CTF content was added.
 Fresh Engine mTLS positive/negative checks and the trusted HTTPS ingress baseline
 passed, followed by real lifecycle/scoring, capacity, expiry, crash recovery,
 orphan cleanup, failed-evidence safeguards and paired IPv4/IPv6 isolation probes.
-The exact scope is recorded in `PLAN.md` and the security gate record. Final
+The exact scope is recorded in `docs/PLAN_HISTORY.md` and the security gate record. Final
 managed resources and disposable control-plane fixtures were removed, the tunnel
 closed and the installed VM retained powered off. Keep all keys, certificates,
 VM disks, generated manifests and private fixture credentials outside version

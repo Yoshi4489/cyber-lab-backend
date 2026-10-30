@@ -1,642 +1,106 @@
-# Backend development plan
-
-## Harmless Welcome lab: Phase 4 control-plane isolation (2026-10-30)
-
-The user approved Phase 4 after merging Phase 3. No API, schema, dependency or
-runtime behavior changed; existing ownership checks already met the contract.
-`tests/welcome-phase-four.integration.test.ts` drives two learners through the
-real API, database and lifecycle state machine with a recording Docker fake:
-distinct instances, route keys, container and network identities; foreign
-read/extend/stop/submit return ownership-safe `NOT_FOUND` with no row or
-operation change and no route disclosure; stopping A destroys only A's
-resources while B stays running and scores 10. The frontend's
-`tests/e2e/welcome-isolation.spec.ts` repeats the journey through the BFF in
-two browser contexts. Lint, typecheck, build and 273 backend tests passed.
-
-Open: the real-container half of Phase 4 (distinct containers/networks/routes
-on the Engine, benign cross-target health denial, stop A preserves B) needs the
-isolated target VM and cannot run on a control-plane host. Follow the Phase 4
-checklist in `docs/LOCAL_DEVELOPMENT.md` and record its counts here. **Pause for
-that VM evidence and Phase 5 approval.**
-
-## Harmless Welcome lab: Phase 3 implemented (2026-10-30)
-
-The user approved Phase 3. `createSubmissionFlagPolicy` makes API verification
-mirror worker injection: the shared public Welcome value verifies only for
-Welcome's fixed ID while its development/test policy is enabled; every other ID,
-and Welcome when disabled, keeps per-instance HMAC verification. Owner,
-challenge-match, running-state and expiry checks are unchanged. No endpoint,
-scope, DTO, migration or dependency changed.
-
-Evidence: lint, typecheck, build and all 259 tests across 45 files passed on
-Node 22 with disposable PostgreSQL 16 and Redis 7 (`--no-file-parallelism`; the
-default parallel run intermittently races three existing lifecycle cases on one
-shared database). `tests/welcome-phase-three.integration.test.ts` covers
-incorrect/correct/padded/repeated/concurrent attempts, one 10-point award per
-learner, a scorable non-Welcome challenge rejecting the shared value, and
-foreign/mismatched/stopped/expired/malformed denial without recording, plus
-flag-free profile, leaderboard and audit rows. A browser run of the real API,
-fresh seeded database and built live frontend passed the same journey; the
-running state was set in that disposable database because no target may run on
-the control-plane host. Real VM target acceptance is not repeated here.
-
-Resolved (user-approved): the BFF resolves `/v1/auth/session` on every
-protected call, and that route used to share the per-IP auth limiter, so all
-learners behind one BFF shared 10 checks per minute. Session resolution and
-logout are now limited per hashed session token (`SESSION_RATE_LIMIT_MAX`,
-default 120/minute). Login, verification and reset are limited per learner
-address that the authenticated BFF forwards in `X-Cyber-Range-Client-IP`,
-falling back to the shared BFF address when absent. The frontend forwards it
-only from the header named by its `TRUSTED_CLIENT_IP_HEADER`, because Next.js
-passes browser-supplied `X-Forwarded-For` through unchanged. `LOCAL_DEV_TEST=true`
-(development/test only) still disables all limits for heavy local runs. The
-global 100/minute per-IP limiter still covers the other routes the BFF calls;
-keying those by identity remains a separate decision. **Pause for Phase 4 approval.**
-
-## Harmless Welcome lab: Phase 2 complete locally (2026-10-26)
-
-The user requested implementation of the harmless Welcome test plan, replacing
-Cookie Monster. Confirmed choices are the exact shared Welcome flag, local
-isolated VM and 10 points once. **The user approved the actual replacement
-contract diff in `docs/API.md` on October 26, then Phases 1 and 2.** The static
-Welcome target, validated local test settings and conditional catalog seed are
-implemented. Existing `/v1` DTOs/auth/lifecycle remain; worker-only runtime
-injection is implemented, while fixed-flag verification awaits Phase 3.
-No migration, dependency, hosted change or public signup is planned.
-
-1. **Accounts/catalog:** validated local-only Welcome settings, stable identity
-   and conditional disposable seed; two verified learners; frontend login and
-   listing/briefing checks. Preserve historical IDs/solves.
-2. **Spawn/running:** static Welcome target with runtime-injected flag, health,
-   pinned image/manifest and VM preflight; actual readiness, refresh and create
-   idempotency through one worker/node with two slots.
-3. **Submission/persistence:** Welcome-only fixed-flag injection/verification,
-   unchanged owner/running/expiry checks, incorrect/correct/repeated/concurrent
-   attempts, exactly one 10-point award and real progress views.
-4. **Two-user isolation:** distinct resources, foreign-operation denial, benign
-   health requests between controlled targets and independent stop behavior.
-5. **Expiry/cleanup:** destroy/repeat/timeout, capacity refusal/retention and
-   controlled partial cleanup/retry with resource/route absence evidence.
-6. **Regression/replacement readiness:** full harmless browser flow, application
-   and disposable-service gates, preview/cookie isolation and final cleanup.
-
-After each numbered phase, report changes, test steps/results and open questions,
-update canonical docs and pause for approval. The shared flag is public test
-content, not proof of per-user flag separation. No exploit or attack payload is
-used. Real labs later use separate reviewed content and the existing dynamic
-flag policy; retire Welcome by unpublishing, preserving history.
-
-Backend agent edits only this repo; frontend agent edits only its sibling. The
-lead owns contract changes; agents propose changes rather than editing the
-contract. Keep commits focused and preserve unrelated work. The prior delivery
-below is complete; production and hosted acceptance remain separate open gates.
-
-Phase 1 source is split into `72f7583` (shared API/worker/seed local configuration
-validation) and `3e84e38` (stable Welcome metadata and conditional seed). The flag
-setting is validated but does not yet change runtime injection or submission
-verification. Explicit seeding publishes only Welcome when enabled; disabling
-and reseeding restores ordinary sample publication and unpublishes Welcome.
-Upserts preserve catalog IDs and historical solves; integration coverage uses
-direct historical database fixtures, not new Welcome submissions.
-
-Verification on Node 24.19.0: lint, typecheck, build and whitespace passed. A
-fresh native PostgreSQL 18 cluster, disposable memory-only Redis and existing
-OpenSSL passed all 232 tests across 42 files with zero skips using the normal
-one-worker suite. An initial catalog startup test exceeded its existing five-
-second timeout under load; unchanged focused catalog checks passed 5/5, then the
-unchanged full suite passed 232/232 without relaxing deadlines. New integration
-checks create their own database, exercise two verified learners, wrong-password
-denial, independent sessions/logout, seed toggles and history preservation.
-Generated frontend types exactly match all 20 API paths; no wire shape changed.
-
-Independent browser acceptance connected the built frontend through its BFF to
-the real compiled API and a separate fresh PostgreSQL database. Both verified
-learners passed wrong-password 401, login 200, HttpOnly session, Welcome-only
-catalog/10 points, refresh identity, disabled launch, direct-session redirect,
-logout 204 and revoked-session checks. There were no browser errors, unexpected
-outbound requests, later-phase calls, emails or target creation. The acceptance
-database was dropped and its API/frontend ports closed. See the sibling PLAN
-for browser/regression and 24-screen visual evidence.
-Final cleanup removed the owned PostgreSQL cluster and both task-labeled Redis
-fixtures (including one earlier startup fixture found during final inventory).
-All three fixture ports closed, with no owned PostgreSQL processes/directories,
-Redis containers or private connection-state files remaining. The VM stayed off.
-
-Repeat setup and seed instructions are in `docs/LOCAL_DEVELOPMENT.md`; run
-the existing lint/typecheck/build/test commands with disposable database/Redis
-settings, then use two verified operator accounts in explicit frontend live mode.
-Keep worker/VM stopped for Phase 1. No open Phase 1 questions remain. **Await
-approval before Phase 2 target/runtime work.** Public signup, hosted changes,
-production runtime evidence and production security gates remain outside scope.
-
-The user subsequently approved Phase 2. Commits `f1298f3` and `080c0c6` add the
-harmless static target and derive-only worker injection for its exact ID. The
-image has a narrow build context, digest-pinned base, nonroot runtime, escaped
-HTML, restrictive headers and flag-free health. Its manifest fixes bounded
-resources. Production rejects the local Welcome settings. The API submission
-verifier remains unchanged until Phase 3; no API/schema/dependency change was
-needed. Other challenges retain their existing dynamic flag derivation.
-
-Phase 2 lint, typecheck, build and all 247 tests across 44 files passed with zero
-skips against disposable PostgreSQL/Redis/TLS fixtures. An initial restricted
-test-cache failure was resolved by using the same suite in its approved native
-environment; no product change was required. Generated frontend types still
-match all 20 API paths. Frontend gates, 108 explicit-live browser cases and the
-bounded combined visual review passed; details are in the sibling PLAN.
-
-Independent real acceptance used the compiled API/worker, built frontend, fresh
-database and retained isolated Ubuntu target VM after private-network, mTLS and
-worker preflight. The operator manifest pinned Engine image ID
-`sha256:b5f4557ec7237d546c88fd279df7a6f5e201954964a8893fa51ef0353db622b2`.
-The one node had two slots. Accepted creation disclosed no URL; three concurrent
-same-key replays reused one instance and operation. Pending/running refresh kept
-the exact 60-minute expiry and two-hour absolute cap. Inventory showed one
-managed container/network/route. Nonroot, read-only root, no mounts/host ports,
-dropped capabilities, no-new-privileges, AppArmor and CPU/memory/PID limits were
-checked, along with isolated networking and no baked flag. The runtime-injected
-public placeholder was visible, health was flag-free and the target received no
-learner cookie. Stop removed all owned resources and its route returned 404.
-No submission/scoring/email or unexpected outbound browser request occurred.
-An initial ignored acceptance helper selected the wrong TLS server name; only
-that helper was corrected, then fresh acceptance passed. Separate fixture-only
-tests do not substitute for this real VM evidence.
-
-Acceptance removed its disposable database/role/private runtime directory and
-stopped its frontend/API/worker. Independent guest inventory found zero managed
-containers, networks and routes, preserved trusted ingress/TLS and no default
-route. The owned tunnel and new private handoff files were removed; retained VM
-management credentials were preserved. VM poweroff is confirmed. Final shared
-fixture cleanup is recorded below. Sanitized evidence is retained in the task's
-`welcome-phase2-qa/real-spawn-browser.json`.
-
-Repeat with the Welcome runtime instructions in `docs/LOCAL_DEVELOPMENT.md`,
-disposable accounts/services and a fresh preflight; exercise pending/running
-refresh, same-key creation, target health/open and stop/resource absence through
-the built frontend. No open product questions remain. **Pause for Phase 3
-approval: Welcome verification, once-only scoring and persisted progress.**
-Public signup, hosted changes and production security gates remain outside scope.
-
-Final shared fixture cleanup: PostgreSQL was already stopped; its dedicated
-cluster/state were removed after exact-path, absent-PID and closed-port checks.
-After the user unlocked the desktop, Docker inventory confirmed the retained
-Redis container absent and no phase-labeled containers remaining. Only then was
-its stale ownership record removed. Both fixture ports are closed and no
-phase-owned service state files remain. Cleanup is complete and the VM remains
-off. No Phase 3 work or push has started; await approval for that phase.
-
-## Current delivery: mock preview and lifecycle hardening (2026-10-23)
-
-The user approved the shared contract in `docs/API.md`. This delivery uses
-local development and disposable fixtures; it does not continue hosted rollout.
-The independent frontend now defaults to an isolated mock preview and retains
-explicit live mode for integration tests. Only the lead may coordinate further
-contract edits. Each numbered delivery phase requires its own approval.
-
-Phase 1 backend validation is implemented: creation rechecks persisted account
-email verification and refuses unverified users with 403 before creating intent;
-extend/delete reject nonempty bodies with 400 after authorization. Existing
-owners retain read/extend/stop access if verification changes. No DTO shape,
-dependency, migration, capacity, or orphan-sweep change was introduced.
-
-Verification on Node 24.19.0: lint, typecheck, and build passed. The full suite
-against a fresh disposable native PostgreSQL 18 cluster passed 160 tests and
-skipped six (five Redis queue cases and one OpenSSL-dependent TLS case). After
-the final test-only ownership/no-write assertions, all 19 focused tests across
-three files passed on a second fresh cluster. Both clusters were stopped and
-removed; the existing demo database was not migrated or modified.
-
-Phase 2 capacity schema/configuration and retry-safe node admission are complete.
-Migration `ca700b8` adds positive capacity slots with a conservative existing-node
-backfill; behavior `b888b9b` requires explicit worker capacity, uses a node lock
-and durable reservations, and counts partial/orphan resources without deleting
-them. Missing or ambiguous inventory fails closed. Cleanup retains capacity
-until all resources are confirmed absent. Excess spawns fail asynchronously with
-`node_capacity_exhausted` using the existing API response shapes.
-
-Phase 2 verification: lint/typecheck/build passed; 185 tests passed and five
-Redis queue cases skipped on disposable PostgreSQL 18. Existing Git OpenSSL
-enabled the local TLS fixture. An independent upgrade check applied migrations
-0000 through 0004, inserted an existing node, and verified migration 0005 backfills
-one slot and rejects zero. Generated frontend types exactly match all 20 current
-backend paths. Docker behavior used isolated fakes, not live hostile targets;
-real isolated-host acceptance and Redis execution remain open for Phase 4.
-The temporary database and cluster were stopped and removed; the existing demo
-database and hosted services were not changed.
-
-Phase 3 was approved October 24 and is implemented in `d9823fe`. Sweeps build
-complete database/inventory plans, validate all ownership and canonical route
-contents, and persist cleanup-start audits before deletion. Active instances,
-unrelated resources and trusted ingress are preserved. Partial failures retain
-capacity and retry through maintenance. Absence and unchanged terminal intent
-are rechecked before success and reservation release. One execution gate covers
-queue lifecycle work and sweeps; shutdown drains it, including startup sweeps.
-
-Phase 3 verification: final lint/typecheck/build/whitespace passed. The exact
-final source passed 215 tests with five Redis queue skips using a fresh native
-PostgreSQL 18 cluster and existing Git OpenSSL. A readiness test initially timed
-out under concurrent machine load; 32 focused checks and the full suite passed
-with two workers, without weakening timeouts. Coverage includes missing/terminal
-and partial resources, repeated sweeps, candidate validation and audit failures,
-stripped/mismatched labels, unrelated endpoints, dependency failure, retries,
-intent changes and serialization/drain. Generated frontend types still exactly
-match all 20 backend paths. The disposable cluster was stopped and removed.
-No demo database, real target, hosted configuration or dependency was changed.
-
-Phase 4 was approved October 25 and completed local acceptance on October 26.
-It covers disposable-service and isolated-worker acceptance. Docker Engine was
-reachable again for disposable Redis service testing. A fresh native PostgreSQL 18.3
-fixture and non-root, memory-only Redis 7.4.11 fixture passed all 222 tests with
-zero skips, using one worker and standard test isolation/deadlines. An earlier
-run spanning a host interruption had two five-second request timeouts; the
-clean serial run passed without relaxing those limits.
-Final lint, typecheck, build and whitespace gates also passed. Local execution
-used Node 24.19.0; the configured Node 22 CI/runtime target was not rerun here.
-
-Real Redis also reproduced a delivery-order bug: a worker could receive a job
-while its durable operation was still pending, before the producer persisted
-the queued marker. Claiming that delivered pending intent now permits normal
-execution; the marker's pending-only update cannot rewind running or completed
-work. Two regressions cover a delayed marker and producer failure after enqueue,
-including once-only execution and safe redispatch. No public contract, schema,
-or application dependency changed.
-
-The user confirmed both historical lab VMs were deleted and chose one fresh
-target-only Linux VM with the control plane on Windows. At the October 25
-checkpoint its guarded start found about 1.5 GiB free against the 2.5 GiB
-requirement and left it powered off. The disposable services and credentials
-were removed then; no replacement-host acceptance was claimed.
-
-On October 26, after the user authorized closing Roblox and Discord, the memory
-check passed and Ubuntu 26.04.1 Server installed successfully. The working VM
-uses one CPU, 2 GiB configured RAM and the existing dynamic 32 GiB disk. The
-initial two-CPU boot stalled; a single CPU, enabled APIC, disabled x2APIC and
-normal-RCU kernel setting allowed installation and subsequent disk boots.
-Docker 29.9.2 advertises user namespaces, AppArmor, seccomp and private cgroup
-namespaces. Real Engine mTLS accepts the worker identity and rejects a missing
-client certificate, an untrusted CA and a wrong server hostname. Only server
-key material was transferred to the target host; worker/CA private keys remain
-outside both repositories on Windows.
-
-The temporary NAT adapter was removed before any target started. Guest routing
-shows no default route; private management SSH and Docker TCP baselines pass.
-Digest-pinned constrained Traefik ingress and the committed disposable HTTP
-fixture were prepared, with a key-pinned loopback HTTPS tunnel. Fresh PostgreSQL
-18.3/Redis 7.4.11 fixtures and an independent restricted runtime login were
-separate from the demo database. API login/logout and eight denied database
-privilege probes passed. Real lifecycle, capacity, recovery, orphan cleanup and
-target-side isolation acceptance subsequently passed:
-
-- The committed HTTP fixture passed create/idempotency, live HTTPS health,
-  first score 10 then zero on replay, extension, stop and ingress 404.
-- Two verified players received separate targets. Six cross-user read/extend/
-  delete requests returned 404 with no mutation intents, and the per-player
-  active-instance limit returned 409. Both targets passed exact runtime-limit
-  inspection and IPv4/IPv6/private/public/metadata/cross-instance route probes.
-- A one-slot persisted node budget admitted one of two accepted concurrent
-  creations; the other failed with `node_capacity_exhausted`. Real expiry
-  cleaned resources and released its reservation. A hard-killed worker recovered
-  through the normal lease, reusing the exact provisioning resources.
-- Full and partial missing-row orphans were removed once, preserving unrelated
-  resources and trusted ingress. A terminal cleanup failure retained capacity
-  until its unrelated endpoint was explicitly released and cleanup retried.
-- Database/inventory failures, malformed ownership and denied audit INSERT
-  prevented destructive cleanup; restoration allowed successful cleanup.
-
-The ingress fixture needed separate read-only static binds beside its writable
-route volume; an enclosing read-only bind intermittently blocked Engine archive
-writes. Five marker round trips and actual preflight then passed. An incomplete
-crash attempt was retained in the evidence and corrected by pre-verifying the
-owned worker PID before its immediate hard kill. No product source, dependency,
-contract, lifetime limit or acceptance deadline changed in this resumed run.
-
-Final managed containers/networks/routes/allocations, active intents,
-reservations, pending operations and owned diagnostic containers were all zero.
-Trusted ingress/TLS survived; API/worker drained. Runtime database/restricted
-role/private credentials, PostgreSQL cluster and Redis fixture were removed;
-their listeners closed. The ingress tunnel was closed and the installed VM
-retained powered off to release memory. Twenty-three sanitized observations and
-the lead's setup/management evidence are retained in the task visualization
-folder's `phase4-runtime-qa`. Exact scope and limitations are in
-`docs/PHASE4_SECURITY_GATE.md`. This completes the fourth local delivery
-checkpoint, not the older production security gate. Pause for user approval
-before the separate playable-CTF milestone.
-
-Host-level egress anomaly monitoring, administration,
-advanced features, hosted deployment work and production launch gates remain
-deferred. Public signup stays closed.
-
-The user clarified the ultimate goal is a playable web CTF platform with private
-web challenge instances; "VM" means the web target, consistent with the Docker
-architecture. Mock sessions are an intermediate frontend milestone. A later
-separately reviewed live delivery must include authored challenges, learner flag
-submission/progress integration and hosted worker/ingress acceptance through
-https://cyber-lab-frontend.vercel.app and https://cyber-range-api.onrender.com.
-The current approval does not change hosted configuration or close launch gates.
-
-The numbered platform phases and deployment evidence below describe the earlier
-roadmap; they are not the four approval checkpoints of this delivery. Retain
-their evidence as historical records, not authorization for hosted changes.
-
-## Scope and current state
-
-This backend is the authorization, data, scoring, and lab lifecycle boundary
-for Cyber Range. Phases 0 through 2 and the Phase 3 implementation are complete.
-The Phase 3 disposable-host lifecycle check has passed. The next delivery is
-the Phase 4 security gate. This plan covers
-backend work and frontend contract checkpoints; frontend implementation stays
-in its separate repository.
-
-The latest local run passes 112 tests and skips 46 environment-gated cases on
-Node 24.19.0; Node 22 remains supported and passes CI. PostgreSQL 16 and Redis 7
-containers previously became healthy and accepted direct operations; this
-machine now also has a working native PostgreSQL 18.3 demo database.
-Remote CI has passed on `develop`. See
-README for current verification evidence.
-The free hosted-demo API is deployed at https://cyber-range-api.onrender.com;
-HTTPS health/database/auth acceptance passed. Public signup remains closed. A protected
-Vercel frontend URL has been supplied; deployed integration is unverified.
-Phase 4 VM checks have
-passed. Real Engine mTLS and remote route-delivery preflight passed on the
-two-VM topology on 2026-10-04. Live HTTPS lifecycle, two-instance isolation,
-network-drift termination, and mid-spawn crash recovery also passed. Production
-deployment checks remain open.
-
-The Ubuntu 26.04 validation VM now advertises userns, seccomp and AppArmor.
-On 2026-09-26, preflight and the disposable HTTP lifecycle passed with a
-running Traefik ingress and one digest-pinned fixture. Create/poll, HTTPS
-access, once-only scoring, extension, destruction, route removal, and recovery
-after a worker restart passed. Both runs left zero backend-managed containers,
-networks, and routes. Separate-host isolation was subsequently validated on
-two disposable VMs; production trust-zone controls remain unverified.
-
-Effort: S is a focused change; M spans several modules; L requires several
-reviewable batches and integration/security checks. These are relative sizes,
-not time estimates.
-
-## Phase 0: API foundation and repository alignment (implemented)
-
-- Existing scaffold: errors, request IDs, redacted logs, liveness/readiness,
-  scoped service tokens, mock catalog/submissions, lint, tests, and CI.
-- Standardize Node 22 in package engines, .nvmrc, Docker, and CI.
-- Add local PostgreSQL/Redis Compose configuration and setup instructions.
-- Generate OpenAPI from Zod route schemas and verify current API behavior.
-- Align README, architecture, auth contract, and security requirements.
-- The obsolete Phase 0 finishing script is no longer present.
-
-Exit evidence: lint, typecheck, build, 39 tests, YAML parsing, reviewed diffs,
-and healthy PostgreSQL 16 and Redis 7 containers with successful direct client
-operations. Compose is development infrastructure, not a production lab host.
-
-## Phase 1: Database and backend-owned authentication (implemented)
-
-Dependency: Phase 0. Delivered accounts/auth only; the catalog remains mocked.
-
-| Task | Depends on | Effort |
-|---|---|---|
-| PostgreSQL adapter, Drizzle schema and committed migration for users, profiles, sessions, email tokens, audit events, and roles | Local PostgreSQL | Implemented |
-| Database readiness, cleanup, migration and idempotent account seed commands | Schema | Implemented |
-| Argon2id passwords and opaque hashed session/token repositories | Schema | Implemented |
-| Session lifecycle, verification/reset services and development mailer | Persistence and hashing | Implemented |
-| Auth bootstrap routes, BFF/session contract and current-user authorization | Auth services | Implemented |
-| Generated contracts and PostgreSQL integration tests | Routes | Implemented |
-| Frontend cookie/CSRF integration checkpoint | Backend contract | Implemented in frontend; 33 focused unit checks passed; production HTTPS/browser validation pending |
-
-Sessions use 30-day inactivity and 90-day absolute expiry, fresh tokens on
-login, logout revocation, and single-use email tokens. Public signup returns
-403. Initial accounts are seeded
-or provisioned by operators; broader admin account APIs arrive in Phase 5.
-
-The backend owns credentials, accounts, sessions, roles, and account status.
-The frontend BFF uses a dedicated server credential for auth bootstrap,
-resolves its opaque session against the backend, and signs short-lived
-user-scoped service tokens. See [authentication contract](docs/AUTHENTICATION.md).
-
-The `pg` connection boundary supports local PostgreSQL and managed Neon while
-preserving transaction support. The unused Neon HTTP scaffold has been removed.
-
-Exit evidence: seeded player/admin authentication passes through the backend BFF
-contract; sessions expire/revoke correctly; reset/verification tokens cannot be
-replayed; authorization rejects foreign, expired, revoked, role-disallowed, and
-disabled sessions; signup is closed. PostgreSQL tests cover migrations,
-concurrent token consumption, and repeated seeding. The actual frontend cookie
-and CSRF flow remains a separate repository checkpoint.
-
-## Phase 2: Persistent catalog and scoring (implemented)
-
-Dependency: Phase 1 users and database.
-
-- Implemented: validated repository challenge definitions, idempotent database
-  seed, published-only public reads, and `source: "database"`.
-- Implemented: submission/audit persistence and transaction-safe first solves;
-  concurrent correct attempts award points once.
-- Implemented: subject-bound profile/progress and privacy-limited leaderboard
-  queries with generated contracts.
-- Implemented: HMAC per-instance flag derivation/verification and a trusted-user
-  submission rate limiter.
-- Implemented in the frontend repository: database catalog/source reads.
-- Pending in the frontend repository: `profile:read`, leaderboard and submission
-  contract integration.
-
-Per-instance flags depend on real instance identity. Phase 3 now supplies the
-owned running-instance resolver; tests still use explicit fixtures where Docker
-is not relevant.
-
-Exit evidence: repository/contract tests prove catalog compatibility,
-published-only reads, solve uniqueness under eight concurrent requests,
-subject-bound progress, leaderboard privacy, and no flag/hash leakage. No real
-challenge authoring or content-management UI is included.
-
-## Phase 3: Asynchronous HTTP lab lifecycle (implemented; disposable-host exit passed)
-
-Dependencies: Phases 1-2, Redis, Docker test environment, trusted manifests.
-A routing domain and certificates are prerequisites for remote deployment.
-
-- Implemented: instances, operations and node persistence with explicit transitions.
-- Implemented: BullMQ producers/workers for spawn, destroy, extend, reap and reconcile;
-  deterministic job IDs, bounded retries/backoff and failed-job inspection.
-- Implemented: ownership-checked API operations and client idempotency keys.
-  Creation returns a pending instance ID; the frontend polls until ready.
-- Implemented: the narrow Docker adapter, fixed runtime restrictions, trusted image
-  manifests, isolated networks, generated Traefik routes, health polling and
-  cleanup of partial failures.
-- Implemented: `npm run worker:preflight`, a check of the Docker
-  isolation controls, ingress availability, and every reviewed pinned image
-  before a worker receives lifecycle jobs.
-- Implemented: expiry/reconciliation jobs and backend polling integration tests.
-- Passed on the Ubuntu VM: preflight with userns, seccomp, AppArmor,
-  running ingress and one reviewed pinned HTTP fixture image.
-- Passed on the Ubuntu VM: full create/poll/submit/extend/destroy target run and
-  pending-operation recovery after a worker restart.
-- Implemented in the frontend repository: polling and learner lifecycle controls
-  with fixture tests; local real-worker/ingress browser acceptance passed on
-  2026-10-05. Deployed acceptance remains pending.
-
-Start with HTTP targets and a single node. One active instance per player,
-60-minute default lifetime, 2-hour absolute maximum. Extensions cannot exceed
-that maximum. Operations must be safe to retry, including duplicate deliveries,
-worker crashes, and partial database/Docker failures.
-
-Security restrictions apply from the first real target. Phase 4 verifies and
-hardens them; it is not permission to run unrestricted targets in Phase 3.
-Local tests use disposable fixtures. Production targets must use separate
-hosts/trust zones and remote Docker mTLS.
-
-A preflight does not create a target or prove the runtime network boundary.
-Automated exit evidence covers start-state transitions, polling, submission
-ownership, extension caps, destroy, expiry, recovery, foreign-user denial,
-readiness-only URLs and partial-create cleanup. The disposable pinned-image run
-passed on the Ubuntu VM after `npm run worker:preflight` succeeded. Docker
-Desktop on the verification machine
-lacked userns and AppArmor, so its preflight correctly refused to run a target.
-The Ubuntu VM ran PostgreSQL and Redis in Compose, the worker locally, and the
-API through loopback SSH tunnels for validation. Both target runs left zero
-backend-managed containers, networks, and routes. This topology is separate
-from the production requirement for distinct control-plane and target trust zones.
-
-## Phase 4: Isolation hardening and security gate (L)
-
-Dependency: working Phase 3 lifecycle on isolated test infrastructure.
-
-The disposable Ubuntu VM passed user-namespace, seccomp/AppArmor, capability,
-filesystem/resource, egress, cross-network peer, and ingress checks. The
-adapter now bounds swap and logs, rejects disabled seccomp, and terminates
-stopped/unhealthy/OOM targets with an audit event. All three termination paths
-passed disposable VM drills, and a worker shutdown Redis leak was fixed and
-validated on the VM. Direct audit row mutation is blocked by migrations
-0003-0004. A restricted application-role grant script
-and separate-login disposable-database test now pass CI. A disposable mTLS
-handshake test passes, but production deployment and database roles remain
-unprovisioned. Worker startup now verifies route delivery and fails closed:
-under `file` delivery it probes whether its route directory is visible inside
-ingress, and under `ingress` delivery it round-trips a marker through the Docker
-channel. The disposable VM passed the visibility probe and rejected a wrong path.
-Delivery preflight against a real separate VM passed on 2026-10-04, after
-replacing ingress's read-only route mount with a writable dedicated volume.
-Live routing and two-player isolation passed after fixing ordinary internal
-bridges' access to host services. The adapter now requires Docker 28+ isolated
-gateway modes, rejects legacy networks, and terminates network drift. Target
-IPv6 is disabled. A real mid-spawn SIGKILL recovered on attempt two with the
-same container and network; final cleanup left zero managed resources. See the
-[Phase 4 gate record](docs/PHASE4_SECURITY_GATE.md) for exact evidence and
-limits. **The gate remains open.**
-
-- L: Verify user namespaces, capabilities, seccomp, AppArmor, immutable root
-  filesystems, tmpfs, CPU/memory/PID/storage limits, and Docker mTLS.
-- L: Test default-deny egress, private/metadata/control-plane blocking,
-  cross-instance isolation, and isolated ingress.
-- M: Add automatic abuse termination and append-only audit protections.
-- M: Review every required control in SECURITY.md with recorded evidence.
-
-Remaining work: review the deployed production firewall and domain/TLS layout;
-provision and verify separate production application and migration database
-roles; and finish frontend, production email, and operational launch controls.
-Repeat the validated probes and recovery drill on the actual deployment.
-Current user-approved scope includes the local Gmail demo and a free hosted
-API demo; verified-domain email provisioning is deferred. Local verification/reset browser flows, real-worker
-start/refresh/extend/stop and route removal, and an isolated 12-table restore
-drill passed on 2026-10-05. See the gate record and
-[operations runbook](docs/OPERATIONS.md). The supplied Vercel deployment needs
-connector team access and server configuration before integration; the HTTPS
-backend is now available.
-Render browser provisioning is now accessible, and its `develop` API Blueprint
-has been planned successfully. The operator requires free tiers only; Render
-rejected database creation because its active free-database quota is occupied.
-The alternative free Neon project is now provisioned: migrations, restricted
-runtime role privileges, fresh account/catalog seed and login/session/logout
-checks passed. The approved sending-only Resend key is created and deployment
-configuration validation passed. The operator approved credential submission
-and free API creation; Render deployed `2a76b71` successfully. Live HTTPS
-readiness/catalog/login/session/profile/signup-denial/logout/revocation checks
-passed. See [Render checkpoint](docs/RENDER.md).
-Render API hosting preparation now includes a Docker Blueprint, a secret-free
-build-context allowlist and committed migrations in the runtime image. Actual
-frontend integration and hosted worker networking remain open. Verified-domain
-delivery remains deferred; the hosted demo can
-use the restricted Resend test sender for the operator's own account email.
-See [Render deployment](docs/RENDER.md). Remote worker networking and ingress
-remain separate prerequisites for hosted lab acceptance.
-Authenticated remote route delivery is now
-implemented: `TRAEFIK_ROUTE_DELIVERY=ingress` extracts each rendered route into
-the ingress container over the worker's own authenticated Docker connection and
-removes it with an argument vector, so the target host holds no control-plane
-credential. Production configuration requires that mode. It is covered by unit
-tests, real remote Engine preflight, and live HTTPS target lifecycle. Separate
-database owner/application logins passed
-effective privilege checks on the disposable control-plane database; production
-role provisioning remains open.
-The single-node worker is serialized. Multi-worker scale-out needs a
-per-instance distributed lock and is deferred until it can be tested.
-
-Exit: complete security review. Public signup remains closed until this gate
-passes; passing it alone does not automatically enable signup.
-
-## Phase 5: Administration and operations (M)
-
-Dependencies: auth/scoring/lifecycle; Phase 4 for public hostile workloads.
-
-- M: Admin account creation/disable/reset and operational instance/job views.
-- M: Metrics and alerts for auth failures, queue lag, capacity, lifecycle errors,
-  reconciliation mismatches, and abuse kills.
-- M: Backups, restore drills, credential rotation and incident runbooks.
-- M: Stage/deploy API and worker Compose services on a VM using managed Neon
-  and Redis, with target hosts in a separate trust zone.
-
-Exit: observable staged deployment, successful restore exercise, tested rollback
-and migrations. Essential readiness and diagnostic logging are introduced in
-earlier phases; this phase adds operator workflows.
-
-## Phase 6: Advanced access and scaling (L, deferred)
-
-Dependency: stable, hardened HTTP lifecycle and operations.
-
-Add browser terminal access, raw TCP/WireGuard, capacity-aware multi-node
-scheduling, and evaluate microVMs for kernel-sensitive exercises. Third-party
-auth, XP, badges, and cohorts are future work, not Phase 1 requirements.
-
-## Delivery and validation
-
-Use focused conventional commits for independently understandable changes.
-Review staged diffs for secrets, unsafe options, authorization gaps, migrations,
-and unrelated edits. Run relevant checks, commit, and push each reviewed batch.
-Complete and push a phase before starting the next; never run a script that
-automatically stages everything or silently pushes multiple phases together.
-
-Always run lint, typecheck, build, and relevant Vitest contracts. Add disposable
-PostgreSQL integration services in Phase 1, Redis tests in Phase 3, and isolated
-Docker lifecycle jobs when that environment exists. Frontend Playwright runs
-belong to the frontend repo, coordinated through generated OpenAPI and phase
-checkpoints. A schema change, revocation rule, retry contract, or isolation
-claim requires a corresponding meaningful test.
-
-Next task: validate frontend cookies/CSRF over deployed HTTPS and activate
-verified-domain production email, then provision the production topology and database roles and
-record the remaining deployment and operational checks in the gate record.
-Public signup remains closed.
-
-Local-demo email update (2026-10-05): opt-in Gmail SMTP delivery is implemented
-for verification/reset links, with backend-only credentials and verified TLS.
-Gmail authentication and one operator-approved setup email passed; inbox receipt
-and actual frontend email-link flows remain unverified. Lint, typecheck, build,
-and 100 tests passed on local Node 24.19.0; 46 environment-gated tests skipped.
-Node 22 remains the supported runtime. Gmail is rejected in production and does
-not close the production email gate. See [email setup](docs/EMAIL.md).
-
-Phase 4 follow-up (2026-10-05): the production Resend adapter is implemented
-with fixed HTTPS delivery, bounded requests, hashed idempotency keys and
-sanitized errors. Verification/reset delivery failures now retain generic HTTP
-acknowledgements and write safe audit events. Local lint/typecheck/build passed,
-with 112 tests passed and 46 environment skips on Node 24.19.0. The adapter's
-Node 22 CI passed at run 37268300486. No live Resend email was sent; verified
-domain, provider credentials and deployed frontend URL remain required.
-
-Frontend status review: sibling commit `64afe70` documents implemented auth,
-cookie/CSRF and learner catalog/lifecycle UI. Its 33 focused authentication unit
-checks passed locally. Production HTTPS/browser checks, live email-link flows,
-actual worker UI acceptance, and submissions/progress/leaderboard integration
-remain open. No frontend source was changed in this backend delivery.
-
-Additional local database evidence: all 16 authentication service, repository
-and HTTP integration tests passed in a separate disposable PostgreSQL 18.3
-database, removed after the run. The demo database and accounts were preserved.
-The email failure security fix passed Node 22/PostgreSQL/Redis CI at
-[run 37268528702](https://github.com/Yoshi4489/cyber-lab-backend/actions/runs/37268528702).
+# Backend plan
+
+Current state and next steps for the Cyber Range backend, as of 2026-10-30.
+The dated delivery log and all earlier evidence are in
+[docs/PLAN_HISTORY.md](docs/PLAN_HISTORY.md).
+
+## Where things stand
+
+The backend is a working local platform for one harmless test lab (Welcome).
+It is not launched: public signup is closed and the production security gate
+is open.
+
+| Area | State |
+|---|---|
+| API foundation | Done. Fastify 5, Zod at every edge, generated OpenAPI, stable error codes, request ids, redacted logs, liveness/readiness. |
+| Accounts and sessions | Done. Backend-owned accounts, Argon2id passwords, opaque sessions behind the frontend BFF, email verification and reset. Signup returns 403. |
+| Catalog, scoring, progress | Done. Published catalog, once-only scoring on a database constraint, profile and leaderboard. |
+| Lab lifecycle | Done. Durable intents, BullMQ worker, Docker adapter over mTLS, Traefik routes, expiry, extension, reaping, reconciliation, orphan cleanup, crash recovery. |
+| Isolation controls | Implemented and verified on earlier disposable VMs: user namespaces, seccomp, AppArmor, dropped capabilities, read-only root, resource limits, isolated per-instance networks, default-deny egress. |
+| Rate limits | Done. Session checks per session, login/verify/reset per learner IP forwarded by the BFF, submissions and spawns per user. `LOCAL_DEV_TEST=true` disables all limits locally. |
+| Hosted demo | API on Render (https://cyber-range-api.onrender.com) with a Neon database. No worker or lab host is connected, so it cannot spawn labs. |
+
+### Welcome test lab
+
+Welcome is a harmless static page that openly shows a fixed public flag
+(`FLAG{WELCOME_TO_CISCO_FAMILY}`), worth 10 points once. It exists only to test
+the platform end to end. It is enabled by `WELCOME_LAB_TEST_ENABLED=true` with
+`WELCOME_LAB_FLAG` in development or test; production refuses to start with
+either set. Every other challenge uses per-instance HMAC flags.
+
+| Phase | State |
+|---|---|
+| 1. Accounts and catalog | Done |
+| 2. Spawn and running | Done on the local VM (2026-10-26) |
+| 3. Submission and persistence | Done (merged to `develop`) |
+| 4. Two-user isolation | Control-plane half done and pushed; **real-container half waiting on the VM** |
+| 5. Expiry and cleanup | Not started; needs approval |
+| 6. Regression and replacement readiness | Not started |
+
+Phase 4 control-plane evidence: `tests/welcome-phase-four.integration.test.ts`
+(real API, database and lifecycle state machine with a recording Docker fake)
+and the frontend's `tests/e2e/welcome-isolation.spec.ts`. Both prove ownership
+denial and per-instance identities, not real container separation.
+
+## Next steps, in order
+
+1. **Finish Phase 4 on the lab VM.** Follow the Phase 4 checklist in
+   [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) and record the
+   container, network and route counts here. VM state as of 2026-10-30:
+   - VM `CyberRangePhase4Target`, user `laboperator`, Engine with mTLS on
+     `192.168.56.108:2376`, no default route. SSH is key-only; the operator
+     has a working key (kept outside Git).
+   - The Engine server certificate expires **2026-11-01**. The CA key and the
+     worker's client certificate were not found on the Windows host, so a
+     fresh set must be issued with [docs/DOCKER_MTLS.md](docs/DOCKER_MTLS.md)
+     (use `192.168.56.108` as the server address) before the worker can
+     connect.
+   - Still to confirm with `sudo docker ...` (the user is not in the docker
+     group): isolation options, the Traefik ingress container, the Welcome
+     image id, and zero leftover managed resources.
+2. **Get approval for and run Phase 5** (expiry, repeated stop, capacity
+   refusal, partial-cleanup retry), then Phase 6.
+3. **Decide the general per-IP limit.** Routes other than auth still share one
+   100/minute per-IP budget across all learners behind the BFF. Keying them by
+   verified user is a separate API decision.
+4. **Close the production security gate** before any public lab hosting. See
+   [docs/PHASE4_SECURITY_GATE.md](docs/PHASE4_SECURITY_GATE.md). Open items:
+   production firewall and domain/TLS review, separate production application
+   and migration database roles ([docs/DATABASE_ROLES.md](docs/DATABASE_ROLES.md)),
+   verified-domain email, deployed frontend HTTPS cookie and email-link
+   checks, and a worker plus separate lab host for the hosted API.
+5. **Later work:** admin and operations (account/instance admin, metrics and
+   alerts, credential rotation, staged deployment with rollback), a
+   per-instance distributed lock for more than one worker, and the deferred
+   items (browser terminal, raw TCP/WireGuard, multi-node scheduling,
+   microVMs).
+
+Public signup stays closed until the security gate passes; passing it does not
+open signup by itself.
+
+## Decisions waiting on the owner
+
+- Approval for Phase 5 after the Phase 4 VM evidence.
+- How to key the general rate limit (point 3 above).
+- Any hosted change, dependency, migration or contract change.
+
+## How work is delivered
+
+- Work on a branch, open a PR to `develop`, and merge only when CI is green.
+- Finish and record one Welcome phase before starting the next, and pause for
+  approval between phases.
+- Backend and frontend stay in their own repositories; contract changes go
+  through `docs/API.md` and generated OpenAPI.
+- Record real evidence (commands, counts, dates) here when a step completes.
+  Label anything that could not run as not run.
+- Keep credentials, certificates, VM disks, manifests and private env files
+  out of Git.
+
+## Known issues
+
+- With default file parallelism, three older lifecycle integration tests
+  occasionally race on the shared test database. Run
+  `npx vitest run --no-file-parallelism` for a reliable local result. CI has
+  passed on `develop`.
+- `AGENTS.md` and this file describe the backend only; frontend status is in
+  the sibling repository's `PLAN.md`.
