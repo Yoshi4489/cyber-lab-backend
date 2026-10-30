@@ -21,6 +21,7 @@ export const testConfig: Config = {
   SUBMISSION_RATE_LIMIT_WINDOW_MS: 60_000,
   INSTANCE_RATE_LIMIT_MAX: 5,
   INSTANCE_RATE_LIMIT_WINDOW_MS: 60_000,
+  LOCAL_DEV_TEST: false,
   LOCAL_MAIL_DIRECTORY: '.local-mail',
   MAIL_PROVIDER: 'local',
   EMAIL_SENDER_NAME: 'Cyber Range',
