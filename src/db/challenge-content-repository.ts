@@ -33,6 +33,15 @@ export async function lockPlayerChallenge(
 export class DrizzleChallengeContentRepository implements ChallengeContentRepository {
   constructor(private readonly database: Database) {}
 
+  async findArtifactChallenge(challengeId: string): Promise<{ definitionVersion: number } | null> {
+    const [challenge] = await this.database
+      .select({ definitionVersion: challenges.definitionVersion })
+      .from(challenges)
+      .where(and(eq(challenges.id, challengeId), eq(challenges.published, true), eq(challenges.kind, 'artifact')))
+      .limit(1);
+    return challenge ?? null;
+  }
+
   async findContent(slug: string): Promise<ChallengeContent | null> {
     const [challenge] = await this.database
       .select({
@@ -41,12 +50,14 @@ export class DrizzleChallengeContentRepository implements ChallengeContentReposi
         objectives: challenges.objectives,
         learningOutcomes: challenges.learningOutcomes,
         references: challenges.references,
+        kind: challenges.kind,
+        definitionVersion: challenges.definitionVersion,
       })
       .from(challenges)
       .where(and(eq(challenges.slug, slug), eq(challenges.published, true)))
       .limit(1);
     if (!challenge) return null;
-    const { id, ...content } = challenge;
+    const { id, kind, definitionVersion, ...content } = challenge;
     const hints = await this.database
       .select({ position: challengeHints.position, cost: challengeHints.cost })
       .from(challengeHints)
@@ -57,7 +68,12 @@ export class DrizzleChallengeContentRepository implements ChallengeContentReposi
       .from(challengeWalkthroughs)
       .where(eq(challengeWalkthroughs.challengeId, id))
       .limit(1);
-    return { ...content, hints, hasWalkthrough: walkthrough !== undefined };
+    return {
+      ...content,
+      hints,
+      hasWalkthrough: walkthrough !== undefined,
+      artifactVersion: kind === 'artifact' ? definitionVersion : null,
+    };
   }
 
   async findPlayerState(userId: string, slug: string): Promise<PlayerChallengeState | null> {

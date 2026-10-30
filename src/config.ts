@@ -14,6 +14,8 @@ const envSchema = z.object({
   DATABASE_URL: z.url().optional(),
   REDIS_URL: z.url().optional(),
   LAB_PUBLIC_BASE_URL: z.url().optional(),
+  // Outside Git: these files contain challenge flags. Built by `scripts/build-artifacts.mjs`.
+  ARTIFACT_STORE_DIRECTORY: z.string().min(1).optional(),
   SIGNUPS_OPEN: z.enum(['false']).default('false').transform(() => false as const),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
   AUTH_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),

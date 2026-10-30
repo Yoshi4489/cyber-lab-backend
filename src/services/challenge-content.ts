@@ -7,6 +7,8 @@ export type ChallengeContent = {
   references: ChallengeReference[];
   hints: Array<{ position: number; cost: number }>;
   hasWalkthrough: boolean;
+  /** Set only for artifact challenges: the version whose files are served. */
+  artifactVersion: number | null;
 };
 
 export type PlayerChallengeState = {

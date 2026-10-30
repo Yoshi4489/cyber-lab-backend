@@ -10,6 +10,7 @@ import { DrizzleCatalogRepository } from './db/catalog-repository.js';
 import { DrizzleChallengeContentRepository } from './db/challenge-content-repository.js';
 import { DrizzleScoringRepository } from './db/scoring-repository.js';
 import { createSubmissionFlagPolicy } from './services/runtime-flags.js';
+import { LocalArtifactStore } from './services/artifact-store.js';
 import { SubmissionService } from './services/submissions.js';
 import { DrizzleProgressRepository } from './db/progress-repository.js';
 import { DrizzleInstanceLifecycleRepository } from './db/instance-lifecycle-repository.js';
@@ -28,16 +29,23 @@ const instanceService = new InstanceLifecycleService(
   new DrizzleInstanceLifecycleRepository(database.db),
   config.LAB_PUBLIC_BASE_URL,
 );
+const challengeContent = new DrizzleChallengeContentRepository(database.db);
 const submissionService = new SubmissionService(
   new DrizzleScoringRepository(database.db),
   instanceService,
   createSubmissionFlagPolicy(config.INSTANCE_FLAG_SECRET, config),
+  undefined,
+  {
+    findArtifactChallenge: (challengeId) => challengeContent.findArtifactChallenge(challengeId),
+    flagSecret: config.INSTANCE_FLAG_SECRET,
+  },
 );
 const app = await buildApp(config, {
   database,
   authentication,
   catalog: new DrizzleCatalogRepository(database.db),
-  challengeContent: new DrizzleChallengeContentRepository(database.db),
+  challengeContent,
+  ...(config.ARTIFACT_STORE_DIRECTORY ? { artifacts: new LocalArtifactStore(config.ARTIFACT_STORE_DIRECTORY) } : {}),
   submissions: submissionService,
   progress: new DrizzleProgressRepository(database.db),
   instances: instanceService,

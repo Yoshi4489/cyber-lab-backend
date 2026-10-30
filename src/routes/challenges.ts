@@ -7,6 +7,7 @@ import type { Config } from '../config.js';
 import { notFound, rateLimited, unauthorized } from '../lib/errors.js';
 import { errorResponses, serviceTokenSecurity } from './schemas.js';
 import type { CatalogRepository } from '../services/catalog-repository.js';
+import { ARTIFACT_FILENAME, type ArtifactStore } from '../services/artifact-store.js';
 import type { ChallengeContentRepository } from '../services/challenge-content.js';
 import type { UserRateLimiter } from '../services/user-rate-limiter.js';
 
@@ -19,7 +20,7 @@ const challenge = z.object({
   category: z.string(),
   difficulty: z.enum(['easy', 'medium', 'hard']),
   points: z.number().int().nonnegative(),
-  kind: z.enum(['web', 'shell']),
+  kind: z.enum(['web', 'shell', 'artifact']),
   tags: z.array(z.string()).readonly(),
 });
 const contentSchema = z.object({
@@ -29,6 +30,11 @@ const contentSchema = z.object({
   references: z.array(z.object({ label: z.string(), url: z.string().optional() })),
   hints: z.array(z.object({ position: z.number().int().positive(), cost: z.number().int().nonnegative() })),
   hasWalkthrough: z.boolean(),
+  artifacts: z.array(z.object({
+    filename: z.string(),
+    sizeBytes: z.number().int().nonnegative(),
+    sha256: z.string(),
+  })),
 });
 const stateSchema = z.object({
   solved: z.boolean(),
@@ -54,6 +60,7 @@ export async function registerChallengeRoutes(
   options: {
     catalog: CatalogRepository;
     content: ChallengeContentRepository;
+    artifacts: ArtifactStore;
     config: Config;
     sessionAuthorizer: ServiceSessionAuthorizer;
     rateLimiter: UserRateLimiter;
@@ -61,14 +68,14 @@ export async function registerChallengeRoutes(
 ) {
   const routes = app.withTypeProvider<ZodTypeProvider>();
   const identities = new WeakMap<object, ServiceIdentity>();
-  const authenticate = (scope: string) => async (request: FastifyRequest) => {
+  const authenticate = (scope: string, limited = scope === 'submissions:write') => async (request: FastifyRequest) => {
     const identity = await requireScope(
       request.headers.authorization,
       options.config,
       scope,
       options.sessionAuthorizer,
     );
-    if (scope === 'submissions:write' && !options.rateLimiter.consume(identity.userId)) {
+    if (limited && !options.rateLimiter.consume(identity.userId)) {
       throw rateLimited();
     }
     identities.set(request, identity);
@@ -128,7 +135,36 @@ export async function registerChallengeRoutes(
   }, async (request) => {
     const found = await options.content.findContent(request.params.slug);
     if (found === null) throw notFound('Challenge not found');
-    return found;
+    const { artifactVersion, ...content } = found;
+    return {
+      ...content,
+      artifacts: artifactVersion === null ? [] : await options.artifacts.list(request.params.slug, artifactVersion),
+    };
+  });
+
+  routes.get('/challenges/:slug/artifacts/:filename', {
+    preValidation: authenticate('profile:read', true),
+    schema: {
+      operationId: 'downloadChallengeArtifact',
+      tags: ['Catalog'],
+      description: 'Requires profile:read. Returns the file as an attachment.',
+      security: serviceTokenSecurity,
+      params: slugParams.extend({ filename: z.string().regex(ARTIFACT_FILENAME) }),
+      response: { ...errorResponses, 200: z.any().describe('The file, as application/octet-stream.') },
+    },
+  }, async (request, reply) => {
+    const found = await options.content.findContent(request.params.slug);
+    const bytes = found?.artifactVersion == null
+      ? null
+      : await options.artifacts.read(request.params.slug, found.artifactVersion, request.params.filename);
+    if (bytes === null) throw notFound('Artifact not found');
+    // Learner-facing files may be anything, so they are never rendered inline.
+    return reply
+      .header('Content-Type', 'application/octet-stream')
+      .header('Content-Disposition', `attachment; filename="${request.params.filename}"`)
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Cache-Control', 'no-store')
+      .send(bytes);
   });
 
   routes.get('/challenges/:slug/state', {

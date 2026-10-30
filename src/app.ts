@@ -18,6 +18,7 @@ import { registerAuthenticationRoutes } from './routes/authentication.js';
 import type { ServiceSessionAuthorizer } from './auth/require-scope.js';
 import type { CatalogRepository } from './services/catalog-repository.js';
 import type { ChallengeContentRepository } from './services/challenge-content.js';
+import { emptyArtifactStore, type ArtifactStore } from './services/artifact-store.js';
 import type { SubmissionService } from './services/submissions.js';
 import { FixedWindowUserRateLimiter, unlimitedRateLimiter } from './services/user-rate-limiter.js';
 import type { ProgressRepository } from './services/progress-repository.js';
@@ -30,6 +31,7 @@ export type AppDependencies = {
   sessionAuthorizer?: ServiceSessionAuthorizer;
   catalog?: CatalogRepository;
   challengeContent?: ChallengeContentRepository;
+  artifacts?: ArtifactStore;
   submissions?: SubmissionService;
   progress?: ProgressRepository;
   instances?: InstanceLifecycleService;
@@ -104,6 +106,7 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
     prefix: '/v1',
     catalog: dependencies.catalog ?? unavailableCatalog,
     content: dependencies.challengeContent ?? unavailableChallengeContent,
+    artifacts: dependencies.artifacts ?? emptyArtifactStore,
     config,
     sessionAuthorizer,
     rateLimiter: submissionRateLimiter,
