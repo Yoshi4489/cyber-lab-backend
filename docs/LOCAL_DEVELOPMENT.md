@@ -153,6 +153,31 @@ instance after checking the harmless page, confirm its route/resources are gone,
 and remove only the disposable service fixtures. No hosted seed or deployment
 is part of this workflow. Acceptance results are recorded in `PLAN.md`.
 
+### Harmless Welcome two-user isolation (Phase 4)
+
+Automated control-plane coverage needs only PostgreSQL:
+`tests/welcome-phase-four.integration.test.ts` drives two learners through the
+real API, database and lifecycle state machine (Docker is a recording fake) and
+the frontend's `tests/e2e/welcome-isolation.spec.ts` repeats it through the BFF.
+They prove ownership-safe denial and per-instance identities, not real
+container separation. On the isolated target VM, with the same Welcome setup,
+fresh preflight and two verified learners in separate browser profiles:
+
+1. Spawn Welcome as A and B. On the VM, `docker ps --filter
+   label=cyber-range.managed=true` and `docker network ls --filter
+   label=cyber-range.managed=true` must each show two distinct entries whose
+   `cyber-range.instance-id` labels match the two instance IDs; the two route
+   files/links must differ.
+2. As B, try A's instance through the browser BFF (read, extend, stop and
+   submit). Each must return `NOT_FOUND` and leave A unchanged.
+3. Benign reachability only: from inside A run `docker exec <A> node -e
+   "fetch('http://<B address>:8080/health').then(()=>process.exit(1),()=>process.exit(0))"`.
+   It must exit 0 (B unreachable). Use no scanning or other payloads.
+4. Stop A. Its container, network and route must disappear while B's remain;
+   B's page, health and flag submission keep working.
+5. Stop B, confirm zero managed containers, networks and routes, and record the
+   counts in `PLAN.md`. The shared flag cannot prove per-user flag separation.
+
 Read [LIFECYCLE.md](LIFECYCLE.md), create a reviewed runtime-manifest JSON file,
 and configure the Traefik file-provider directory and ingress container. Run
 the worker separately from the API:
@@ -223,7 +248,7 @@ runtime manifest. No real CTF content was added.
 Fresh Engine mTLS positive/negative checks and the trusted HTTPS ingress baseline
 passed, followed by real lifecycle/scoring, capacity, expiry, crash recovery,
 orphan cleanup, failed-evidence safeguards and paired IPv4/IPv6 isolation probes.
-The exact scope is recorded in `PLAN.md` and the security gate record. Final
+The exact scope is recorded in `docs/PLAN_HISTORY.md` and the security gate record. Final
 managed resources and disposable control-plane fixtures were removed, the tunnel
 closed and the installed VM retained powered off. Keep all keys, certificates,
 VM disks, generated manifests and private fixture credentials outside version
