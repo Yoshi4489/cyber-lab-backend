@@ -275,6 +275,7 @@ contains separate worker settings. Docker credentials are parsed only by
 | `AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW` | API | Per-route auth request limits |
 | `SUBMISSION_RATE_LIMIT_MAX`, `SUBMISSION_RATE_LIMIT_WINDOW_MS` | API | Fixed-window limits keyed by verified user identity |
 | `INSTANCE_RATE_LIMIT_MAX`, `INSTANCE_RATE_LIMIT_WINDOW_MS` | API | Instance-create limits keyed by verified user identity |
+| `LOCAL_DEV_TEST` | API | Development/test only. `true` disables all API rate limits; rejected in production when set |
 | `LAB_PUBLIC_BASE_URL` | API | Base URL used only when a target is running and has an unguessable route |
 | `LOCAL_MAIL_DIRECTORY` | Development API | Ignored local verification/reset delivery directory |
 | `MAIL_PROVIDER` | API | `local` by default; `gmail` for local demos; production requires `resend` |

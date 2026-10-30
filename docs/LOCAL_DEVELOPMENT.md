@@ -55,6 +55,21 @@ with `npm run db:migrate`. Use `npm run db:generate` only after a reviewed schem
 change, and review the generated SQL before committing it. The worker consumes
 `REDIS_URL`.
 
+## Disabling rate limits for local testing
+
+Every protected BFF call resolves its session through `/v1/auth/session`, which
+shares the per-IP auth limit (default 10/minute). One browser polling an
+instance can exhaust it. For local development and test runs only, set:
+
+```
+LOCAL_DEV_TEST=true
+```
+
+This disables the per-IP limiter (including login and session resolution) and
+the per-user submission and instance-create limiters, and the API logs a
+warning at startup. It defaults to `false`. Any value, including `false`, is
+rejected when `NODE_ENV=production`; never set it on Render or other hosts.
+
 ## Harmless Welcome: accounts and catalog checkpoint
 
 Use a fresh disposable database for the Welcome delivery. Phase 1 adds account

@@ -24,8 +24,10 @@ the control-plane host. Real VM target acceptance is not repeated here.
 Open question: the BFF resolves `/v1/auth/session` on every protected call and
 that route shares the per-IP auth limiter (default 10/minute), so all learners
 behind one BFF share the budget; polling plus progress reads exhausted it in
-acceptance until `AUTH_RATE_LIMIT_MAX=100`. A contract decision is needed
-before Phase 4 two-user isolation. **Pause for Phase 4 approval.**
+acceptance until `AUTH_RATE_LIMIT_MAX=100`. For local testing the user added
+`LOCAL_DEV_TEST=true` (development/test only, rejected in production), which
+disables all API rate limits; see `docs/LOCAL_DEVELOPMENT.md`. The production
+limiter design still needs a contract decision before any hosted multi-user use. **Pause for Phase 4 approval.**
 
 ## Harmless Welcome lab: Phase 2 complete locally (2026-10-26)
 
