@@ -21,6 +21,8 @@ const envSchema = z.object({
   SUBMISSION_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
   INSTANCE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(5),
   INSTANCE_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
+  // Local development/test only: disables every API rate limit when true.
+  LOCAL_DEV_TEST: z.enum(['false', 'true']).default('false').transform((value) => value === 'true'),
   LOCAL_MAIL_DIRECTORY: z.string().min(1).default('.local-mail'),
   MAIL_PROVIDER: z.enum(['local', 'gmail', 'resend']).default('local'),
   SMTP_USER: z.email().optional(),
@@ -35,6 +37,9 @@ export type Config = z.infer<typeof envSchema> & WelcomeLabConfig;
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const welcome = loadWelcomeLabConfig(env);
   const config = envSchema.parse(env);
+  if (config.NODE_ENV === 'production' && env.LOCAL_DEV_TEST !== undefined) {
+    throw new Error('LOCAL_DEV_TEST is disabled in production');
+  }
   if (config.MAIL_PROVIDER === 'gmail') {
     if (!config.SMTP_USER || !config.SMTP_APP_PASSWORD) {
       throw new Error('Gmail delivery requires SMTP_USER and SMTP_APP_PASSWORD');

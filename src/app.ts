@@ -18,7 +18,7 @@ import { registerAuthenticationRoutes } from './routes/authentication.js';
 import type { ServiceSessionAuthorizer } from './auth/require-scope.js';
 import type { CatalogRepository } from './services/catalog-repository.js';
 import type { SubmissionService } from './services/submissions.js';
-import { FixedWindowUserRateLimiter } from './services/user-rate-limiter.js';
+import { FixedWindowUserRateLimiter, unlimitedRateLimiter } from './services/user-rate-limiter.js';
 import type { ProgressRepository } from './services/progress-repository.js';
 import { registerProgressRoutes } from './routes/progress.js';
 import type { InstanceLifecycleService } from './services/instance-lifecycle.js';
@@ -56,7 +56,12 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
 
   await app.register(helmet);
   await app.register(cors, { origin: config.FRONTEND_ORIGIN });
-  await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+  if (config.LOCAL_DEV_TEST) {
+    app.log.warn('LOCAL_DEV_TEST is enabled: API rate limits are disabled');
+  } else {
+    // Route-level `config.rateLimit` settings apply only while this is registered.
+    await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+  }
   await registerOpenApi(app);
 
   // Unprefixed: orchestrators and uptime monitors expect fixed paths.
@@ -77,11 +82,11 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
     dependencies.authentication ?? {
       validateServiceSession: () => Promise.reject(new Error('Session authorizer unavailable')),
     };
-  const submissionRateLimiter = new FixedWindowUserRateLimiter(
+  const submissionRateLimiter = config.LOCAL_DEV_TEST ? unlimitedRateLimiter : new FixedWindowUserRateLimiter(
     config.SUBMISSION_RATE_LIMIT_MAX,
     config.SUBMISSION_RATE_LIMIT_WINDOW_MS,
   );
-  const instanceRateLimiter = new FixedWindowUserRateLimiter(
+  const instanceRateLimiter = config.LOCAL_DEV_TEST ? unlimitedRateLimiter : new FixedWindowUserRateLimiter(
     config.INSTANCE_RATE_LIMIT_MAX,
     config.INSTANCE_RATE_LIMIT_WINDOW_MS,
   );

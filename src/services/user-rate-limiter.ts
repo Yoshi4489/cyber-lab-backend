@@ -2,6 +2,9 @@ export type UserRateLimiter = {
   consume: (userId: string) => boolean;
 };
 
+/** Used only when local development/test configuration disables limits. */
+export const unlimitedRateLimiter: UserRateLimiter = { consume: () => true };
+
 type RateBucket = {
   startedAt: number;
   count: number;
