@@ -1,5 +1,24 @@
 # Backend development plan
 
+## Harmless Welcome lab: Phase 4 control-plane isolation (2026-10-30)
+
+The user approved Phase 4 after merging Phase 3. No API, schema, dependency or
+runtime behavior changed; existing ownership checks already met the contract.
+`tests/welcome-phase-four.integration.test.ts` drives two learners through the
+real API, database and lifecycle state machine with a recording Docker fake:
+distinct instances, route keys, container and network identities; foreign
+read/extend/stop/submit return ownership-safe `NOT_FOUND` with no row or
+operation change and no route disclosure; stopping A destroys only A's
+resources while B stays running and scores 10. The frontend's
+`tests/e2e/welcome-isolation.spec.ts` repeats the journey through the BFF in
+two browser contexts. Lint, typecheck, build and 273 backend tests passed.
+
+Open: the real-container half of Phase 4 (distinct containers/networks/routes
+on the Engine, benign cross-target health denial, stop A preserves B) needs the
+isolated target VM and cannot run on a control-plane host. Follow the Phase 4
+checklist in `docs/LOCAL_DEVELOPMENT.md` and record its counts here. **Pause for
+that VM evidence and Phase 5 approval.**
+
 ## Harmless Welcome lab: Phase 3 implemented (2026-10-30)
 
 The user approved Phase 3. `createSubmissionFlagPolicy` makes API verification
