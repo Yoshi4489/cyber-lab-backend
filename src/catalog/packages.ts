@@ -52,7 +52,7 @@ export type ChallengePackage = ChallengeDefinition & {
 export const CHALLENGES_DIRECTORY = fileURLToPath(new URL('../../challenges/', import.meta.url));
 // `welcome` predates packages, and `_lab` is the shared runtime.
 const NOT_PACKAGES = new Set(['_lab', 'welcome']);
-const FLAG_LITERAL = /FLAG\{(?!\.\.\.\})/u;
+const FLAG_LITERAL = /(?:FLAG|CTF)\{(?!\.\.\.\})/u;
 
 export async function loadChallengePackages(directory = CHALLENGES_DIRECTORY): Promise<ChallengePackage[]> {
   const entries = await readdir(directory, { withFileTypes: true }).catch((error: unknown) => {

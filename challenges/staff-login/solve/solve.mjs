@@ -8,6 +8,6 @@ const login = await fetch(new URL('login', base), {
 });
 const cookie = login.headers.get('set-cookie').split(';')[0];
 const body = await (await fetch(new URL('dashboard', base), { headers: { cookie } })).text();
-const flag = /FLAG\{[^}]+\}/u.exec(body)?.[0];
+const flag = /CTF\{[^}]+\}/u.exec(body)?.[0];
 if (!flag) process.exit(1);
 process.stdout.write(flag);

@@ -35,7 +35,7 @@ for (const lab of await loadChallengePackages()) {
   const suffix = randomBytes(6).toString('hex');
   const network = `labcheck-${suffix}`;
   const target = `labcheck-t-${suffix}`;
-  const flag = `FLAG{check-${randomBytes(12).toString('hex')}}`;
+  const flag = `CTF{v1_${randomBytes(32).toString('base64url')}}`;
   try {
     // An offline lab Engine can't resolve the pinned base; there, load prebuilt images first.
     if (process.env.LAB_CHECK_PREBUILT !== 'true') {

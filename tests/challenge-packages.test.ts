@@ -44,7 +44,7 @@ describe('challenge packages', () => {
 
   it('refuses a flag value in published text', async () => {
     const directory = await copyOfInvoicePeek();
-    await writeFile(join(directory, 'invoice-peek/walkthrough.md'), 'The answer is FLAG{real-looking}.');
+    await writeFile(join(directory, 'invoice-peek/walkthrough.md'), 'The answer is CTF{v1_real-looking}.');
     await expect(loadChallengePackages(directory)).rejects.toThrow('must not publish a flag value');
   });
 
