@@ -34,7 +34,7 @@ either set. Every other challenge uses per-instance HMAC flags.
 | 2. Spawn and running | Done on the local VM (2026-10-26) |
 | 3. Submission and persistence | Done (merged to `develop`) |
 | 4. Two-user isolation | Done on the local VM (2026-10-30) |
-| 5. Expiry and cleanup | Not started; needs approval |
+| 5. Expiry and cleanup | Done on the local VM (2026-10-30); one audit gap open |
 | 6. Regression and replacement readiness | Not started |
 
 Phase 4 control-plane evidence: `tests/welcome-phase-four.integration.test.ts`
@@ -62,10 +62,28 @@ profiles, so the UI was not exercised. Seccomp was not probed separately in
 this run; the shared flag cannot prove per-user flag separation. This is local
 evidence, not production-topology evidence.
 
+Phase 5 evidence (2026-10-30, same VM and topology, two slots, 5-second
+maintenance interval, `LOCAL_DEV_TEST=true`, 32/32 checks):
+
+| Check | Observed |
+|---|---|
+| Repeated stop | Same key replayed (`replayed: true`); a new key and a stop after `stopped` were both safe; route 404; 0 containers, networks, routes and reservations |
+| Capacity refusal | Third spawn accepted 202 then `failed` with `node_capacity_exhausted` and audited; resources stayed 2/2/2 with no third target; slot reusable after a confirmed stop |
+| Expiry | One disposable row's expiry moved into the past; the real reaper produced `expired` in 6 seconds; resources gone, route 404, other learner unaffected, submission 404, reservation released |
+| Partial cleanup | An unrelated endpoint on A's network blocked removal: A stayed `stopping`, container and route removed, network and endpoint kept, B unaffected, another spawn refused. The stop used all 5 attempts and was marked failed. After the endpoint was released, the next minute's reconcile finished cleanup, A ended `stopped` and a new spawn ran |
+| Final state | 0 containers, 0 networks, 0 routes, 0 reservations; route directory only `tls.yml`; ingress intact |
+
+Limits: the real 60-minute timer was not waited out, and the terminal-instance
+orphan sweep audits were not exercised in this run (see the gate record).
+
+Open finding: automatic expiry and failed stop attempts write no audit event.
+This run's audit table held only login, spawn-requested, destroy-requested and
+capacity-refused events. `SECURITY.md` requires auditing destructive actions.
+
 ## Next steps, in order
 
-1. **Get approval for and run Phase 5** (expiry, repeated stop, capacity
-   refusal, partial-cleanup retry), then Phase 6. Before Phase 5 on the VM:
+1. **Decide on the audit gap above**, then get approval for and run Phase 6.
+   Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
    - The ingress HTTPS certificate on the VM still expires **2026-11-01** and
@@ -92,7 +110,7 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- Approval for Phase 5, now that the Phase 4 VM evidence is recorded.
+- Approval for Phase 6, and whether the expiry audit gap is fixed first.
 - How to key the general rate limit (point 2 above).
 - Any hosted change, dependency, migration or contract change.
 
