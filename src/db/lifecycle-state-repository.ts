@@ -153,23 +153,39 @@ export class DrizzleLifecycleStateRepository implements LifecycleStateRepository
     status: 'stopped' | 'expired',
     now: Date,
   ): Promise<void> {
-    await this.database
-      .update(instances)
-      .set({
-        status,
-        nodeId: null,
-        routeKey: null,
-        containerId: null,
-        networkId: null,
-        stoppedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(instances.id, instanceId),
-          inArray(instances.status, ['pending', 'provisioning', 'running', 'stopping', status]),
-        ),
-      );
+    await this.database.transaction(async (transaction) => {
+      const [current] = await transaction
+        .select({ status: instances.status, userId: instances.userId })
+        .from(instances)
+        .where(eq(instances.id, instanceId))
+        .for('update');
+      await transaction
+        .update(instances)
+        .set({
+          status,
+          nodeId: null,
+          routeKey: null,
+          containerId: null,
+          networkId: null,
+          stoppedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(instances.id, instanceId),
+            inArray(instances.status, ['pending', 'provisioning', 'running', 'stopping', status]),
+          ),
+        );
+      // Retried operations re-clear the row; only the first transition is audited.
+      if (current && ['pending', 'provisioning', 'running', 'stopping'].includes(current.status)) {
+        await transaction.insert(auditEvents).values({
+          targetUserId: current.userId,
+          eventType: `instance.${status}`,
+          details: { instanceId },
+          createdAt: now,
+        });
+      }
+    });
   }
 
   async markInstanceFailed(instanceId: string, failureCode: string, now: Date): Promise<void> {
