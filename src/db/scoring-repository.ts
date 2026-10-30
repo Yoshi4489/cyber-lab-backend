@@ -1,6 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from './client.js';
-import { auditEvents, challenges, solves, submissions } from './schema.js';
+import { lockPlayerChallenge } from './challenge-content-repository.js';
+import { auditEvents, challenges, challengeUnlocks, solves, submissions } from './schema.js';
+import { calculateAward } from '../services/challenge-content.js';
 import type { ScoringRepository, ScoringResult } from '../services/scoring-repository.js';
 
 export class DrizzleScoringRepository implements ScoringRepository {
@@ -21,6 +23,7 @@ export class DrizzleScoringRepository implements ScoringRepository {
         .where(and(eq(challenges.id, input.challengeId), eq(challenges.published, true)))
         .limit(1);
       if (!challenge) return null;
+      await lockPlayerChallenge(transaction, input.userId, input.challengeId);
 
       const [submission] = await transaction
         .insert(submissions)
@@ -37,20 +40,28 @@ export class DrizzleScoringRepository implements ScoringRepository {
       let pointsAwarded = 0;
       let firstSolve = false;
       if (input.correct) {
+        const unlocks = await transaction
+          .select({ item: challengeUnlocks.item, costApplied: challengeUnlocks.costApplied })
+          .from(challengeUnlocks)
+          .where(and(
+            eq(challengeUnlocks.userId, input.userId),
+            eq(challengeUnlocks.challengeId, input.challengeId),
+          ));
+        const award = calculateAward(challenge.points, unlocks);
         const [solve] = await transaction
           .insert(solves)
           .values({
             userId: input.userId,
             challengeId: input.challengeId,
             firstSubmissionId: submission.id,
-            points: challenge.points,
+            points: award,
             solvedAt: input.now,
           })
           .onConflictDoNothing({ target: [solves.userId, solves.challengeId] })
           .returning({ id: solves.id });
         firstSolve = solve !== undefined;
         if (firstSolve) {
-          pointsAwarded = challenge.points;
+          pointsAwarded = award;
           await transaction
             .update(submissions)
             .set({ pointsAwarded })
