@@ -41,6 +41,10 @@ per minute). The other routes are keyed by the learner address the BFF sends in
 `X-Cyber-Range-Client-IP` (`AUTH_RATE_LIMIT_MAX`/`_WINDOW`, default 10 per
 minute); a missing or malformed value falls back to the BFF's own address.
 Requests without the BFF credential are rejected before any limit is counted.
+Other API routes share the general limit (`GENERAL_RATE_LIMIT_MAX`/`_WINDOW`,
+default 100 per minute), keyed by the subject of a validly signed service token
+so each learner has their own budget; requests without one are keyed by the
+connecting address.
 
 | Method and path | Input | Intended behavior |
 |---|---|---|

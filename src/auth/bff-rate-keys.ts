@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import type { Config } from '../config.js';
+import { verifyServiceTokenSubject } from './service-token.js';
 
 /** Set by the frontend BFF to the learner's address it observed. */
 export const BFF_CLIENT_IP_HEADER = 'x-cyber-range-client-ip';
@@ -23,4 +25,22 @@ export function bffSessionKey(request: FastifyRequest): string {
   const token = (request.body as { sessionToken?: unknown } | undefined)?.sessionToken;
   if (typeof token !== 'string') return bffClientKey(request);
   return `session:${createHash('sha256').update(token, 'utf8').digest('base64url')}`;
+}
+
+/**
+ * Key for the general API limit. A request carrying a valid service token is
+ * counted against its signed subject, so learners behind the same BFF each get
+ * their own budget. Anything else, including an invalid or expired token,
+ * counts against the connecting address.
+ */
+export function generalRateKey(config: Config) {
+  return async (request: FastifyRequest): Promise<string> => {
+    const header = request.headers.authorization;
+    if (header?.startsWith('Bearer ')) {
+      try {
+        return `user:${await verifyServiceTokenSubject(header.slice(7), config)}`;
+      } catch { /* fall through to the address key */ }
+    }
+    return `ip:${request.ip}`;
+  };
 }

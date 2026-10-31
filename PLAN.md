@@ -17,7 +17,7 @@ is open.
 | Catalog, scoring, progress | Done. Published catalog, once-only scoring on a database constraint, profile and leaderboard. |
 | Lab lifecycle | Done. Durable intents, BullMQ worker, Docker adapter over mTLS, Traefik routes, expiry, extension, reaping, reconciliation, orphan cleanup, crash recovery. |
 | Isolation controls | Implemented and verified on earlier disposable VMs: user namespaces, seccomp, AppArmor, dropped capabilities, read-only root, resource limits, isolated per-instance networks, default-deny egress. |
-| Rate limits | Done. Session checks per session, login/verify/reset per learner IP forwarded by the BFF, submissions and spawns per user. `LOCAL_DEV_TEST=true` disables all limits locally. |
+| Rate limits | Done. Session checks per session, login/verify/reset per learner IP forwarded by the BFF, submissions and spawns per user, and the general limit per service-token user (anonymous requests per address). `LOCAL_DEV_TEST=true` disables all limits locally. |
 | Hosted demo | API on Render (https://cyber-range-api.onrender.com) with a Neon database. No worker or lab host is connected, so it cannot spawn labs. |
 
 ### Welcome test lab
@@ -58,18 +58,16 @@ denial and per-instance identities, not real container separation.
    - Still to confirm with `sudo docker ...` (the user is not in the docker
      group): isolation options, the Traefik ingress container, the Welcome
      image id, and zero leftover managed resources.
-2. **Get approval for and run Phase 5** (expiry, repeated stop, capacity
-   refusal, partial-cleanup retry), then Phase 6.
-3. **Decide the general per-IP limit.** Routes other than auth still share one
-   100/minute per-IP budget across all learners behind the BFF. Keying them by
-   verified user is a separate API decision.
-4. **Close the production security gate** before any public lab hosting. See
+2. **Phase 5 (approved 2026-10-31, control-plane half in progress):** expiry,
+   repeated stop, capacity refusal, partial-cleanup retry. Its real-container
+   checks also run on the VM. Then Phase 6.
+3. **Close the production security gate** before any public lab hosting. See
    [docs/PHASE4_SECURITY_GATE.md](docs/PHASE4_SECURITY_GATE.md). Open items:
    production firewall and domain/TLS review, separate production application
    and migration database roles ([docs/DATABASE_ROLES.md](docs/DATABASE_ROLES.md)),
    verified-domain email, deployed frontend HTTPS cookie and email-link
    checks, and a worker plus separate lab host for the hosted API.
-5. **Later work:** admin and operations (account/instance admin, metrics and
+4. **Later work:** admin and operations (account/instance admin, metrics and
    alerts, credential rotation, staged deployment with rollback), a
    per-instance distributed lock for more than one worker, and the deferred
    items (browser terminal, raw TCP/WireGuard, multi-node scheduling,
@@ -80,8 +78,6 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- Approval for Phase 5 after the Phase 4 VM evidence.
-- How to key the general rate limit (point 3 above).
 - Any hosted change, dependency, migration or contract change.
 
 ## How work is delivered

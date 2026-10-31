@@ -3,7 +3,7 @@ import { buildApp } from '../src/app.js';
 import { BFF_CLIENT_IP_HEADER } from '../src/auth/bff-rate-keys.js';
 import type { AuthRepository } from '../src/services/auth-repository.js';
 import { AuthenticationService } from '../src/services/authentication.js';
-import { testConfig } from './helpers.js';
+import { signToken, testConfig } from './helpers.js';
 
 const config = { ...testConfig, AUTH_RATE_LIMIT_MAX: 3, SESSION_RATE_LIMIT_MAX: 4 };
 const bff = { authorization: `Bearer ${testConfig.BFF_AUTH_SECRET}` };
@@ -97,6 +97,43 @@ describe('BFF auth rate-limit keys', () => {
       });
       expect(await codes(5, logout('C'))).toEqual([204, 204, 204, 204, 429]);
       expect((await logout('D')()).statusCode).toBe(204);
+    } finally { await app.close(); }
+  });
+});
+
+describe('general API rate-limit key', () => {
+  const generalConfig = { ...testConfig, GENERAL_RATE_LIMIT_MAX: 3 };
+  const get = (app: Awaited<ReturnType<typeof buildApp>>, authorization?: string) => () => app.inject({
+    method: 'GET', url: '/v1/meta', ...(authorization ? { headers: { authorization } } : {}),
+  });
+
+  it('gives each service-token user their own budget behind one BFF address', async () => {
+    const app = await buildApp(generalConfig);
+    try {
+      const a = `Bearer ${await signToken('profile:read', { subject: 'learner-a' })}`;
+      const b = `Bearer ${await signToken('instances:read', { subject: 'learner-b' })}`;
+      expect(await codes(4, get(app, a))).toEqual([200, 200, 200, 429]);
+      expect(await codes(3, get(app, b))).toEqual([200, 200, 200]);
+      // A fresh token for the same subject shares that subject's budget.
+      const again = `Bearer ${await signToken('submissions:write', { subject: 'learner-a' })}`;
+      expect((await get(app, again)()).statusCode).toBe(429);
+      expect(await codes(3, get(app))).toEqual([200, 200, 200]);
+    } finally { await app.close(); }
+  });
+
+  it('counts forged or invalid tokens against the connecting address', async () => {
+    const app = await buildApp(generalConfig);
+    try {
+      const forged = (subject: string) => `Bearer ${[
+        Buffer.from('{"alg":"HS256"}').toString('base64url'),
+        Buffer.from(JSON.stringify({ sub: subject })).toString('base64url'),
+        'not-a-signature',
+      ].join('.')}`;
+      const results = [
+        ...await codes(1, get(app, forged('x'))), ...await codes(1, get(app, forged('y'))),
+        ...await codes(1, get(app, 'Bearer garbage')), ...await codes(1, get(app)),
+      ];
+      expect(results).toEqual([200, 200, 200, 429]);
     } finally { await app.close(); }
   });
 });

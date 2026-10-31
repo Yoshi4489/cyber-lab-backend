@@ -15,6 +15,8 @@ const envSchema = z.object({
   REDIS_URL: z.url().optional(),
   LAB_PUBLIC_BASE_URL: z.url().optional(),
   SIGNUPS_OPEN: z.enum(['false']).default('false').transform(() => false as const),
+  GENERAL_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10_000).default(100),
+  GENERAL_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
   AUTH_RATE_LIMIT_WINDOW: z.string().min(1).default('1 minute'),
   SESSION_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1_000).default(120),

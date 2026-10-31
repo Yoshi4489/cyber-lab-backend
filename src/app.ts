@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import type { Config } from './config.js';
+import { generalRateKey } from './auth/bff-rate-keys.js';
 import { buildLoggerOptions } from './lib/logger.js';
 import { generateRequestId, registerCorrelation } from './plugins/correlation.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
@@ -60,7 +61,11 @@ export async function buildApp(config: Config, dependencies: AppDependencies = {
     app.log.warn('LOCAL_DEV_TEST is enabled: API rate limits are disabled');
   } else {
     // Route-level `config.rateLimit` settings apply only while this is registered.
-    await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+    await app.register(rateLimit, {
+      max: config.GENERAL_RATE_LIMIT_MAX,
+      timeWindow: config.GENERAL_RATE_LIMIT_WINDOW,
+      keyGenerator: generalRateKey(config),
+    });
   }
   await registerOpenApi(app);
 

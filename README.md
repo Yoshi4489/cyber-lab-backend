@@ -273,6 +273,7 @@ contains separate worker settings. Docker credentials are parsed only by
 | `DATABASE_URL` | API and database commands | Required PostgreSQL URL |
 | `SIGNUPS_OPEN` | API | Must remain `false`; open signup is not implemented |
 | `AUTH_RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_WINDOW` | API | Login, verification and reset limits keyed by the learner address the BFF forwards |
+| `GENERAL_RATE_LIMIT_MAX`, `GENERAL_RATE_LIMIT_WINDOW` | API | General limit keyed per verified service-token user, else per connecting address |
 | `SESSION_RATE_LIMIT_MAX`, `SESSION_RATE_LIMIT_WINDOW` | API | Session resolution and logout limits keyed per session token |
 | `SUBMISSION_RATE_LIMIT_MAX`, `SUBMISSION_RATE_LIMIT_WINDOW_MS` | API | Fixed-window limits keyed by verified user identity |
 | `INSTANCE_RATE_LIMIT_MAX`, `INSTANCE_RATE_LIMIT_WINDOW_MS` | API | Instance-create limits keyed by verified user identity |

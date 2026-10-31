@@ -8,6 +8,21 @@ export async function verifyServiceToken(
   config: Config,
   requiredScope: string,
 ): Promise<ServiceIdentity> {
+  return identityFromPayload(await verifiedPayload(token, config), requiredScope);
+}
+
+/**
+ * Verifies only the signature, issuer, audience and age, and returns the
+ * subject. For rate-limit keys, which run before any route chooses a scope;
+ * route authorization still goes through `verifyServiceToken` and the session.
+ */
+export async function verifyServiceTokenSubject(token: string, config: Config): Promise<string> {
+  const { sub } = await verifiedPayload(token, config);
+  if (!sub) throw new Error('Invalid service token claims');
+  return sub;
+}
+
+async function verifiedPayload(token: string, config: Config): Promise<JWTPayload> {
   const key = new TextEncoder().encode(config.BACKEND_SERVICE_TOKEN_SECRET);
   const { payload } = await jwtVerify(token, key, {
     algorithms: ['HS256'],
@@ -16,7 +31,7 @@ export async function verifyServiceToken(
     requiredClaims: ['sub', 'exp', 'iat'],
     maxTokenAge: '5m',
   });
-  return identityFromPayload(payload, requiredScope);
+  return payload;
 }
 
 function identityFromPayload(payload: JWTPayload, requiredScope: string): ServiceIdentity {
