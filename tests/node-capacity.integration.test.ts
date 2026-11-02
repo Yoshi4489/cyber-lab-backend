@@ -49,8 +49,8 @@ describeDatabase('single-node capacity admission', () => {
       }).returning();
       records.push(record!);
     }
-    const reserve = (instanceId: string, inventory: ManagedRuntimeAllocation[] = []) => state.prepareSpawn({
-      instanceId, nodeId, routeKey: instanceId.replaceAll('-', ''), inventory: {
+    const reserve = (instanceId: string, inventory: ManagedRuntimeAllocation[] = [], slotWeight = 1) => state.prepareSpawn({
+      instanceId, nodeId, routeKey: instanceId.replaceAll('-', ''), slotWeight, inventory: {
         allocations: inventory,
         containerIds: inventory.flatMap(({ containerId }) => containerId ? [containerId] : []),
         networkIds: inventory.flatMap(({ networkId }) => networkId ? [networkId] : []),
@@ -115,12 +115,23 @@ describeDatabase('single-node capacity admission', () => {
     expect(await state.findInstance(pending!.id)).toMatchObject({ status: 'pending', nodeId: null });
   });
 
+  it('counts slot weights, refusing a heavy lab that would overfill the node', async () => {
+    const { records: [light, heavy, fits], reserve } = await fixture(4, 3);
+    expect(await reserve(light!.id, [], 2)).toMatchObject({ status: 'provisioning' });
+    expect(await reserve(heavy!.id, [], 3)).toBeNull();
+    const [refused] = await database.db.select().from(instances).where(eq(instances.id, heavy!.id));
+    expect(refused).toMatchObject({ status: 'failed', failureCode: 'node_capacity_exhausted' });
+    expect(await reserve(fits!.id, [], 2)).toMatchObject({ status: 'provisioning' });
+    const [recorded] = await database.db.select({ slotWeight: instances.slotWeight }).from(instances).where(eq(instances.id, fits!.id));
+    expect(recorded?.slotWeight).toBe(2);
+  });
+
   it('retains a terminal reservation if a persisted resource still exists with stripped managed labels', async () => {
     const { records: [first, pending], reserve, nodeId } = await fixture(1, 2);
     await reserve(first!.id);
     await database.db.update(instances).set({ status: 'failed', containerId: 'stripped-container' }).where(eq(instances.id, first!.id));
     await expect(state.prepareSpawn({
-      instanceId: pending!.id, nodeId, routeKey: pending!.id.replaceAll('-', ''), now: new Date(),
+      instanceId: pending!.id, nodeId, routeKey: pending!.id.replaceAll('-', ''), slotWeight: 1, now: new Date(),
       inventory: { allocations: [], containerIds: ['stripped-container'], networkIds: [] },
     })).rejects.toThrow('ownership differs');
     expect(await state.findInstance(first!.id)).toMatchObject({ nodeId });

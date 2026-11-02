@@ -37,6 +37,7 @@ export class DockerLifecycleHandler implements LifecycleOperationHandler {
       instanceId: operation.instance.id,
       nodeId: this.nodeId,
       routeKey: randomBytes(20).toString('hex'),
+      slotWeight: manifest.slotWeight,
       inventory,
       now: this.clock(),
     });

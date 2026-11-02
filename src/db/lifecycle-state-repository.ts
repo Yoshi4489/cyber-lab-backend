@@ -42,6 +42,7 @@ export class DrizzleLifecycleStateRepository implements LifecycleStateRepository
     instanceId: string;
     nodeId: string;
     routeKey: string;
+    slotWeight: number;
     inventory: ManagedRuntimeInventory;
     now: Date;
   }): Promise<RuntimeInstanceState | null> {
@@ -70,9 +71,10 @@ export class DrizzleLifecycleStateRepository implements LifecycleStateRepository
       if (currentAllocation?.challengeId && currentAllocation.challengeId !== current.challengeId) {
         throw new Error('Managed runtime ownership differs from its persisted reservation');
       }
-      const reservations = await transaction.select(selection).from(instances)
+      const reservations = await transaction.select({ ...selection, slotWeight: instances.slotWeight }).from(instances)
         .where(eq(instances.nodeId, input.nodeId));
       const occupied = new Set(observed.keys());
+      const weights = new Map(reservations.map((reservation) => [reservation.id, reservation.slotWeight]));
       for (const reservation of reservations) {
         const allocation = observed.get(reservation.id);
         const mislabeled = (reservation.containerId !== null &&
@@ -93,7 +95,9 @@ export class DrizzleLifecycleStateRepository implements LifecycleStateRepository
         }
       }
       // A retry reuses its durable reservation even if the configured limit was reduced.
-      if (!occupied.has(current.id) && occupied.size >= node.capacitySlots) {
+      // Unrecorded orphans count as one slot until cleanup removes them.
+      const used = [...occupied].reduce((total, id) => total + (weights.get(id) ?? 1), 0);
+      if (!occupied.has(current.id) && used + input.slotWeight > node.capacitySlots) {
         await transaction.update(instances).set({
           status: 'failed', failureCode: 'node_capacity_exhausted',
           stoppedAt: input.now, updatedAt: input.now,
@@ -112,6 +116,7 @@ export class DrizzleLifecycleStateRepository implements LifecycleStateRepository
           status: 'provisioning',
           nodeId: input.nodeId,
           routeKey: current.routeKey ?? input.routeKey,
+          slotWeight: input.slotWeight,
           updatedAt: input.now,
         })
         .where(eq(instances.id, input.instanceId))

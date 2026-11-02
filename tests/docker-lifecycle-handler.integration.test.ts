@@ -121,6 +121,7 @@ describeDatabase('Docker lifecycle state machine', () => {
       instanceId: recoveredId,
       nodeId: registeredNode.id,
       routeKey: '0123456789abcdef0123456789abcdef01234567',
+      slotWeight: 1,
       inventory: { allocations: [], containerIds: [], networkIds: [] },
       now,
     });

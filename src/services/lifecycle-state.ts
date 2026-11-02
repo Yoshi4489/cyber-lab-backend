@@ -19,6 +19,7 @@ export type LifecycleStateRepository = {
     instanceId: string;
     nodeId: string;
     routeKey: string;
+    slotWeight: number;
     inventory: ManagedRuntimeInventory;
     now: Date;
   }): Promise<RuntimeInstanceState | null>;
