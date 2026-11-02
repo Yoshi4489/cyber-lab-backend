@@ -35,7 +35,7 @@ export function send(response, status, body, type = 'text/html; charset=utf-8', 
   response.end(body);
 }
 
-/** Relative targets only: ingress strips the lab's route prefix before forwarding. */
+/** Each instance has its own origin, so absolute paths and relative targets both work. */
 export function redirect(response, target, headers = {}) {
   response.writeHead(303, { Location: target, ...headers });
   response.end();
