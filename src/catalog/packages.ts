@@ -3,7 +3,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { challengeDefinitionSchema, type ChallengeDefinition } from './definitions.js';
-import { runtimeManifestSchema } from '../orchestrator/runtime-manifests.js';
+import { checkServices, runtimeManifestObject, serviceBaseSchema } from '../orchestrator/runtime-manifests.js';
 import { writeArtifactManifest, type ArtifactFile } from '../services/artifact-store.js';
 
 const POINTS_BY_DIFFICULTY = { easy: 100, medium: 250, hard: 500 } as const;
@@ -32,9 +32,11 @@ const packageDefinitionSchema = challengeDefinitionSchema
   });
 
 /** Runtime without the image: its digest is only known at deployment. */
-export const packageRuntimeSchema = runtimeManifestSchema
-  .omit({ image: true, challengeId: true })
+export const packageRuntimeSchema = runtimeManifestObject
+  .omit({ image: true, challengeId: true, services: true })
+  .extend({ services: z.array(serviceBaseSchema).max(3).default([]) })
   .strict()
+  .superRefine(checkServices)
   .refine(
     (runtime) => runtime.flagDelivery.mode === 'exec',
     'Real labs must not expose their flag through the container environment',

@@ -13,7 +13,7 @@ import type { TraefikRouter } from '../src/orchestrator/traefik-router.js';
 
 const INSTANCE_ID = '77777777-7777-4777-8777-777777777777';
 const CHALLENGE_ID = '11111111-1111-4111-8111-111111111111';
-const ROUTE_KEY = 'abcdefghijklmnopqrstuvwx12345678';
+const ROUTE_KEY = '0123456789abcdef0123456789abcdef01234567';
 const IMAGE = `registry.example.test/range/web@sha256:${'a'.repeat(64)}`;
 
 const manifest: RuntimeManifest = {
@@ -30,9 +30,27 @@ const manifest: RuntimeManifest = {
     startupSeconds: 5,
   },
   resources: { memoryMb: 128, cpuCores: 0.5, pids: 64, tmpfsMb: 16 },
+  services: [],
+  slotWeight: 1,
+};
+
+const withService: RuntimeManifest = {
+  ...manifest,
+  flagDelivery: { mode: 'exec', command: ['node', '/lab/load-flag.mjs'], user: '10001:10001', service: 'metadata' },
+  services: [{ name: 'metadata', image: IMAGE, user: '10001:10001', healthcheck: manifest.healthcheck, resources: manifest.resources }],
+  slotWeight: 2,
 };
 
 describe('trusted runtime manifests', () => {
+  it('validates internal services and where the flag goes', () => {
+    expect(new RuntimeManifestRegistry([withService]).get(CHALLENGE_ID)?.services).toHaveLength(1);
+    const service = withService.services[0]!;
+    expect(() => new RuntimeManifestRegistry([{ ...withService, services: [service, service] }])).toThrow('unique');
+    expect(() => new RuntimeManifestRegistry([{ ...withService, services: [{ ...service, name: 'app' }] }])).toThrow();
+    expect(() => new RuntimeManifestRegistry([{ ...withService, services: [] }])).toThrow('unknown service');
+    expect(() => new RuntimeManifestRegistry([{ ...withService, slotWeight: 9 }])).toThrow();
+  });
+
   it('accepts pinned images and rejects mutable tags or duplicate challenges', () => {
     expect(new RuntimeManifestRegistry([manifest]).get(CHALLENGE_ID)).toEqual(manifest);
     expect(() => new RuntimeManifestRegistry([{ ...manifest, image: 'nginx:latest' }])).toThrow(
@@ -102,6 +120,29 @@ describe('Docker orchestrator', () => {
     expect(options?.HostConfig).not.toHaveProperty('Binds');
     expect(options?.HostConfig).not.toHaveProperty('Devices');
     expect(router.upsert).toHaveBeenCalledOnce();
+  });
+
+  it('starts internal services before the entry, with the same restrictions and named aliases', async () => {
+    const fixture = dockerFixture();
+    const router = routerFixture();
+    await new DockerOrchestrator(fixture.docker, router).spawn(spawnInput(withService));
+    const [service, entry] = fixture.createContainer.mock.calls.map(([options]) => options);
+    const suffix = INSTANCE_ID.replaceAll('-', '');
+    expect(service).toMatchObject({
+      name: `cr-${suffix}-metadata`, Env: [],
+      Labels: { 'cyber-range.service': 'metadata' },
+      HostConfig: { CapDrop: ['ALL'], ReadonlyRootfs: true, NetworkMode: `crn-${suffix}`, Privileged: false },
+      NetworkingConfig: { EndpointsConfig: { [`crn-${suffix}`]: { Aliases: [`cr-${suffix}-metadata`, 'metadata'] } } },
+    });
+    expect(service).not.toHaveProperty('ExposedPorts');
+    expect(entry).toMatchObject({ name: `cr-${suffix}`, Labels: { 'cyber-range.services': 'metadata' } });
+    expect(entry?.NetworkingConfig?.EndpointsConfig?.[`crn-${suffix}`]?.Aliases).toEqual([`cr-${suffix}`, 'app']);
+    expect(router.upsert).toHaveBeenCalledWith(expect.objectContaining({ targetHost: `cr-${suffix}` }));
+  });
+
+  it('reports a lab whose internal service disappeared as missing', async () => {
+    const fixture = dockerFixture({ existingContainer: true, entryServices: 'metadata', existingNetwork: true });
+    expect(await new DockerOrchestrator(fixture.docker, routerFixture()).runtimeStatus(INSTANCE_ID)).toBe('missing');
   });
 
   it('cleans the container and network after a partial start failure', async () => {
@@ -302,13 +343,13 @@ describe('exec flag delivery', () => {
   });
 });
 
-function spawnInput() {
+function spawnInput(runtime: RuntimeManifest = manifest) {
   return {
     instanceId: INSTANCE_ID,
     challengeId: CHALLENGE_ID,
     routeKey: ROUTE_KEY,
     flag: 'CTF{test-only}',
-    manifest,
+    manifest: runtime,
   };
 }
 
@@ -340,6 +381,7 @@ function dockerFixture(options: {
   networkDriver?: string;
   enableIPv6?: boolean;
   extraNetwork?: boolean;
+  entryServices?: string;
 } = {}) {
   const containerRemove = vi.fn(async () => undefined);
   const networkRemove = vi.fn(async () => undefined);
@@ -350,6 +392,7 @@ function dockerFixture(options: {
     }),
     stop: vi.fn(async () => undefined),
     remove: containerRemove,
+    exec: vi.fn(async () => ({ start: vi.fn(async () => undefined), inspect: vi.fn(async () => ({ Running: false, ExitCode: 0 })) })),
     inspect: vi.fn(async () => ({
       State: {
         Running: options.ingressRunning ?? true,
@@ -361,6 +404,7 @@ function dockerFixture(options: {
           'cyber-range.managed': 'true',
           'cyber-range.instance-id': options.managedInstanceId ?? INSTANCE_ID,
           'cyber-range.challenge-id': options.managedChallengeId ?? CHALLENGE_ID,
+          ...(options.entryServices ? { 'cyber-range.services': options.entryServices } : {}),
         },
       },
       NetworkSettings: {
