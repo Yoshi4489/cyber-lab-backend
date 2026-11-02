@@ -1,0 +1,23 @@
+{
+  "id": "a3000000-0000-4000-8000-000000000002",
+  "slug": "link-preview",
+  "title": "Link Preview",
+  "summary": "A link checker fetches pages from its own server. It blocks internal addresses, or the ones it thought of.",
+  "category": "web",
+  "difficulty": "hard",
+  "points": 500,
+  "kind": "web",
+  "tags": ["ssrf", "filter-bypass", "cloud-metadata"],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": ["Get the server to request an address of your choosing", "Get past the internal-address filter", "Walk the metadata service and recover the preview service's secret key"],
+  "learningOutcomes": ["Identify server-side request forgery", "Explain why denylists of host names fail", "Defend with allowlists, resolved-address checks, network egress rules and token-protected metadata"],
+  "references": [
+    { "label": "CWE-918: Server-Side Request Forgery", "url": "https://cwe.mitre.org/data/definitions/918.html" },
+    { "label": "OWASP Top 10 A10:2021 Server-Side Request Forgery", "url": "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/" }
+  ],
+  "hints": [
+    { "cost": 50, "bodyMd": "The metadata service answers at `http://metadata:8080/`. The filter compares the host name as written, not the address it resolves to." },
+    { "cost": 100, "bodyMd": "DNS treats `metadata` and `metadata.` (with a trailing dot) as the same name. Once you're in, list each directory, starting with `/latest/meta-data/`." }
+  ]
+}
