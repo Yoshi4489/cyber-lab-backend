@@ -1,13 +1,17 @@
-// Publication gate: builds each lab, proves its solver works, and proves known
-// shortcuts don't reveal the flag. Prints outcomes only, never a flag.
+// Publication gate: builds each lab, starts it through the real DockerOrchestrator,
+// proves its solver works, and proves known shortcuts don't reveal the flag.
+// Prints outcomes only, never a flag.
 // Point DOCKER_HOST at the isolated lab Engine, or run on a disposable CI runner.
 // Never run this against a control-plane Docker host.
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import Docker from 'dockerode';
 
 const { CHALLENGES_DIRECTORY, loadChallengePackages } = await import('../dist/catalog/packages.js');
+const { DockerOrchestrator } = await import('../dist/orchestrator/docker-adapter.js');
+const { runtimeManifestSchema } = await import('../dist/orchestrator/runtime-manifests.js');
 
 const docker = (args, options = {}) => execFileSync('docker', args, {
   encoding: 'utf8',
@@ -26,57 +30,76 @@ const check = (slug, name, ok) => {
   if (!ok) failures += 1;
   process.stdout.write(`${ok ? 'PASS' : 'FAIL'} ${slug}: ${name}\n`);
 };
+// Checks need no ingress: routes go to an in-memory router and solvers use the instance network.
+const router = {
+  upsert: async () => undefined,
+  remove: async () => undefined,
+  listInstanceIds: async () => [],
+  validateManagedRoute: async () => undefined,
+};
+// CI runners lack userns remap; the lab Engine keeps the full host check.
+const orchestrator = new DockerOrchestrator(new Docker(), router, undefined, {
+  verifyHost: process.env.LAB_CHECK_VERIFY_HOST !== 'false',
+});
 const only = new Set(process.argv.slice(2));
 const images = {};
+const imageId = (slug, dockerfile, tag) => {
+  // An offline lab Engine can't resolve the pinned base; there, load prebuilt images first.
+  if (process.env.LAB_CHECK_PREBUILT !== 'true') {
+    docker(['build', '--pull=false', '-q', '-t', tag, '-f', join(CHALLENGES_DIRECTORY, slug, dockerfile), CHALLENGES_DIRECTORY]);
+  }
+  return docker(['image', 'inspect', tag, '--format', '{{.Id}}']);
+};
 
 for (const lab of await loadChallengePackages()) {
   if (!lab.runtime || (only.size && !only.has(lab.slug))) continue;
-  const tag = `cyber-range-lab-${lab.slug}:check`;
-  const suffix = randomBytes(6).toString('hex');
-  const network = `labcheck-${suffix}`;
-  const target = `labcheck-t-${suffix}`;
+  const instanceId = randomUUID();
+  const suffix = instanceId.replaceAll('-', '');
   const flag = `CTF{v1_${randomBytes(32).toString('base64url')}}`;
+  let spawned = null;
   try {
-    // An offline lab Engine can't resolve the pinned base; there, load prebuilt images first.
-    if (process.env.LAB_CHECK_PREBUILT !== 'true') {
-      docker(['build', '--pull=false', '-q', '-t', tag, '-f', join(CHALLENGES_DIRECTORY, lab.slug, 'Dockerfile'), CHALLENGES_DIRECTORY]);
-    }
-    images[lab.slug] = docker(['image', 'inspect', tag, '--format', '{{.Id}}']);
-    docker(['network', 'create', '--internal', network]);
-    // Same restrictions as `buildContainerOptions`, so a pass here reflects production limits.
-    docker(['run', '-d', '--name', target, '--network', network, '--user', lab.runtime.user,
-      '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--init',
-      '--memory', `${lab.runtime.resources.memoryMb}m`, '--memory-swap', `${lab.runtime.resources.memoryMb}m`,
-      '--cpus', String(lab.runtime.resources.cpuCores), '--pids-limit', String(lab.runtime.resources.pids),
-      '--ipc', 'none', '--tmpfs', `/tmp:rw,noexec,nosuid,nodev,size=${lab.runtime.resources.tmpfsMb}m`, tag]);
-    const delivery = lab.runtime.flagDelivery;
-    docker(['exec', '-e', `CYBER_RANGE_FLAG=${flag}`, '--user', delivery.user, target, ...delivery.command]);
-    let healthy = false;
-    for (let index = 0; index < 60 && !healthy; index += 1) {
-      healthy = attempt(['inspect', target, '--format', '{{.State.Health.Status}}']).out === 'healthy';
-      if (!healthy) await new Promise((resolve) => setTimeout(resolve, 1_000));
-    }
-    check(lab.slug, 'becomes healthy under runtime limits', healthy);
+    const tag = `cyber-range-lab-${lab.slug}:check`;
+    images[lab.slug] = imageId(lab.slug, 'Dockerfile', tag);
+    const services = lab.runtime.services.map((service) => {
+      const key = `${lab.slug}/${service.name}`;
+      images[key] = imageId(lab.slug, `${service.name}.Dockerfile`, `cyber-range-lab-${lab.slug}-${service.name}:check`);
+      return { ...service, image: images[key] };
+    });
+    const manifest = runtimeManifestSchema.parse({ ...lab.runtime, services, challengeId: lab.id, image: images[lab.slug] });
+    // Spawn waits for every container's healthcheck, with production options and flag delivery.
+    spawned = await orchestrator.spawn({
+      instanceId, challengeId: lab.id, routeKey: randomBytes(20).toString('hex'), flag, manifest,
+    });
+    check(lab.slug, 'starts healthy through the orchestrator', true);
 
     const solver = await readFile(join(CHALLENGES_DIRECTORY, lab.slug, 'solve/solve.mjs'), 'utf8');
-    const solved = attempt(['run', '-i', '--rm', '--network', network, '--read-only', '--cap-drop', 'ALL',
-      '-e', `TARGET=http://${target}:${lab.runtime.containerPort}/`, tag,
+    const solved = attempt(['run', '-i', '--rm', '--network', `crn-${suffix}`, '--read-only', '--cap-drop', 'ALL',
+      '-e', `TARGET=http://app:${manifest.containerPort}/`, tag,
       'node', '--input-type=module', '-'], { input: solver });
     check(lab.slug, 'solver recovers the exact flag', solved.code === 0 && solved.out === flag);
 
     const leaks = (args) => attempt(args).out.includes(flag);
-    check(lab.slug, 'flag is absent from the container config', !leaks(['inspect', target]));
-    check(lab.slug, 'flag is absent from PID 1 environment', !leaks(['exec', target, 'sh', '-c', 'cat /proc/1/environ; cat /proc/self/environ']));
-    check(lab.slug, 'flag is absent from the server environment', !leaks(['exec', target, 'sh', '-c', 'for p in /proc/[0-9]*; do cat $p/environ 2>/dev/null; done']));
-    check(lab.slug, 'delivery file is gone', attempt(['exec', target, 'test', '-e', '/tmp/.cr-flag']).code !== 0);
-    check(lab.slug, 'flag is absent from the image', !leaks(['exec', target, 'grep', '-rl', flag, '/app']));
-    check(lab.slug, 'lab has no outbound network', attempt(['exec', target, 'node', '-e',
-      "fetch('http://1.1.1.1',{signal:AbortSignal.timeout(3000)}).then(()=>process.exit(0),()=>process.exit(1))"]).code !== 0);
+    const delivery = manifest.flagDelivery;
+    const holder = delivery.mode === 'exec' && delivery.service ? `cr-${suffix}-${delivery.service}` : `cr-${suffix}`;
+    for (const name of [`cr-${suffix}`, ...manifest.services.map((service) => `cr-${suffix}-${service.name}`)]) {
+      const where = name === `cr-${suffix}` ? 'app' : name.slice(`cr-${suffix}-`.length);
+      check(lab.slug, `${where}: flag is absent from the container config`, !leaks(['inspect', name]));
+      check(lab.slug, `${where}: flag is absent from every process environment`,
+        !leaks(['exec', name, 'sh', '-c', 'for p in /proc/[0-9]*; do cat $p/environ 2>/dev/null; done']));
+      check(lab.slug, `${where}: flag is absent from the image`, !leaks(['exec', name, 'grep', '-rl', flag, '/app']));
+      check(lab.slug, `${where}: no outbound network`, attempt(['exec', name, 'node', '-e',
+        "fetch('http://1.1.1.1',{signal:AbortSignal.timeout(3000)}).then(()=>process.exit(0),()=>process.exit(1))"]).code !== 0);
+    }
+    check(lab.slug, 'delivery file is gone', attempt(['exec', holder, 'test', '-e', '/tmp/.cr-flag']).code !== 0);
   } catch (error) {
     check(lab.slug, `harness error: ${String(error.stderr ?? error.message).replaceAll(flag, '<flag>').slice(0, 300)}`, false);
   } finally {
-    attempt(['rm', '-f', target]);
-    attempt(['network', 'rm', network]);
+    // Spawn removes its own partial resources on failure; destroy covers the rest.
+    await orchestrator.destroy({ instanceId, containerId: spawned?.containerId ?? null, networkId: spawned?.networkId ?? null })
+      .catch(() => undefined);
+    const left = attempt(['ps', '-aq', '--filter', `label=cyber-range.instance-id=${instanceId}`]).out
+      + attempt(['network', 'ls', '-q', '--filter', `label=cyber-range.instance-id=${instanceId}`]).out;
+    check(lab.slug, 'cleanup leaves no containers or networks', left === '');
   }
 }
 process.stdout.write(`IMAGES ${JSON.stringify(images)}\n`);
