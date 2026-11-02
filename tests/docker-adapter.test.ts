@@ -238,6 +238,13 @@ describe('Docker orchestrator', () => {
     expect(fixture.createContainer).not.toHaveBeenCalled();
   });
 
+  it('skips host verification only when the publication check asks', async () => {
+    const fixture = dockerFixture({ securityOptions: ['name=seccomp', 'name=apparmor'] });
+    await new DockerOrchestrator(fixture.docker, routerFixture(), undefined, { verifyHost: false })
+      .spawn(spawnInput());
+    expect(fixture.createContainer).toHaveBeenCalled();
+  });
+
   it('rejects a Docker host with seccomp disabled', async () => {
     const fixture = dockerFixture({ securityOptions: [
       'name=userns', 'name=apparmor', 'name=seccomp,profile=unconfined',

@@ -44,6 +44,8 @@ export class DockerOrchestrator {
     private readonly docker: Docker,
     private readonly router: TraefikRouter,
     private readonly ingressContainer?: string,
+    // Only the publication check sets this false, on disposable CI runners that lack userns remap.
+    private readonly options: { verifyHost?: boolean } = {},
   ) {}
 
   /** Read-only inventory includes partial and orphan resources; it never deletes them. */
@@ -299,7 +301,7 @@ export class DockerOrchestrator {
   }
 
   private async verifyHostSecurity(): Promise<void> {
-    if (this.hostVerified) return;
+    if (this.hostVerified || this.options.verifyHost === false) return;
     const info = await this.docker.info();
     const rawOptions: unknown = info.SecurityOptions;
     const options = Array.isArray(rawOptions)
