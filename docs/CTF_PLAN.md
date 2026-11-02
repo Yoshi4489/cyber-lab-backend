@@ -258,7 +258,7 @@ Control and framework mappings will be checked against the current NIST publicat
 Each phase ends with VM evidence recorded in `PLAN.md`, a pause for approval, and commits split by boundary per `AGENTS.md`. Backend and frontend stay in separate repos, with contracts going through `docs/API.md` and generated OpenAPI.
 
 **Phase 0: Prerequisites**
-- Merge `fix/lifecycle-stop-audit-events` into `develop`; reissue the ingress certificate, which expires 2026-11-01.
+- Merge `fix/lifecycle-stop-audit-events` into `develop`; the ingress certificate was already reissued and is valid until 2026-11-29.
 - Sync your local frontend copy, which is 12 commits behind with uncommitted work. That's your call, and I won't touch that work.
 
 **Phase 1: Content framework and first real web labs**

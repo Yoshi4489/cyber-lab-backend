@@ -198,13 +198,14 @@ Not done or not run:
 
 ## Next steps, in order
 
-1. **Approve CTF Phase 3 (subdomains and multi-service labs), or choose another
-   milestone.** Phase 3 needs more VM memory first, about 4 CPU and 8 GiB. Hosted
-   rollout needs separate approval. Before more VM runs:
+1. **Approve CTF Phase 3 (subdomains and multi-service labs).** The plan is in
+   [docs/CTF_PHASE3_PLAN.md](docs/CTF_PHASE3_PLAN.md), with three decisions for
+   the owner. Hosted rollout needs separate approval. Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
-   - The ingress HTTPS certificate on the VM still expires **2026-11-01** and
-     must be reissued before later use. Its CA was not found on the host.
+   - The ingress HTTPS certificate on the VM is valid until 2026-11-29 and
+     covers `localhost`, `127.0.0.1` and `*.lab.localhost`. Its CA is outside
+     Git on the Windows host. (Earlier notes said 2026-11-01; that was out of date.)
    - Disposable PostgreSQL/Redis were removed, so migrate and seed fresh ones.
      Start `phase4-traefik` (left stopped) and the loopback SSH tunnel.
 2. **Decide the general per-IP limit.** Routes other than auth still share one
