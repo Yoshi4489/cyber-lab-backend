@@ -1,4 +1,9 @@
 **
 !_lab/*.mjs
+!_bot/bot.mjs
+!_bot/package.json
+!_bot/package-lock.json
 !*/Dockerfile
+!*/*.Dockerfile
 !*/server.mjs
+!link-preview/metadata.mjs
