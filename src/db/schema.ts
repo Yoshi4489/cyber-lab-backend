@@ -184,6 +184,8 @@ export const instances = pgTable(
     nodeId: uuid('node_id').references(() => labNodes.id, { onDelete: 'set null' }),
     status: instanceStatus('status').default('pending').notNull(),
     routeKey: varchar('route_key', { length: 64 }),
+    // Capacity cost from the runtime manifest, recorded by the worker at admission.
+    slotWeight: integer('slot_weight').default(1).notNull(),
     containerId: varchar('container_id', { length: 128 }),
     networkId: varchar('network_id', { length: 128 }),
     failureCode: varchar('failure_code', { length: 64 }),
