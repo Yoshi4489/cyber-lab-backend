@@ -273,7 +273,7 @@ Each phase ends with VM evidence recorded in `PLAN.md`, a pause for approval, an
 - Ships: Caesar's Memo, Small e, Leaky Capture, Lost Photo, License Check.
 - Exit: download-only solve recorded with no instance, and no flag in Git or images' build context.
 
-**Phase 3: Subdomains and multi-service**
+**Phase 3: Subdomains and multi-service** (done 2026-11-02; see `PLAN.md` and `CTF_PHASE3_PLAN.md`)
 - Per-instance subdomains; multi-service manifests; inventory and cleanup for several containers; `slotWeight`; admin bot base image.
 - Ships: Support Desk, Link Preview.
 - Exit: Phases 4 and 5 style isolation and partial-cleanup checks repeat for multi-container labs. XSS on A can't touch B's origin.

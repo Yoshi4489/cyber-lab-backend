@@ -42,12 +42,25 @@ scheduling or a replacement for per-container resource restrictions.
 
 Before spawn, a complete read-only Engine and route inventory is combined with
 durable `instances.node_id` reservations under a PostgreSQL node-row lock.
-One container/network/route group for an instance consumes one slot; orphan or
-partial allocations also count. Duplicate containers/networks for an identity,
+An instance consumes its manifest's `slotWeight` (default 1), recorded in
+`instances.slot_weight` at admission; orphan or partial allocations count as one
+slot each until cleanup removes them. Duplicate containers/networks for an identity,
 malformed or mismatched ownership labels, and failed inventory reads refuse
 admission. Complete Engine ID lists catch persisted resources with stripped
 labels. Missing route directories fail closed; local startup initializes the
 configured directory before inventory.
+
+### Multi-container instances
+
+A manifest may list up to three internal `services` beside the entry. Each runs
+as `cr-<id>-<service>` with the same fixed security defaults, the
+`cyber-range.service` label and its name as a network alias on the instance
+network. It has no route and no published port. Spawn starts services first,
+then the entry, delivers the flag to the one named service, writes the route, and
+waits for every container to be healthy; any failure removes them all. The entry
+lists its expected services in `cyber-range.services`, so status reports
+`missing` if one disappears, and the instance fails and is cleaned up like any
+other runtime failure. Destroy and orphan cleanup remove every container.
 
 Retries reuse their reservation and route key. Cleanup or inventory failures
 retain the slot. Terminal reservations are released only after a complete

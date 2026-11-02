@@ -79,7 +79,15 @@ HTTPS/browser validation and verified-domain live delivery remain incomplete. Se
   AppArmor, read-only roots, bounded tmpfs, CPU, memory, PID and storage limits.
 - Use pinned images and backend-controlled resource labels. Bound health
   checks, retries and startup times; failed starts must clean up resources.
-- Require an explicit positive per-node lab-slot budget. Serialize admission,
+- Serve each instance on its own origin (`<route-key>.<lab domain>`), so one
+  learner's script can't read another's pages or cookies. In production the lab
+  domain must be separate from the frontend's registrable domain.
+- Give internal lab services the same defaults as the entry, no route and no
+  published port. A lab's admin bot runs Chromium with `--no-sandbox` inside its
+  no-egress container and holds no real credentials; this is an accepted risk
+  until the Phase 4 sandbox decision.
+- Require an explicit positive per-node lab-slot budget, counted by manifest
+  slot weight. Serialize admission,
   count durable reservations and orphan/partial managed allocations, and retain
   capacity until all resources are confirmed absent. Failed inventory, stripped
   or mismatched labels, and duplicate allocations must refuse new admission.

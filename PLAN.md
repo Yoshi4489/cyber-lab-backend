@@ -1,13 +1,14 @@
 # Backend plan
 
-Current state and next steps for the Cyber Range backend, as of 2026-10-30.
+Current state and next steps for the Cyber Range backend, as of 2026-11-02.
 The dated delivery log and all earlier evidence are in
 [docs/PLAN_HISTORY.md](docs/PLAN_HISTORY.md).
 
 ## Where things stand
 
-The backend is a working local platform with one harmless test lab (Welcome)
-four real web labs and five download challenges, verified locally. It is not
+The backend is a working local platform with one harmless test lab (Welcome),
+six real web labs (two of them multi-container) and five download challenges,
+verified locally. It is not
 launched: public signup is closed and the production security gate
 is open.
 
@@ -196,18 +197,93 @@ Not done or not run:
 - Anyone who solves an artifact challenge can share its flag, as the plan accepted.
   Rotating `INSTANCE_FLAG_SECRET` requires rebuilding the artifacts.
 
+### Phase 3: per-instance origins and multi-service labs (2026-11-02)
+
+Implemented, per [docs/CTF_PHASE3_PLAN.md](docs/CTF_PHASE3_PLAN.md):
+
+- Each running instance is its own origin, `https://<routeKey>.<LAB_PUBLIC_HOST>/`.
+  Route keys are 40 lowercase hex characters (160 bits), and Traefik routes them
+  with `HostRegexp` and no prefix stripping. `LAB_PUBLIC_HOST` replaces
+  `LAB_PUBLIC_BASE_URL`.
+- Manifests may list up to three internal `services` beside the entry. Each gets
+  the same fixed security defaults, a network alias on the instance network, no
+  route and no published port. The flag goes to one named service by exec.
+- Inventory, status and cleanup cover every container. Losing any service fails
+  the instance, which the existing reconcile path then cleans up.
+- Capacity sums `slotWeight` (`instances.slot_weight`, migration 0008) instead
+  of counting instances.
+- `lab-check` now drives the real `DockerOrchestrator`, so its checks use the
+  production container options. CI skips only the host isolation check, because
+  hosted runners lack userns remap.
+- A shared admin bot (`challenges/_bot`: Alpine Chromium 156, `puppeteer-core`
+  24.43.1) and two labs: Support Desk (stored XSS against the bot, medium, 250) and
+  Link Preview (SSRF past a host-name denylist to a metadata service, hard, 500).
+
+Evidence on the local lab VM (1 CPU, 1.6 GiB), Engine 29.9.2, with 6 node slots
+for the run (Support Desk weighs 5, Link Preview 2):
+
+- `lab-check` with full host verification: 32/32 across the four Phase 1 labs,
+  and 24/24 across the two new labs. That covers every container of each lab:
+  flag absent from config, process environments and `/app`, no outbound network,
+  delivery file gone, and no containers or networks left after cleanup.
+- Phase 3 driver through the BFF, worker and ingress, with two users: 33/33.
+  - Two Link Preview instances on separate hosts. Each solver recovered a different
+    flag, and each correct flag awarded 500. The other user's flag was rejected,
+    and the other user's instance returned 404.
+  - In Chromium, a script on instance A got a `TypeError` reading B with
+    `fetch`, an opaque empty response with `no-cors`, and no access to B's
+    document in a frame. A's host-only cookie was not visible on B.
+  - Support Desk: the bot posted the key back in about 10 seconds, awarding 250.
+    While it ran, a second lab failed with `node_capacity_exhausted`. Memory
+    after a visit was 22 MiB for the app and 31 MiB for the bot.
+  - Killing the metadata sidecar failed the instance (`runtime_stopped`, 47 s),
+    and its route and resources were removed. Expiry through the reaper also
+    worked. Every section ended at 0 containers, 0 networks, 0 routes and 0
+    reservations.
+- Real browser through the frontend: 5/5. The session panel linked to
+  `https://<40 hex>.lab.localhost:8443/`, the ticket stayed on that origin, the
+  submission awarded 250, and the lab stopped from the browser.
+- Regressions on the same stack: Welcome solved for 10 points; Phase 1 web labs
+  50/51; Phase 2 downloads 19/20. The Phase 1 failure was the driver's expected
+  solve count, which didn't allow for the Welcome solve made just before; the
+  total of 1125 matched exactly. The Phase 2 failure was the same redirect timing
+  check as before, and a separate wait confirmed the redirect, signed in and out.
+- Full backend suite: 309/309 with disposable PostgreSQL and Redis. Lint and
+  typecheck are clean.
+
+Found and fixed during verification: Chromium forced HTTPS on `http://app:8080`,
+because `app` is an HSTS-preloaded top-level domain. The bot now resolves `app`
+and visits by IP address.
+
+Not done or not run:
+
+- The VM was not enlarged. Support Desk was tested with one user, and the
+  two-user check used Link Preview, as the plan's fallback allowed.
+- Chromium runs with `--no-sandbox` inside its no-egress container, an accepted
+  risk until the gVisor decision in Phase 4.
+- Alpine's `chromium` package isn't pinned to an exact version. `puppeteer-core`
+  is pinned by lockfile.
+- The `Lab solvers` CI job still hasn't run. It now skips host verification
+  (`LAB_CHECK_VERIFY_HOST=false`), and building the 1.4 GB bot image there is
+  untested.
+- The production lab domain must be separate from the frontend's registrable
+  domain, ideally on the Public Suffix List. That belongs to the security gate.
+- No frontend change was needed: it already accepts any `https:` instance URL.
+
 ## Next steps, in order
 
-1. **Approve CTF Phase 3 (subdomains and multi-service labs).** The plan is in
-   [docs/CTF_PHASE3_PLAN.md](docs/CTF_PHASE3_PLAN.md), with three decisions for
-   the owner. Hosted rollout needs separate approval. Before more VM runs:
+1. **Review CTF Phase 3, then approve Phase 4 (browser terminal and pwn).**
+   Phase 4 starts with the gVisor decision in [docs/CTF_PLAN.md](docs/CTF_PLAN.md).
+   Hosted rollout needs separate approval. Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
    - The ingress HTTPS certificate on the VM is valid until 2026-11-29 and
      covers `localhost`, `127.0.0.1` and `*.lab.localhost`. Its CA is outside
      Git on the Windows host. (Earlier notes said 2026-11-01; that was out of date.)
    - Disposable PostgreSQL/Redis were removed, so migrate and seed fresh ones.
-     Start `phase4-traefik` (left stopped) and the loopback SSH tunnel.
+     Start `phase4-traefik` (left stopped) and the loopback SSH tunnel. Set
+     `LAB_PUBLIC_HOST=lab.localhost:8443` and enough `LAB_NODE_CAPACITY_SLOTS`
+     for Support Desk's weight of 5.
 2. **Decide the general per-IP limit.** Routes other than auth still share one
    100/minute per-IP budget across all learners behind the BFF. Keying them by
    verified user is a separate API decision.
@@ -228,7 +304,7 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- Whether to start CTF Phase 3 next, or hosted rollout and the production
+- Whether to start CTF Phase 4 next, or hosted rollout and the production
   security gate.
 - How to key the general rate limit (point 2 above).
 - Any hosted change, dependency, migration or contract change.

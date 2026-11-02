@@ -1,7 +1,10 @@
 # CTF Phase 3 plan: per-instance origins and multi-service labs
 
-Status: proposed on 2026-11-02, not started. It needs approval before any code
-changes. It extends Phase 3 in [CTF_PLAN.md](CTF_PLAN.md).
+Status: implemented and verified on the local lab VM on 2026-11-02; evidence is
+in [PLAN.md](../PLAN.md). Where the build differs from this plan: route keys are 40
+lowercase hex characters, routes use `HostRegexp`, inventory keeps the entry in
+`containerId` and adds `serviceContainerIds`, and the bot visits the app by IP
+address because Chromium forces HTTPS on the `app` top-level domain. It extends Phase 3 in [CTF_PLAN.md](CTF_PLAN.md).
 
 ## Goal
 

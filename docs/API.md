@@ -184,7 +184,7 @@ and unpublishes the six samples so they are not advertised as playable labs.
 Do not reseed hosted or personal databases. Disabling the policy and explicitly
 reseeding unpublishes Welcome; this changes no existing solve history.
 
-The target uses relative navigation behind `/labs/<route-key>/` prefix stripping
+The target is served on its own origin, `https://<route-key>.<LAB_PUBLIC_HOST>/`,
 and needs no cookies. Inject the flag through the existing runtime environment
 boundary; do not bake it into an image or persist submitted flag values. Keep
 the runtime fixture configuration outside version control. Completion checks
