@@ -27,7 +27,7 @@ const authentication = await AuthenticationService.create({
 });
 const instanceService = new InstanceLifecycleService(
   new DrizzleInstanceLifecycleRepository(database.db),
-  config.LAB_PUBLIC_BASE_URL,
+  config.LAB_PUBLIC_HOST,
 );
 const challengeContent = new DrizzleChallengeContentRepository(database.db);
 const submissionService = new SubmissionService(

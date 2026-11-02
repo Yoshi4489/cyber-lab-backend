@@ -36,7 +36,7 @@ export class DockerLifecycleHandler implements LifecycleOperationHandler {
     const prepared = await this.state.prepareSpawn({
       instanceId: operation.instance.id,
       nodeId: this.nodeId,
-      routeKey: randomBytes(24).toString('base64url'),
+      routeKey: randomBytes(20).toString('hex'),
       inventory,
       now: this.clock(),
     });

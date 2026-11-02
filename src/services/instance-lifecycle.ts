@@ -101,7 +101,8 @@ const EXTENSION_MS = 30 * 60 * 1_000;
 export class InstanceLifecycleService {
   constructor(
     private readonly repository: InstanceLifecycleRepository,
-    private readonly publicBaseUrl?: string,
+    /** Host and optional port of the lab domain, such as `lab.localhost:8443`. */
+    private readonly publicHost?: string,
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
@@ -202,8 +203,8 @@ export class InstanceLifecycleService {
       stoppedAt: instance.stoppedAt?.toISOString() ?? null,
       failureCode: instance.failureCode,
     };
-    if (instance.status === 'running' && instance.routeKey && this.publicBaseUrl) {
-      view.url = new URL(`/labs/${instance.routeKey}/`, this.publicBaseUrl).toString();
+    if (instance.status === 'running' && instance.routeKey && this.publicHost) {
+      view.url = `https://${instance.routeKey}.${this.publicHost}/`;
     }
     return view;
   }

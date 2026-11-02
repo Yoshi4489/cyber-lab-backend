@@ -13,7 +13,8 @@ const envSchema = z.object({
   SERVICE_TOKEN_AUDIENCE: z.string().min(1),
   DATABASE_URL: z.url().optional(),
   REDIS_URL: z.url().optional(),
-  LAB_PUBLIC_BASE_URL: z.url().optional(),
+  // Each running instance is served at https://<routeKey>.<LAB_PUBLIC_HOST>/.
+  LAB_PUBLIC_HOST: z.string().regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:[0-9]{1,5})?$/u).optional(),
   // Outside Git: these files contain challenge flags. Built by `scripts/build-artifacts.mjs`.
   ARTIFACT_STORE_DIRECTORY: z.string().min(1).optional(),
   SIGNUPS_OPEN: z.enum(['false']).default('false').transform(() => false as const),

@@ -57,7 +57,7 @@ describeDatabase('owned instance lifecycle API', () => {
     otherSessionId = (await authentication.login(otherEmail, password)).sessionId;
     const service = new InstanceLifecycleService(
       new DrizzleInstanceLifecycleRepository(database.db),
-      'https://labs.example.test',
+      'labs.example.test',
       () => now,
     );
     app = await buildApp(testConfig, {
@@ -201,7 +201,7 @@ describeDatabase('owned instance lifecycle API', () => {
     expect(running.statusCode).toBe(200);
     expect(running.json()).toMatchObject({
       status: 'running',
-      url: `https://labs.example.test/labs/${routeKey}/`,
+      url: `https://${routeKey}.labs.example.test/`,
     });
 
     const writeAuthorization = `Bearer ${await signToken('instances:write', { subject: ownerId, sessionId: ownerSessionId })}`;

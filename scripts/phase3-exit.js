@@ -5,14 +5,14 @@ import { SignJWT } from 'jose';
 
 const challengeId = '11111111-1111-4111-8111-111111111111';
 const apiBase = new URL(process.env.PHASE3_API_BASE_URL ?? 'http://127.0.0.1:4000');
-const ingressBase = new URL(required('LAB_PUBLIC_BASE_URL'));
+const labHost = required('LAB_PUBLIC_HOST');
 const mode = process.argv[2] ?? 'full';
 const recoveryId = process.argv[3];
 
 if (apiBase.protocol !== 'http:' || !isLoopback(apiBase.hostname)) {
   throw new Error('Phase 3 validation requires a loopback HTTP API');
 }
-if (ingressBase.protocol !== 'https:' || !isLoopback(ingressBase.hostname)) {
+if (!/^(?:[a-z0-9-]+[.])*localhost(?::[0-9]+)?$/u.test(labHost)) {
   throw new Error('Phase 3 validation requires a loopback HTTPS ingress');
 }
 if (!['full', 'prepare-recovery', 'resume-recovery'].includes(mode)) {
@@ -242,7 +242,7 @@ async function waitForIngressHealth(url) {
 
 async function target(instanceUrl, path) {
   const route = new URL(instanceUrl);
-  if (route.origin !== ingressBase.origin || !route.pathname.startsWith('/labs/')) {
+  if (route.protocol !== 'https:' || !route.host.endsWith(`.${labHost}`) || route.pathname !== '/') {
     throw new Error('Instance URL is outside the disposable ingress');
   }
   const url = new URL(path, route);

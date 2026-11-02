@@ -27,7 +27,7 @@ verification changes. Extend and delete accept no body; supplied JSON including
 The frontend polls `GET /v1/instances/:id`. Foreign and missing instances both
 return `404`. Responses never contain Docker/node IDs. `url` is omitted until
 the instance is `running`, has a worker-generated route key, and
-`LAB_PUBLIC_BASE_URL` is configured. Submissions accept only an owned, running,
+`LAB_PUBLIC_HOST` is configured (`https://<routeKey>.<host>/`). Submissions accept only an owned, running,
 unexpired instance whose challenge matches the request.
 
 ## Delivery and recovery

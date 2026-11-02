@@ -89,7 +89,7 @@ describeDatabase('Docker lifecycle state machine', () => {
       containerId: 'container-1',
       networkId: 'network-1',
     });
-    expect(running?.routeKey).toMatch(/^[A-Za-z0-9_-]{32}$/u);
+    expect(running?.routeKey).toMatch(/^[0-9a-f]{40}$/u);
     expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
       instanceId,
       challengeId: challenge?.id,
@@ -120,7 +120,7 @@ describeDatabase('Docker lifecycle state machine', () => {
     await state.prepareSpawn({
       instanceId: recoveredId,
       nodeId: registeredNode.id,
-      routeKey: 'recoverysafekeyabcdefghijklmnop',
+      routeKey: '0123456789abcdef0123456789abcdef01234567',
       inventory: { allocations: [], containerIds: [], networkIds: [] },
       now,
     });

@@ -8,7 +8,7 @@ import { createRouteDelivery } from '../src/orchestrator/route-delivery.js';
 import { loadWorkerConfig } from '../src/worker-config.js';
 
 const instanceId = '77777777-7777-4777-8777-777777777777';
-const routeKey = 'abcdefghijklmnopqrstuvwx12345678';
+const routeKey = '0123456789abcdef0123456789abcdef01234567';
 const route = { instanceId, routeKey, targetHost: 'cr-target', targetPort: 8080 };
 const containerDirectory = '/etc/traefik/dynamic';
 

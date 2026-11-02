@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FileTraefikRouter, routeFileName } from '../src/orchestrator/traefik-router.js';
 
 const instanceId = '77777777-7777-4777-8777-777777777777';
-const routeKey = 'abcdefghijklmnopqrstuvwx12345678';
+const routeKey = '0123456789abcdef0123456789abcdef01234567';
 
 describe('Traefik file routes', () => {
   it('validates canonical route contents before allowing orphan cleanup', async () => {
@@ -31,8 +31,8 @@ describe('Traefik file routes', () => {
       const files = await readdir(directory);
       expect(files).toEqual(['lab-77777777777747778777777777777777.yml']);
       const route = await readFile(join(directory, files[0]!), 'utf8');
-      expect(route).toContain(`rule: "PathPrefix(\`/labs/${routeKey}/\`)"`);
-      expect(route).toContain(`prefixes: ["/labs/${routeKey}"]`);
+      expect(route).toContain(`rule: "HostRegexp(\`^${routeKey}[.]\`)"`);
+      expect(route).not.toContain('stripPrefix');
       expect(route).toContain('servers: [{url: "http://cr-target:8080"}]');
       expect(await router.listInstanceIds()).toEqual([instanceId]);
       await router.remove(instanceId);
