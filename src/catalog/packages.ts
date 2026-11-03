@@ -54,8 +54,8 @@ export type ChallengePackage = ChallengeDefinition & {
 };
 
 export const CHALLENGES_DIRECTORY = fileURLToPath(new URL('../../challenges/', import.meta.url));
-// `welcome` predates packages; `_lab` and `_bot` are shared runtimes.
-const NOT_PACKAGES = new Set(['_bot', '_lab', 'welcome']);
+// `welcome` predates packages; `_lab`, `_bot` and `_pwn` are shared runtimes.
+const NOT_PACKAGES = new Set(['_bot', '_lab', '_pwn', 'welcome']);
 const FLAG_LITERAL = /(?:FLAG|CTF)\{(?!\.\.\.\})/u;
 
 export async function loadChallengePackages(directory = CHALLENGES_DIRECTORY): Promise<ChallengePackage[]> {
@@ -80,7 +80,8 @@ async function loadPackage(path: string, folder: string): Promise<ChallengePacka
   const runtime = artifact ? null : packageRuntimeSchema.parse(JSON.parse(await readText('runtime.json')));
   const generator = artifact ? await readText('generate.mjs') : '';
   const [briefingMd, walkthroughMd] = await Promise.all([readText('briefing.md'), readText('walkthrough.md')]);
-  await readText('solve/solve.mjs');
+  // Every runnable lab ships a solver the publication check runs; shell labs use Python with pwntools.
+  await readText(definition.kind === 'shell' ? 'solve/solve.py' : 'solve/solve.mjs');
   const published = [
     briefingMd,
     walkthroughMd,

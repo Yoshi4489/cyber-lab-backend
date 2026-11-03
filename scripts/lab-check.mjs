@@ -51,8 +51,15 @@ const imageId = (slug, dockerfile, tag) => {
   return docker(['image', 'inspect', tag, '--format', '{{.Id}}']);
 };
 
+const verifyHost = process.env.LAB_CHECK_VERIFY_HOST !== 'false';
 for (const lab of await loadChallengePackages()) {
   if (!lab.runtime || (only.size && !only.has(lab.slug))) continue;
+  if (lab.runtime.sandbox === 'gvisor' && !verifyHost) {
+    // CI runners have no gVisor runtime; these labs are checked on the lab VM instead.
+    process.stdout.write(`SKIP ${lab.slug}: needs the gVisor runtime, which this host lacks\n`);
+    continue;
+  }
+  const shell = lab.kind === 'shell';
   const instanceId = randomUUID();
   const suffix = instanceId.replaceAll('-', '');
   const flag = `CTF{v1_${randomBytes(32).toString('base64url')}}`;
@@ -72,25 +79,53 @@ for (const lab of await loadChallengePackages()) {
     });
     check(lab.slug, 'starts healthy through the orchestrator', true);
 
-    const solver = await readFile(join(CHALLENGES_DIRECTORY, lab.slug, 'solve/solve.mjs'), 'utf8');
-    const solved = attempt(['run', '-i', '--rm', '--network', `crn-${suffix}`, '--read-only', '--cap-drop', 'ALL',
-      '-e', `TARGET=http://app:${manifest.containerPort}/`, tag,
-      'node', '--input-type=module', '-'], { input: solver });
-    check(lab.slug, 'solver recovers the exact flag', solved.code === 0 && solved.out === flag);
-
     const leaks = (args) => attempt(args).out.includes(flag);
+    if (shell) {
+      // A shell lab is exploited from the workstation against the target service; the solver
+      // reaches it through a hosts entry, since gVisor can't use Docker's embedded DNS.
+      const hosts = manifest.services.flatMap((service) => {
+        const address = attempt(['inspect', `cr-${suffix}-${service.name}`, '--format',
+          `{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}`]).out;
+        return ['--add-host', `${service.name}:${address}`];
+      });
+      const solver = await readFile(join(CHALLENGES_DIRECTORY, lab.slug, 'solve/solve.py'), 'utf8');
+      const solved = attempt(['run', '-i', '--rm', '--runtime', 'runsc', '--network', `crn-${suffix}`,
+        '--read-only', '--cap-drop', 'ALL', '--tmpfs', '/tmp:rw,size=64m', '-e', 'HOME=/tmp', ...hosts,
+        tag, 'python3', '-'], { input: solver });
+      check(lab.slug, 'solver recovers the exact flag', solved.code === 0 && solved.out === flag);
+    } else {
+      const solver = await readFile(join(CHALLENGES_DIRECTORY, lab.slug, 'solve/solve.mjs'), 'utf8');
+      const solved = attempt(['run', '-i', '--rm', '--network', `crn-${suffix}`, '--read-only', '--cap-drop', 'ALL',
+        '-e', `TARGET=http://app:${manifest.containerPort}/`, tag,
+        'node', '--input-type=module', '-'], { input: solver });
+      check(lab.slug, 'solver recovers the exact flag', solved.code === 0 && solved.out === flag);
+    }
+
     const delivery = manifest.flagDelivery;
     const holder = delivery.mode === 'exec' && delivery.service ? `cr-${suffix}-${delivery.service}` : `cr-${suffix}`;
     for (const name of [`cr-${suffix}`, ...manifest.services.map((service) => `cr-${suffix}-${service.name}`)]) {
-      const where = name === `cr-${suffix}` ? 'app' : name.slice(`cr-${suffix}-`.length);
+      const where = name === `cr-${suffix}` ? 'entry' : name.slice(`cr-${suffix}-`.length);
       check(lab.slug, `${where}: flag is absent from the container config`, !leaks(['inspect', name]));
       check(lab.slug, `${where}: flag is absent from every process environment`,
         !leaks(['exec', name, 'sh', '-c', 'for p in /proc/[0-9]*; do cat $p/environ 2>/dev/null; done']));
-      check(lab.slug, `${where}: flag is absent from the image`, !leaks(['exec', name, 'grep', '-rl', flag, '/app']));
-      check(lab.slug, `${where}: no outbound network`, attempt(['exec', name, 'node', '-e',
-        "fetch('http://1.1.1.1',{signal:AbortSignal.timeout(3000)}).then(()=>process.exit(0),()=>process.exit(1))"]).code !== 0);
+      check(lab.slug, `${where}: flag is absent from the image`,
+        !leaks(['exec', name, 'sh', '-c', `grep -rl ${JSON.stringify(flag)} /app /opt 2>/dev/null || true`]));
     }
-    check(lab.slug, 'delivery file is gone', attempt(['exec', holder, 'test', '-e', '/tmp/.cr-flag']).code !== 0);
+    // The internal network is default-deny; probe egress from the entry with whatever it ships.
+    const egress = shell
+      ? attempt(['exec', `cr-${suffix}`, 'python3', '-c',
+          'import socket,sys;\nsys.exit(0 if __import__("socket").create_connection(("1.1.1.1",80),3) else 1)'])
+      : attempt(['exec', `cr-${suffix}`, 'node', '-e',
+          "fetch('http://1.1.1.1',{signal:AbortSignal.timeout(3000)}).then(()=>process.exit(0),()=>process.exit(1))"]);
+    check(lab.slug, 'entry has no outbound network', egress.code !== 0);
+    if (shell) {
+      // The flag lives only in the target service; the learner reaches it through the exploit,
+      // never from their own container's disk.
+      check(lab.slug, 'flag is not stored on the workstation', !leaks(['exec', `cr-${suffix}`, 'sh', '-c',
+        `grep -rl ${JSON.stringify(flag)} /home /tmp /opt 2>/dev/null || true`]));
+    } else {
+      check(lab.slug, 'delivery file is gone', attempt(['exec', holder, 'test', '-e', '/tmp/.cr-flag']).code !== 0);
+    }
   } catch (error) {
     check(lab.slug, `harness error: ${String(error.stderr ?? error.message).replaceAll(flag, '<flag>').slice(0, 300)}`, false);
   } finally {
