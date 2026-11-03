@@ -62,7 +62,8 @@ export class DrizzleInstanceLifecycleRepository implements InstanceLifecycleRepo
           and(
             eq(challenges.id, input.challengeId),
             eq(challenges.published, true),
-            eq(challenges.kind, 'web'),
+            // Instance-backed labs only; artifact challenges have no instance to launch.
+            inArray(challenges.kind, ['web', 'shell']),
           ),
         )
         .limit(1);
