@@ -7,3 +7,9 @@
 !*/*.Dockerfile
 !*/server.mjs
 !link-preview/metadata.mjs
+!world-readable/vault.mjs
+!_pwn/*.sh
+!_pwn/motd
+!_pwn/ttyd.x86_64
+!*/vuln.c
+!*/README.txt

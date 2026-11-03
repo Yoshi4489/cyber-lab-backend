@@ -1,0 +1,23 @@
+{
+  "id": "a4000000-0000-4000-8000-000000000001",
+  "slug": "first-overflow",
+  "title": "First Overflow",
+  "summary": "A visitor-badge printer copies your name into a buffer that is far too small. A hidden override function reads the vault.",
+  "category": "pwn",
+  "difficulty": "easy",
+  "points": 100,
+  "kind": "shell",
+  "tags": ["pwn", "buffer-overflow", "stack"],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": ["Find the buffer that overflows", "Work out the distance to the saved return address", "Redirect execution to the override function and read the vault"],
+  "learningOutcomes": ["Explain how a stack buffer overflow overwrites a return address", "Use gdb and pwntools to build a simple exploit", "Describe the mitigations (canaries, non-executable stack, ASLR, bounds checks) that stop it"],
+  "references": [
+    { "label": "CWE-121: Stack-based Buffer Overflow", "url": "https://cwe.mitre.org/data/definitions/121.html" },
+    { "label": "CWE-787: Out-of-bounds Write", "url": "https://cwe.mitre.org/data/definitions/787.html" }
+  ],
+  "hints": [
+    { "cost": 10, "bodyMd": "The source is in `/opt/first-overflow/vuln.c`. `read()` takes more bytes than the `name` buffer holds. Build the same binary locally, or load the copy at `/opt/first-overflow/vuln` in gdb." },
+    { "cost": 20, "bodyMd": "The binary is built with `-no-pie`, so `win()` is at a fixed address: `objdump -d vuln | grep win`. Overflow the buffer up to the saved return address, then place that address. If the program crashes inside `win()`, add one `ret` gadget before it to keep the stack 16-byte aligned." }
+  ]
+}

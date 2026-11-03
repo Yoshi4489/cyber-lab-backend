@@ -70,8 +70,8 @@ describeDatabase('challenge content, hints and walkthroughs', () => {
   it('publishes real labs and hides samples only when asked', async () => {
     const published = await database.db.select({ slug: challenges.slug }).from(challenges).where(eq(challenges.published, true));
     expect(published.map(({ slug }) => slug).sort()).toEqual([
-      'caesars-memo', 'invoice-peek', 'leaky-capture', 'license-check', 'link-preview', 'log-viewer',
-      'lost-photo', 'ping-tool', 'small-e', 'staff-login', 'support-desk',
+      'caesars-memo', 'first-overflow', 'format-leak', 'invoice-peek', 'leaky-capture', 'license-check', 'link-preview', 'log-viewer',
+      'lost-photo', 'ping-tool', 'small-e', 'staff-login', 'support-desk', 'world-readable',
     ]);
     await seedCatalog(database.db);
     expect(await database.db.select().from(challenges).where(eq(challenges.published, true))).not.toHaveLength(0);

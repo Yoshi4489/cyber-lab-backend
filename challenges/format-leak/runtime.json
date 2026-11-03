@@ -1,0 +1,18 @@
+{
+  "containerPort": 7681,
+  "user": "1000:1000",
+  "sandbox": "gvisor",
+  "slotWeight": 5,
+  "workspace": { "path": "/home/learner", "sizeMb": 128 },
+  "flagDelivery": { "mode": "exec", "service": "target", "command": ["/app/load-flag.sh"], "user": "65532:65532" },
+  "healthcheck": { "test": ["CMD", "/usr/local/bin/lab-healthcheck"], "intervalSeconds": 5, "timeoutSeconds": 3, "retries": 10, "startupSeconds": 60 },
+  "resources": { "memoryMb": 512, "cpuCores": 1, "pids": 256, "tmpfsMb": 64 },
+  "services": [
+    {
+      "name": "target",
+      "user": "65532:65532",
+      "healthcheck": { "test": ["CMD", "/app/healthcheck.sh", "9002"], "intervalSeconds": 5, "timeoutSeconds": 3, "retries": 10, "startupSeconds": 60 },
+      "resources": { "memoryMb": 128, "cpuCores": 0.5, "pids": 64, "tmpfsMb": 16 }
+    }
+  ]
+}
