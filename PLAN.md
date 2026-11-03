@@ -1,14 +1,14 @@
 # Backend plan
 
-Current state and next steps for the Cyber Range backend, as of 2026-11-02.
+Current state and next steps for the Cyber Range backend, as of 2026-11-03.
 The dated delivery log and all earlier evidence are in
 [docs/PLAN_HISTORY.md](docs/PLAN_HISTORY.md).
 
 ## Where things stand
 
 The backend is a working local platform with one harmless test lab (Welcome),
-six real web labs (two of them multi-container) and five download challenges,
-verified locally. It is not
+six real web labs (two of them multi-container), three browser-terminal (shell)
+labs on the gVisor sandbox, and five download challenges, verified locally. It is not
 launched: public signup is closed and the production security gate
 is open.
 
@@ -270,11 +270,82 @@ Not done or not run:
   domain, ideally on the Public Suffix List. That belongs to the security gate.
 - No frontend change was needed: it already accepts any `https:` instance URL.
 
+### Phase 4: browser terminal and pwn (2026-11-03)
+
+Implemented the first browser-terminal labs. Learners get a shell in the browser
+through `ttyd`, served on the instance's own origin like any web target, so the
+API gains no terminal code and the worker keeps sole Docker authority.
+
+- A manifest can set `sandbox: "gvisor"`, running every container of the lab on
+  the `runsc` kernel; `runc` stays the default and Phase 1-3 labs are byte-for-byte
+  unchanged. Preflight fails closed if the host does not advertise `runsc`.
+- Shell labs get one exec-capable `workspace` tmpfs (`/tmp` stays `noexec`), so a
+  learner can compile and run code in their home directory only.
+- gVisor's netstack can't reach Docker's embedded DNS, so the worker gives the
+  entry container an `/etc/hosts` entry for each internal service, built from the
+  address each gets when it starts.
+- Instance-backed labs are now `web` or `shell`; artifact challenges still launch
+  nothing. `lab-check` drives shell labs through the real orchestrator under
+  `runsc` with a Python/pwntools solver.
+- Three labs: First Overflow (stack overflow to a win function, easy, 100),
+  Format Leak (format-string stack read, medium, 250), and World Readable
+  (credential enumeration to an internal vault, easy, 100). The workstation image
+  ships gcc, gdb, pwntools and a vendored static `ttyd`.
+
+gVisor spike on the lab VM (`runsc release-20261019.0`, verified by sha256,
+registered beside `runc`): the sandbox runs our full container hardening, `gdb`
+sets breakpoints and reads registers, ASLR stays on (gVisor refuses to disable
+it, which the design assumed), and the exploit works end to end. Docker's embedded
+DNS does not work under `runsc`; the `/etc/hosts` approach above resolves it.
+
+Evidence on the local lab VM (1 CPU, 1.6 GiB), Engine 29.9.2, 6 node slots:
+
+- `lab-check` with full host verification, all nine runtime labs (Phase 1, 3 and
+  4): every solver recovers the exact flag, with per-container checks that the flag
+  is absent from config, process environments and `/app`/`/opt`, no outbound
+  network, the flag is never on the workstation, and no containers or networks are
+  left after cleanup. The three shell labs run under `runsc`.
+- Phase 4 full-stack driver through the BFF, worker and ingress: 12/12. First
+  Overflow started from the session panel, its URL was a per-instance terminal
+  origin (`https://<40 hex>.lab.localhost:8443/`), the `ttyd` terminal returned
+  200 through ingress, the exploit (run from a workstation container on the
+  instance network) recovered the flag and scored 100, a wrong flag was rejected,
+  a second lab failed with `node_capacity_exhausted` (First Overflow weighs 5 of
+  6 slots), the lab stopped cleanly, and the VM ended at zero managed resources.
+- Real browser: the session panel offers an "Open terminal" link to the instance
+  origin, and the page loads as `ttyd - Terminal`.
+- Regression: Welcome solved for 10 points; all nine runtime labs pass `lab-check`.
+  (Running every lab back-to-back while the worker was live failed as expected,
+  because the worker's orphan reaper removed the check's own containers; with the
+  worker stopped, as on CI, all nine pass.)
+- Full backend suite: 313/313 with disposable PostgreSQL and Redis; lint and
+  typecheck clean. Frontend: build, typecheck, lint and 130 unit tests pass.
+
+Found and fixed during verification: the spawn query only launched `web`
+challenges, so shell labs returned 404; it now accepts `web` and `shell`. The
+First Overflow offset (48) and the Format Leak format-string position (54) were
+found with gdb/pwntools and baked into the solvers.
+
+Not done or not run:
+
+- The VM was not enlarged, so it holds one shell lab at a time (workstation plus
+  target, about 640 MB).
+- gVisor is registered as a non-default runtime on the lab VM only. Production
+  lab hosts must install and verify it; this is recorded for the security gate.
+- The privilege-escalation profile (Phase 5) is deliberately not started: these
+  labs need no privilege change, and `no-new-privileges` stays set.
+- The `Lab solvers` CI job still hasn't run; it skips host verification and so
+  skips the gVisor labs, which are checked on the lab VM instead. Building the
+  ~820 MB workstation image on CI is untested.
+- Alpine's `chromium` (Support Desk bot) and Debian packages are not pinned to
+  exact versions; `pwntools`, `ttyd` and base images are pinned.
+
 ## Next steps, in order
 
-1. **Review CTF Phase 3, then approve Phase 4 (browser terminal and pwn).**
-   Phase 4 starts with the gVisor decision in [docs/CTF_PLAN.md](docs/CTF_PLAN.md).
-   Hosted rollout needs separate approval. Before more VM runs:
+1. **Review CTF Phase 4, then decide what follows: Phase 5 (privilege-escalation
+   profile, a separate security review) or hosted rollout.** Phase 5 relaxes
+   `no-new-privileges` for reviewed labs on the stronger sandbox and needs explicit
+   approval; it does not proceed by default. Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
    - The ingress HTTPS certificate on the VM is valid until 2026-11-29 and
@@ -304,8 +375,8 @@ open signup by itself.
 
 ## Decisions waiting on the owner
 
-- Whether to start CTF Phase 4 next, or hosted rollout and the production
-  security gate.
+- Whether to start CTF Phase 5 (privilege-escalation profile) next, or hosted
+  rollout and the production security gate.
 - How to key the general rate limit (point 2 above).
 - Any hosted change, dependency, migration or contract change.
 

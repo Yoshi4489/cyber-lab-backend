@@ -278,7 +278,7 @@ Each phase ends with VM evidence recorded in `PLAN.md`, a pause for approval, an
 - Ships: Support Desk, Link Preview.
 - Exit: Phases 4 and 5 style isolation and partial-cleanup checks repeat for multi-container labs. XSS on A can't touch B's origin.
 
-**Phase 4: Browser terminal and pwn**
+**Phase 4: Browser terminal and pwn** (done 2026-11-03; see `PLAN.md`)
 - Workstation image; `ttyd` route; frontend terminal link; exec workspace; gVisor spike and decision; negative ingress probe.
 - Ships: First Overflow, Format Leak, World Readable, Rules of Engagement, Zone Transfer.
 - Exit: learner shell can't reach the control plane, host, other instances or the internet; fork bombs and disk filling stay contained; cleanup verified.

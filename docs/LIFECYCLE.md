@@ -62,6 +62,14 @@ lists its expected services in `cyber-range.services`, so status reports
 `missing` if one disappears, and the instance fails and is cleaned up like any
 other runtime failure. Destroy and orphan cleanup remove every container.
 
+A manifest with `sandbox: "gvisor"` runs every container of the lab on the
+`runsc` runtime (shell labs, where a learner has a terminal). Preflight fails if
+the host does not advertise `runsc`. Because gVisor's netstack can't reach
+Docker's embedded DNS, the entry container is given an `/etc/hosts` entry for
+each service from the address it gets at start. Such a lab may declare one
+`workspace` tmpfs that allows execution; every other mount, `/tmp` included,
+stays `noexec`.
+
 Retries reuse their reservation and route key. Cleanup or inventory failures
 retain the slot. Terminal reservations are released only after a complete
 successful inventory confirms all resources absent; stop completion also checks

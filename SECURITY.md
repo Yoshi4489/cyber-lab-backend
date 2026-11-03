@@ -77,6 +77,10 @@ HTTPS/browser validation and verified-domain live delivery remain incomplete. Se
   socket mounts, and unapproved capabilities.
 - Enforce user namespaces, dropped capabilities, no-new-privileges, seccomp,
   AppArmor, read-only roots, bounded tmpfs, CPU, memory, PID and storage limits.
+- Run labs that give a learner a shell (and arbitrary code execution) on the
+  gVisor (`runsc`) kernel, off the host kernel. Preflight fails closed if the host
+  does not advertise the runtime. Such a lab gets one exec-capable workspace tmpfs;
+  `/tmp` and every other mount stay `noexec`, and `no-new-privileges` stays set.
 - Use pinned images and backend-controlled resource labels. Bound health
   checks, retries and startup times; failed starts must clean up resources.
 - Serve each instance on its own origin (`<route-key>.<lab domain>`), so one
