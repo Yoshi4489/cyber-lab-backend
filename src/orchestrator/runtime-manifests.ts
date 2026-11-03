@@ -27,6 +27,12 @@ const containerFields = {
     pids: z.number().int().min(16).max(256),
     tmpfsMb: z.number().int().min(8).max(128),
   }).strict(),
+  // An exec-capable scratch mount, for the one container where a learner builds and runs code.
+  // `/tmp` stays noexec; this is size-bounded, nosuid and nodev, and used only by shell labs.
+  workspace: z.object({
+    path: z.string().regex(/^\/[A-Za-z0-9_][A-Za-z0-9_./-]{1,62}$/u),
+    sizeMb: z.number().int().min(8).max(256),
+  }).strict().optional(),
 };
 
 /** Internal services sit on the instance network only: no route, no published port. */
@@ -54,6 +60,9 @@ export const runtimeManifestObject = z.object({
   services: z.array(serviceBaseSchema.extend({ image: pinnedImage }).strict()).max(3).default([]),
   /** Capacity cost relative to a one-container lab. */
   slotWeight: z.number().int().min(1).max(8).default(1),
+  // `gvisor` runs every container of the lab on the runsc kernel, for labs that give learners a shell.
+  // It needs a host that advertises the runtime; the worker's preflight checks that.
+  sandbox: z.enum(['runc', 'gvisor']).default('runc'),
 }).strict();
 
 export function checkServices(

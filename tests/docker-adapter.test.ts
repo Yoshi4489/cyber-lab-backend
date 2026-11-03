@@ -32,6 +32,7 @@ const manifest: RuntimeManifest = {
   resources: { memoryMb: 128, cpuCores: 0.5, pids: 64, tmpfsMb: 16 },
   services: [],
   slotWeight: 1,
+  sandbox: 'runc',
 };
 
 const withService: RuntimeManifest = {
@@ -138,6 +139,27 @@ describe('Docker orchestrator', () => {
     expect(entry).toMatchObject({ name: `cr-${suffix}`, Labels: { 'cyber-range.services': 'metadata' } });
     expect(entry?.NetworkingConfig?.EndpointsConfig?.[`crn-${suffix}`]?.Aliases).toEqual([`cr-${suffix}`, 'app']);
     expect(router.upsert).toHaveBeenCalledWith(expect.objectContaining({ targetHost: `cr-${suffix}` }));
+  });
+
+  it('runs a shell lab on gVisor and gives the entry a hosts entry for each service', async () => {
+    const fixture = dockerFixture();
+    const gvisor: RuntimeManifest = { ...withService, sandbox: 'gvisor' };
+    await new DockerOrchestrator(fixture.docker, routerFixture()).spawn(spawnInput(gvisor));
+    const [service, entry] = fixture.createContainer.mock.calls.map(([options]) => options);
+    expect(service?.HostConfig?.Runtime).toBe('runsc');
+    expect(entry?.HostConfig?.Runtime).toBe('runsc');
+    // gVisor can't use Docker's embedded DNS, so the service resolves through /etc/hosts.
+    expect(entry?.HostConfig?.ExtraHosts).toEqual(['metadata:172.18.0.5']);
+    expect(service?.HostConfig).not.toHaveProperty('ExtraHosts');
+  });
+
+  it('leaves runc labs with no gVisor runtime or hosts entries', async () => {
+    const fixture = dockerFixture();
+    await new DockerOrchestrator(fixture.docker, routerFixture()).spawn(spawnInput(withService));
+    for (const [options] of fixture.createContainer.mock.calls) {
+      expect(options.HostConfig).not.toHaveProperty('Runtime');
+      expect(options.HostConfig).not.toHaveProperty('ExtraHosts');
+    }
   });
 
   it('reports a lab whose internal service disappeared as missing', async () => {
@@ -281,6 +303,18 @@ describe('Docker orchestrator', () => {
     expect(fixture.createContainer).not.toHaveBeenCalled();
   });
 
+  it('refuses a gVisor lab when the host does not advertise the runsc runtime', async () => {
+    const fixture = dockerFixture({ runtimes: { runc: { path: 'runc' } } });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.preflight([{ ...manifest, sandbox: 'gvisor' }])).rejects.toThrow('gVisor (runsc) runtime');
+  });
+
+  it('accepts a gVisor lab when the host advertises runsc', async () => {
+    const fixture = dockerFixture({ runtimes: { runc: { path: 'runc' }, runsc: { path: '/usr/local/bin/runsc' } } });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.preflight([{ ...manifest, sandbox: 'gvisor' }])).resolves.toBeUndefined();
+  });
+
   it('rejects a manifest image that is unavailable on the Docker host', async () => {
     const fixture = dockerFixture({ availableImages: [] });
     const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
@@ -389,6 +423,7 @@ function dockerFixture(options: {
   enableIPv6?: boolean;
   extraNetwork?: boolean;
   entryServices?: string;
+  runtimes?: Record<string, unknown>;
 } = {}) {
   const containerRemove = vi.fn(async () => undefined);
   const networkRemove = vi.fn(async () => undefined);
@@ -416,7 +451,7 @@ function dockerFixture(options: {
       },
       NetworkSettings: {
         Networks: {
-          [`crn-${INSTANCE_ID.replaceAll('-', '')}`]: {},
+          [`crn-${INSTANCE_ID.replaceAll('-', '')}`]: { IPAddress: '172.18.0.5' },
           ...(options.extraNetwork ? { bridge: {} } : {}),
         },
       },
@@ -467,6 +502,7 @@ function dockerFixture(options: {
         'name=seccomp,profile=default',
         'name=apparmor',
       ],
+      Runtimes: options.runtimes ?? { runc: { path: 'runc' } },
     })),
     listContainers: vi.fn(async () => options.existingContainer ? [{ Id: 'container-id' }] : []),
     listNetworks: vi.fn(async () => options.existingNetwork ? [{ Id: 'network-id' }] : []),

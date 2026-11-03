@@ -197,12 +197,21 @@ export class DockerOrchestrator {
       }
       await this.ensureIngressConnected(network);
       // Internal services first, so the entry can reach them as soon as it starts.
+      const serviceHosts: string[] = [];
       for (const service of [...input.manifest.services, null]) {
         const key = service?.name ?? '';
+        // gVisor's netstack can't reach Docker's embedded DNS, so the entry resolves
+        // its services through /etc/hosts entries built from their assigned addresses.
+        const extraHosts = service || input.manifest.sandbox !== 'gvisor' ? [] : serviceHosts;
         const container = existing.get(key)?.container ??
-          await this.docker.createContainer(buildContainerOptions(input, service, names.network));
+          await this.docker.createContainer(buildContainerOptions(input, service, names.network, extraHosts));
         containers.set(key, container);
         await startContainer(container);
+        if (service && input.manifest.sandbox === 'gvisor') {
+          const address = (await container.inspect()).NetworkSettings?.Networks?.[names.network]?.IPAddress;
+          if (!address) throw new Error(`Service ${service.name} has no address on the instance network`);
+          serviceHosts.push(`${service.name}:${address}`);
+        }
       }
       const delivery = input.manifest.flagDelivery;
       const target = containers.get(delivery.mode === 'exec' ? delivery.service ?? '' : '');
@@ -288,6 +297,12 @@ export class DockerOrchestrator {
 
     const ingress = await this.docker.getContainer(this.ingressContainer).inspect();
     if (!ingress.State.Running) throw new Error('Docker ingress container is not running');
+
+    if (manifests.some((manifest) => manifest.sandbox === 'gvisor')) {
+      const info = await this.docker.info();
+      const runtimes = (info.Runtimes ?? {}) as Record<string, unknown>;
+      if (!('runsc' in runtimes)) throw new Error('A lab requires the gVisor (runsc) runtime, which the Docker host does not advertise');
+    }
 
     const images = manifests.flatMap((manifest) => [manifest.image, ...manifest.services.map(({ image }) => image)]);
     await Promise.all(images.map(async (image) => {
@@ -459,6 +474,7 @@ function buildContainerOptions(
   input: SpawnTargetInput,
   service: RuntimeService | null,
   networkName: string,
+  extraHosts: string[] = [],
 ): Docker.ContainerCreateOptions {
   const spec = service ?? input.manifest;
   const name = containerName(input.instanceId, service?.name);
@@ -483,6 +499,9 @@ function buildContainerOptions(
     },
     HostConfig: {
       AutoRemove: false,
+      // Shell labs run on the gVisor kernel, isolating learner code from the host kernel.
+      ...(input.manifest.sandbox === 'gvisor' ? { Runtime: 'runsc' } : {}),
+      ...(extraHosts.length > 0 ? { ExtraHosts: extraHosts } : {}),
       CapDrop: ['ALL'],
       Init: true,
       Memory: spec.resources.memoryMb * 1_024 * 1_024,
@@ -497,6 +516,8 @@ function buildContainerOptions(
       SecurityOpt: ['no-new-privileges:true', 'apparmor=docker-default'],
       Tmpfs: {
         '/tmp': `rw,noexec,nosuid,nodev,size=${spec.resources.tmpfsMb}m`,
+        // Shell labs get one exec-capable workspace; everything else stays noexec.
+        ...(spec.workspace ? { [spec.workspace.path]: `rw,nosuid,nodev,size=${spec.workspace.sizeMb}m` } : {}),
       },
       LogConfig: { Type: 'json-file', Config: { 'max-size': '10m', 'max-file': '2' } },
     },
