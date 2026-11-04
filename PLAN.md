@@ -342,10 +342,15 @@ Not done or not run:
 
 ## Next steps, in order
 
-1. **Review CTF Phase 4, then decide what follows: Phase 5 (privilege-escalation
-   profile, a separate security review) or hosted rollout.** Phase 5 relaxes
-   `no-new-privileges` for reviewed labs on the stronger sandbox and needs explicit
-   approval; it does not proceed by default. Before more VM runs:
+1. **Finish CTF Phase 5 ([plan](docs/CTF_PHASE5_PLAN.md)).** Approved on
+   2026-11-04. Done: the VM spike (gVisor needs a separate `runsc-suid` runtime;
+   sudo needs `CAP_SETGID`), the allowlisted `privilege: "escalation"` profile
+   with tests, the `SECURITY.md` rule, and `lab-check` escalation checks (the
+   standard-lab `NoNewPrivs` check passed on World Readable on the VM; the
+   escalation branch has not run, because no lab uses it yet). Left: the owner
+   writes SUID Surprise, Cron Mischief and Sudo Slip; then run `lab-check` and a
+   full-stack check for them on the VM. The VM's `daemon.json` now registers
+   `runsc-suid`. Before more VM runs:
    - The Engine mTLS set was reissued on 2026-10-30 and expires 2026-11-29;
      the keys are outside Git on the Windows host.
    - The ingress HTTPS certificate on the VM is valid until 2026-11-29 and

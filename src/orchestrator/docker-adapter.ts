@@ -11,7 +11,7 @@ const SERVICE_LABEL = 'cyber-range.service';
 // On the entry: the services it needs, so status can notice one that disappeared.
 const SERVICES_LABEL = 'cyber-range.services';
 const FLAG_DELIVERY_TIMEOUT_MS = 15_000;
-/** gVisor with `--allow-suid`; runsc ignores set-uid bits otherwise. See docs/DOCKER_MTLS.md. */
+/** gVisor with `--allow-suid`; runsc ignores set-uid bits otherwise. See docs/LIFECYCLE.md. */
 const SUID_RUNTIME = 'runsc-suid';
 const ISOLATED_GATEWAY_OPTIONS = {
   'com.docker.network.bridge.gateway_mode_ipv4': 'isolated',

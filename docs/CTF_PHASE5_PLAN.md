@@ -109,7 +109,7 @@ Everything else in SECURITY.md stays as written.
 - Preflight: if any manifest uses `escalation`, the host must advertise
   `runsc-suid`; and every `escalation` manifest must be gVisor and allowlisted
   (defence in depth if the loader is bypassed). The `runsc-suid` host setup is
-  documented in `docs/DOCKER_MTLS.md`.
+  documented in `docs/LIFECYCLE.md`.
 
 ### 2. Flag placement
 
@@ -124,8 +124,28 @@ without the flaw, the flag file can't be read.
 Each lab extends the shared `_pwn` workstation base (ttyd, uid 1000 `learner`)
 with one reviewed misconfiguration and one second account. Each ships
 `definition.json`, briefing, walkthrough, `runtime.json` and a Python solver,
-like the Phase 4 labs. Per-lab detail is written during the build and goes
-through the normal reviewer sign-off.
+like the Phase 4 labs. The owner writes the lab content; it goes through the
+normal reviewer sign-off.
+
+Contract the harness and loader expect (World Readable is the closest example):
+
+| Item | Requirement |
+|---|---|
+| Folder | `challenges/<slug>/`, folder name equal to `slug` |
+| Ids | SUID Surprise `a5000000-0000-4000-8000-000000000001`, Cron Mischief `…0002`, Sudo Slip `…0003`. Anything else is refused by the allowlist |
+| `definition.json` | `kind: "shell"`, `category: "linux"`; points must match difficulty (medium 250, hard 500); hint costs below the points |
+| `runtime.json` | `sandbox: "gvisor"`, `privilege: "escalation"`, `user: "1000:1000"`, `containerPort: 7681`, healthcheck `["CMD", "/usr/local/bin/lab-healthcheck"]`, no `services`. Resources and `slotWeight` like World Readable |
+| Flag | `flagDelivery: { mode: "exec", command: ["/app/load-flag.sh"], user: "<second account uid:gid>" }`, with `_pwn/load-flag.sh` copied to `/app/` as First Overflow's target does. It writes `/tmp/flag.txt` mode 0600 owned by that account, which `learner` can't read |
+| Image | `Dockerfile` starts with the shared workstation stage copied from World Readable, so the layer is reused. Add any new source files to the `challenges/.dockerignore` allowlist |
+| Solver | `solve/solve.py` runs inside the entry container as `learner` (stdin to `python3 -`) and prints only the flag |
+| Limits found by the spike | Real `sudo` can't run (needs `CAP_SETGID`): Sudo Slip needs a set-uid program of its own. A set-uid launcher keeps the learner's group, so protect files by owner, not group |
+
+`lab-check` then proves, for each escalation lab: the solver returns the exact
+flag; the entry's `CapBnd` and `CapEff` are empty and `NoNewPrivs` is 0;
+`learner` can't find the flag in `/home /tmp /opt /var /srv /etc`; the flag is
+not in the container config, any process environment or the image; there is no
+egress; and cleanup leaves nothing. Every standard shell lab is also checked
+for `NoNewPrivs: 1`.
 
 ### 4. Checks
 

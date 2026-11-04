@@ -70,6 +70,27 @@ each service from the address it gets at start. Such a lab may declare one
 `workspace` tmpfs that allows execution; every other mount, `/tmp` included,
 stays `noexec`.
 
+A gVisor manifest may also set `privilege: "escalation"`, for reviewed
+privilege-escalation labs only: the challenge id must be in `ESCALATION_LABS`
+(`src/orchestrator/runtime-manifests.ts`), and the registry, package loader,
+container builder and preflight each refuse anything else. Only the entry
+container changes: it runs on the `runsc-suid` runtime and without
+`no-new-privileges`, so set-uid works inside the sandbox. Capabilities stay
+dropped and every other default is unchanged; internal services stay standard.
+`runsc` ignores set-uid bits unless started with `--allow-suid`, so a lab host
+that runs these labs registers a second runtime in `/etc/docker/daemon.json`
+and reloads Docker:
+
+```json
+"runtimes": {
+  "runsc": { "path": "/usr/local/bin/runsc" },
+  "runsc-suid": { "path": "/usr/local/bin/runsc", "runtimeArgs": ["--allow-suid"] }
+}
+```
+
+Preflight fails if an escalation lab is configured and the host does not
+advertise `runsc-suid`.
+
 Retries reuse their reservation and route key. Cleanup or inventory failures
 retain the slot. Terminal reservations are released only after a complete
 successful inventory confirms all resources absent; stop completion also checks

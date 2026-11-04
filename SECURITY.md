@@ -81,6 +81,14 @@ HTTPS/browser validation and verified-domain live delivery remain incomplete. Se
   gVisor (`runsc`) kernel, off the host kernel. Preflight fails closed if the host
   does not advertise the runtime. Such a lab gets one exec-capable workspace tmpfs;
   `/tmp` and every other mount stay `noexec`, and `no-new-privileges` stays set.
+- One exception, approved on 2026-11-04: a lab may set `privilege: "escalation"`
+  only if it runs on gVisor and its id is in the reviewed `ESCALATION_LABS`
+  allowlist in code. Its entry container alone drops `no-new-privileges` and
+  runs on `runsc-suid` (gVisor honouring set-uid), so learners can practise
+  escalation inside their own sandbox. Capabilities stay dropped (never
+  `CapAdd`), and user namespaces, seccomp, read-only root, resource limits and
+  network isolation are unchanged. Adding a lab to the allowlist is a
+  security-reviewed code change.
 - Use pinned images and backend-controlled resource labels. Bound health
   checks, retries and startup times; failed starts must clean up resources.
 - Serve each instance on its own origin (`<route-key>.<lab domain>`), so one
