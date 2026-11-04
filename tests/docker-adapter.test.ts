@@ -33,6 +33,7 @@ const manifest: RuntimeManifest = {
   services: [],
   slotWeight: 1,
   sandbox: 'runc',
+  privilege: 'standard',
 };
 
 const withService: RuntimeManifest = {
@@ -42,6 +43,10 @@ const withService: RuntimeManifest = {
   slotWeight: 2,
 };
 
+// SUID Surprise's reviewed id; a single-container lab plus one service to prove the service stays standard.
+const ESCALATION_ID = 'a5000000-0000-4000-8000-000000000001';
+const escalationLab: RuntimeManifest = { ...withService, challengeId: ESCALATION_ID, sandbox: 'gvisor', privilege: 'escalation' };
+
 describe('trusted runtime manifests', () => {
   it('validates internal services and where the flag goes', () => {
     expect(new RuntimeManifestRegistry([withService]).get(CHALLENGE_ID)?.services).toHaveLength(1);
@@ -50,6 +55,13 @@ describe('trusted runtime manifests', () => {
     expect(() => new RuntimeManifestRegistry([{ ...withService, services: [{ ...service, name: 'app' }] }])).toThrow();
     expect(() => new RuntimeManifestRegistry([{ ...withService, services: [] }])).toThrow('unknown service');
     expect(() => new RuntimeManifestRegistry([{ ...withService, slotWeight: 9 }])).toThrow();
+  });
+
+  it('limits the escalation profile to reviewed gVisor labs', () => {
+    const reviewed = { ...escalationLab, challengeId: ESCALATION_ID };
+    expect(new RuntimeManifestRegistry([reviewed]).get(ESCALATION_ID)?.privilege).toBe('escalation');
+    expect(() => new RuntimeManifestRegistry([{ ...reviewed, sandbox: 'runc' }])).toThrow('requires the gVisor sandbox');
+    expect(() => new RuntimeManifestRegistry([{ ...reviewed, challengeId: CHALLENGE_ID }])).toThrow('reviewed labs');
   });
 
   it('accepts pinned images and rejects mutable tags or duplicate challenges', () => {
@@ -151,6 +163,34 @@ describe('Docker orchestrator', () => {
     // gVisor can't use Docker's embedded DNS, so the service resolves through /etc/hosts.
     expect(entry?.HostConfig?.ExtraHosts).toEqual(['metadata:172.18.0.5']);
     expect(service?.HostConfig).not.toHaveProperty('ExtraHosts');
+  });
+
+  it('relaxes only no-new-privileges, only on the entry, for a reviewed escalation lab', async () => {
+    const fixture = dockerFixture({ managedChallengeId: ESCALATION_ID });
+    await new DockerOrchestrator(fixture.docker, routerFixture()).spawn(spawnInput(escalationLab));
+    const [service, entry] = fixture.createContainer.mock.calls.map(([options]) => options);
+    expect(entry?.HostConfig?.Runtime).toBe('runsc-suid');
+    expect(entry?.HostConfig?.SecurityOpt).toEqual(['apparmor=docker-default']);
+    // Everything else stays fixed: no capability comes back.
+    expect(entry?.HostConfig).toMatchObject({ CapDrop: ['ALL'], Privileged: false, ReadonlyRootfs: true, IpcMode: 'none' });
+    expect(entry?.HostConfig).not.toHaveProperty('CapAdd');
+    expect(service?.HostConfig?.Runtime).toBe('runsc');
+    expect(service?.HostConfig?.SecurityOpt).toEqual(['no-new-privileges:true', 'apparmor=docker-default']);
+  });
+
+  it('refuses to build an escalation container for an unreviewed lab', async () => {
+    const fixture = dockerFixture();
+    const input = { ...spawnInput(escalationLab), challengeId: CHALLENGE_ID };
+    await expect(new DockerOrchestrator(fixture.docker, routerFixture()).spawn(input)).rejects.toThrow();
+    expect(fixture.createContainer).not.toHaveBeenCalled();
+  });
+
+  it('keeps no-new-privileges on every standard lab', async () => {
+    const fixture = dockerFixture();
+    await new DockerOrchestrator(fixture.docker, routerFixture()).spawn(spawnInput({ ...withService, sandbox: 'gvisor' }));
+    for (const [options] of fixture.createContainer.mock.calls) {
+      expect(options.HostConfig?.SecurityOpt).toContain('no-new-privileges:true');
+    }
   });
 
   it('leaves runc labs with no gVisor runtime or hosts entries', async () => {
@@ -315,6 +355,18 @@ describe('Docker orchestrator', () => {
     await expect(orchestrator.preflight([{ ...manifest, sandbox: 'gvisor' }])).resolves.toBeUndefined();
   });
 
+  it('refuses an escalation lab when the host does not advertise runsc-suid', async () => {
+    const fixture = dockerFixture({ runtimes: { runc: { path: 'runc' }, runsc: { path: '/usr/local/bin/runsc' } } });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.preflight([escalationLab])).rejects.toThrow('runsc-suid runtime');
+  });
+
+  it('accepts an escalation lab when the host advertises runsc-suid', async () => {
+    const fixture = dockerFixture({ runtimes: { runsc: { path: '/usr/local/bin/runsc' }, 'runsc-suid': { path: '/usr/local/bin/runsc' } } });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.preflight([escalationLab])).resolves.toBeUndefined();
+  });
+
   it('rejects a manifest image that is unavailable on the Docker host', async () => {
     const fixture = dockerFixture({ availableImages: [] });
     const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
@@ -387,7 +439,7 @@ describe('exec flag delivery', () => {
 function spawnInput(runtime: RuntimeManifest = manifest) {
   return {
     instanceId: INSTANCE_ID,
-    challengeId: CHALLENGE_ID,
+    challengeId: runtime.challengeId,
     routeKey: ROUTE_KEY,
     flag: 'CTF{test-only}',
     manifest: runtime,
