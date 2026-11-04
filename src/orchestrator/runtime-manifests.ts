@@ -63,7 +63,25 @@ export const runtimeManifestObject = z.object({
   // `gvisor` runs every container of the lab on the runsc kernel, for labs that give learners a shell.
   // It needs a host that advertises the runtime; the worker's preflight checks that.
   sandbox: z.enum(['runc', 'gvisor']).default('runc'),
+  // `escalation` lets set-uid work in the entry container (no `no-new-privileges`, set-uid-honouring
+  // gVisor runtime). Capabilities stay dropped. Only reviewed labs in ESCALATION_LABS may use it.
+  privilege: z.enum(['standard', 'escalation']).default('standard'),
 }).strict();
+
+/** Reviewed privilege-escalation labs. Adding one is a security-reviewed code change. */
+export const ESCALATION_LABS: ReadonlySet<string> = new Set([
+  'a5000000-0000-4000-8000-000000000001', // SUID Surprise
+  'a5000000-0000-4000-8000-000000000002', // Cron Mischief
+  'a5000000-0000-4000-8000-000000000003', // Sudo Slip
+]);
+
+/** Null when the manifest's privilege profile is allowed for this challenge. */
+export function escalationProblem(challengeId: string, manifest: { privilege: string; sandbox: string }): string | null {
+  if (manifest.privilege !== 'escalation') return null;
+  if (manifest.sandbox !== 'gvisor') return 'The escalation profile requires the gVisor sandbox';
+  if (!ESCALATION_LABS.has(challengeId)) return 'The escalation profile is limited to reviewed labs';
+  return null;
+}
 
 export function checkServices(
   manifest: { services: ReadonlyArray<{ name: string }>; flagDelivery: { mode: string; service?: string | undefined } },
@@ -77,7 +95,11 @@ export function checkServices(
   }
 }
 
-export const runtimeManifestSchema = runtimeManifestObject.superRefine(checkServices);
+export const runtimeManifestSchema = runtimeManifestObject.superRefine((manifest, context) => {
+  checkServices(manifest, context);
+  const problem = escalationProblem(manifest.challengeId, manifest);
+  if (problem) context.addIssue({ code: 'custom', message: problem });
+});
 
 export type RuntimeManifest = z.infer<typeof runtimeManifestSchema>;
 export type RuntimeService = RuntimeManifest['services'][number];

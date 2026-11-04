@@ -1,5 +1,5 @@
 import type Docker from 'dockerode';
-import type { RuntimeManifest, RuntimeService } from './runtime-manifests.js';
+import { escalationProblem, type RuntimeManifest, type RuntimeService } from './runtime-manifests.js';
 import type { TraefikRouter } from './traefik-router.js';
 import type { ManagedRuntimeAllocation, ManagedRuntimeInventory } from '../services/runtime-inventory.js';
 
@@ -11,6 +11,8 @@ const SERVICE_LABEL = 'cyber-range.service';
 // On the entry: the services it needs, so status can notice one that disappeared.
 const SERVICES_LABEL = 'cyber-range.services';
 const FLAG_DELIVERY_TIMEOUT_MS = 15_000;
+/** gVisor with `--allow-suid`; runsc ignores set-uid bits otherwise. See docs/DOCKER_MTLS.md. */
+const SUID_RUNTIME = 'runsc-suid';
 const ISOLATED_GATEWAY_OPTIONS = {
   'com.docker.network.bridge.gateway_mode_ipv4': 'isolated',
   'com.docker.network.bridge.gateway_mode_ipv6': 'isolated',
@@ -302,6 +304,13 @@ export class DockerOrchestrator {
       const info = await this.docker.info();
       const runtimes = (info.Runtimes ?? {}) as Record<string, unknown>;
       if (!('runsc' in runtimes)) throw new Error('A lab requires the gVisor (runsc) runtime, which the Docker host does not advertise');
+      if (manifests.some((manifest) => manifest.privilege === 'escalation') && !(SUID_RUNTIME in runtimes)) {
+        throw new Error(`An escalation lab requires the ${SUID_RUNTIME} runtime, which the Docker host does not advertise`);
+      }
+    }
+    for (const manifest of manifests) {
+      const problem = escalationProblem(manifest.challengeId, manifest);
+      if (problem) throw new Error(problem);
     }
 
     const images = manifests.flatMap((manifest) => [manifest.image, ...manifest.services.map(({ image }) => image)]);
@@ -478,6 +487,11 @@ function buildContainerOptions(
 ): Docker.ContainerCreateOptions {
   const spec = service ?? input.manifest;
   const name = containerName(input.instanceId, service?.name);
+  // Reviewed escalation labs only, entry only: set-uid works, capabilities stay dropped.
+  const escalation = !service && input.manifest.privilege === 'escalation';
+  if (escalation && escalationProblem(input.challengeId, input.manifest)) {
+    throw new Error('Refusing an unreviewed privilege profile');
+  }
   const labels = managedLabels(input.instanceId, input.challengeId);
   if (service) labels[SERVICE_LABEL] = service.name;
   else if (input.manifest.services.length > 0) labels[SERVICES_LABEL] = input.manifest.services.map(({ name: next }) => next).join(',');
@@ -500,7 +514,7 @@ function buildContainerOptions(
     HostConfig: {
       AutoRemove: false,
       // Shell labs run on the gVisor kernel, isolating learner code from the host kernel.
-      ...(input.manifest.sandbox === 'gvisor' ? { Runtime: 'runsc' } : {}),
+      ...(input.manifest.sandbox === 'gvisor' ? { Runtime: escalation ? SUID_RUNTIME : 'runsc' } : {}),
       ...(extraHosts.length > 0 ? { ExtraHosts: extraHosts } : {}),
       CapDrop: ['ALL'],
       Init: true,
@@ -513,7 +527,7 @@ function buildContainerOptions(
       Privileged: false,
       ReadonlyRootfs: true,
       // The verified host's built-in seccomp profile applies when no override is set.
-      SecurityOpt: ['no-new-privileges:true', 'apparmor=docker-default'],
+      SecurityOpt: escalation ? ['apparmor=docker-default'] : ['no-new-privileges:true', 'apparmor=docker-default'],
       Tmpfs: {
         '/tmp': `rw,noexec,nosuid,nodev,size=${spec.resources.tmpfsMb}m`,
         // Shell labs get one exec-capable workspace; everything else stays noexec.

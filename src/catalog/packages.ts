@@ -3,7 +3,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { challengeDefinitionSchema, type ChallengeDefinition } from './definitions.js';
-import { checkServices, runtimeManifestObject, serviceBaseSchema } from '../orchestrator/runtime-manifests.js';
+import { checkServices, escalationProblem, runtimeManifestObject, serviceBaseSchema } from '../orchestrator/runtime-manifests.js';
 import { writeArtifactManifest, type ArtifactFile } from '../services/artifact-store.js';
 
 const POINTS_BY_DIFFICULTY = { easy: 100, medium: 250, hard: 500 } as const;
@@ -78,6 +78,8 @@ async function loadPackage(path: string, folder: string): Promise<ChallengePacka
   if (definition.slug !== folder) throw new Error(`Challenge folder ${folder} must match its slug`);
   const artifact = definition.kind === 'artifact';
   const runtime = artifact ? null : packageRuntimeSchema.parse(JSON.parse(await readText('runtime.json')));
+  const privilegeProblem = runtime ? escalationProblem(definition.id, runtime) : null;
+  if (privilegeProblem) throw new Error(`Challenge ${folder}: ${privilegeProblem}`);
   const generator = artifact ? await readText('generate.mjs') : '';
   const [briefingMd, walkthroughMd] = await Promise.all([readText('briefing.md'), readText('walkthrough.md')]);
   // Every runnable lab ships a solver the publication check runs; shell labs use Python with pwntools.
