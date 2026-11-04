@@ -80,7 +80,17 @@ for (const lab of await loadChallengePackages()) {
     check(lab.slug, 'starts healthy through the orchestrator', true);
 
     const leaks = (args) => attempt(args).out.includes(flag);
-    if (shell) {
+    const escalation = manifest.privilege === 'escalation';
+    if (escalation) {
+      // Escalation labs are solved inside the learner's own container, as the learner.
+      const solver = await readFile(join(CHALLENGES_DIRECTORY, lab.slug, 'solve/solve.py'), 'utf8');
+      const solved = attempt(['exec', '-i', '-u', manifest.user, `cr-${suffix}`, 'python3', '-'], { input: solver });
+      check(lab.slug, 'solver recovers the exact flag', solved.code === 0 && solved.out === flag);
+      // The profile relaxes no-new-privileges only: the capability bounding set must stay empty.
+      const status = attempt(['exec', '-u', manifest.user, `cr-${suffix}`, 'grep', '-E', '^(CapBnd|CapEff|NoNewPrivs):', '/proc/self/status']).out;
+      check(lab.slug, 'entry keeps an empty capability set', /CapBnd:\s+0+\b/u.test(status) && /CapEff:\s+0+\b/u.test(status));
+      check(lab.slug, 'entry runs without no-new-privileges', /NoNewPrivs:\s+0\b/u.test(status));
+    } else if (shell) {
       // A shell lab is exploited from the workstation against the target service; the solver
       // reaches it through a hosts entry, since gVisor can't use Docker's embedded DNS.
       const hosts = manifest.services.flatMap((service) => {
@@ -118,11 +128,17 @@ for (const lab of await loadChallengePackages()) {
       : attempt(['exec', `cr-${suffix}`, 'node', '-e',
           "fetch('http://1.1.1.1',{signal:AbortSignal.timeout(3000)}).then(()=>process.exit(0),()=>process.exit(1))"]);
     check(lab.slug, 'entry has no outbound network', egress.code !== 0);
-    if (shell) {
+    if (escalation) {
+      // The flag is on this container but owned by another account: the learner can't read it directly.
+      check(lab.slug, 'learner cannot read the flag without the flaw', !leaks(['exec', '-u', manifest.user, `cr-${suffix}`, 'sh', '-c',
+        `grep -rs ${JSON.stringify(flag)} /home /tmp /opt /var /srv /etc 2>/dev/null || true`]));
+    } else if (shell) {
       // The flag lives only in the target service; the learner reaches it through the exploit,
       // never from their own container's disk.
       check(lab.slug, 'flag is not stored on the workstation', !leaks(['exec', `cr-${suffix}`, 'sh', '-c',
         `grep -rl ${JSON.stringify(flag)} /home /tmp /opt 2>/dev/null || true`]));
+      check(lab.slug, 'standard shell lab keeps no-new-privileges', /NoNewPrivs:\s+1\b/u.test(
+        attempt(['exec', `cr-${suffix}`, 'grep', '^NoNewPrivs:', '/proc/self/status']).out));
     } else {
       check(lab.slug, 'delivery file is gone', attempt(['exec', holder, 'test', '-e', '/tmp/.cr-flag']).code !== 0);
     }
