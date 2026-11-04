@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { createPasswordHasher } from '../src/auth/password.js';
 import { CHALLENGE_DEFINITIONS, WELCOME_CHALLENGE_ID } from '../src/catalog/definitions.js';
+import { loadChallengePackages } from '../src/catalog/packages.js';
 import { DrizzleAuthRepository } from '../src/db/auth-repository.js';
 import { seedCatalog } from '../src/db/catalog-seed.js';
 import { DrizzleCatalogRepository } from '../src/db/catalog-repository.js';
@@ -149,7 +150,7 @@ describeDatabase('Welcome accounts and explicit catalog seed', () => {
     expect(published.map(({ id }) => id)).toEqual([WELCOME_CHALLENGE_ID]);
     expect((await app.inject('/v1/challenges/welcome')).statusCode).toBe(200);
     expect((await app.inject(`/v1/challenges/${sample.slug}`)).statusCode).toBe(404);
-    expect(await database.db.select({ id: challenges.id }).from(challenges)).toHaveLength(CHALLENGE_DEFINITIONS.length);
+    expect(await database.db.select({ id: challenges.id }).from(challenges)).toHaveLength(CHALLENGE_DEFINITIONS.length + (await loadChallengePackages()).length);
 
     await seedCatalog(database.db, loadWelcomeLabConfig({ WELCOME_LAB_TEST_ENABLED: 'false' }));
     expect((await app.inject('/v1/challenges/welcome')).statusCode).toBe(404);
@@ -157,6 +158,6 @@ describeDatabase('Welcome accounts and explicit catalog seed', () => {
     expect(restored.map(({ id }) => id).sort()).toEqual(CHALLENGE_DEFINITIONS.filter(({ published: visible }) => visible).map(({ id }) => id).sort());
     expect(await database.db.select().from(solves).where(inArray(solves.userId, learners.map(({ id }) => id))).orderBy(solves.userId)).toEqual(history);
     expect(await database.db.select().from(submissions).orderBy(submissions.id)).toEqual(attempts);
-    expect(await database.db.select({ id: challenges.id }).from(challenges)).toHaveLength(CHALLENGE_DEFINITIONS.length);
+    expect(await database.db.select({ id: challenges.id }).from(challenges)).toHaveLength(CHALLENGE_DEFINITIONS.length + (await loadChallengePackages()).length);
   });
 });

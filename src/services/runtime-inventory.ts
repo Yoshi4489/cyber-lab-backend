@@ -3,6 +3,8 @@ export type ManagedRuntimeAllocation = {
   instanceId: string;
   challengeId: string | null;
   containerId: string | null;
+  /** Internal service containers beside the entry; absent for one-container labs. */
+  serviceContainerIds?: string[];
   networkId: string | null;
   routePresent: boolean;
 };

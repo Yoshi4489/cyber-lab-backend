@@ -19,7 +19,8 @@ export type TraefikRouter = {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const safeName = /^[a-z0-9][a-z0-9-]{0,62}$/u;
-const safeRouteKey = /^[A-Za-z0-9_-]{24,64}$/u;
+// 160 random bits as hex: a valid, case-insensitive DNS label for per-instance origins.
+const safeRouteKey = /^[0-9a-f]{40}$/u;
 const absoluteDirectory = /^\/(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+$/u;
 
 export class FileTraefikRouter implements TraefikRouter {
@@ -95,15 +96,11 @@ export function renderRouteDocument(route: TraefikRoute): string {
     'http:',
     '  routers:',
     `    ${name}:`,
-    `      rule: ${JSON.stringify(`PathPrefix(\`/labs/${route.routeKey}/\`)`)}`,
+    // Each instance is its own origin: <routeKey>.<lab domain>, so one lab's scripts can't read another's.
+    `      rule: ${JSON.stringify(`HostRegexp(\`^${route.routeKey}[.]\`)`)}`,
     '      entryPoints: [websecure]',
-    `      middlewares: [${name}-strip]`,
     `      service: ${name}`,
     '      tls: {}',
-    '  middlewares:',
-    `    ${name}-strip:`,
-    '      stripPrefix:',
-    `        prefixes: [${JSON.stringify(`/labs/${route.routeKey}`)}]`,
     '  services:',
     `    ${name}:`,
     '      loadBalancer:',
@@ -139,7 +136,7 @@ export function routeFileName(instanceId: string): string {
 /** Exact canonical rendering is the ownership evidence for routes, which have no Docker labels. */
 export function assertManagedRouteDocument(instanceId: string, contents: string): void {
   assertInstanceId(instanceId);
-  const routeKey = /PathPrefix\(`\/labs\/([A-Za-z0-9_-]{24,64})\/`\)/u.exec(contents)?.[1];
+  const routeKey = /HostRegexp\(`\^([0-9a-f]{40})\[\.\]`\)/u.exec(contents)?.[1];
   const host = `cr-${instanceId.replaceAll('-', '')}`;
   const port = /servers: \[\{url: "http:\/\/[a-z0-9-]+:([0-9]+)"\}\]/u.exec(contents)?.[1];
   if (routeKey && port) validateRoute({ instanceId, routeKey, targetHost: host, targetPort: Number(port) });

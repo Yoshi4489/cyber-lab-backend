@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -21,7 +22,7 @@ export const emailTokenPurpose = pgEnum('email_token_purpose', [
   'password_reset',
 ]);
 export const challengeDifficulty = pgEnum('challenge_difficulty', ['easy', 'medium', 'hard']);
-export const challengeKind = pgEnum('challenge_kind', ['web', 'shell']);
+export const challengeKind = pgEnum('challenge_kind', ['web', 'shell', 'artifact']);
 export const labNodeStatus = pgEnum('lab_node_status', ['active', 'draining', 'offline']);
 export const instanceStatus = pgEnum('instance_status', [
   'pending',
@@ -89,6 +90,10 @@ export const challenges = pgTable(
     tags: jsonb('tags').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
     definitionVersion: integer('definition_version').default(1).notNull(),
     published: boolean('published').default(false).notNull(),
+    briefingMd: text('briefing_md').default('').notNull(),
+    objectives: jsonb('objectives').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    learningOutcomes: jsonb('learning_outcomes').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    references: jsonb('references').$type<Array<{ label: string; url?: string | undefined }>>().default(sql`'[]'::jsonb`).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -99,6 +104,51 @@ export const challenges = pgTable(
     check('challenges_category_normalized', sql`${table.category} = lower(${table.category})`),
     check('challenges_points_positive', sql`${table.points} > 0`),
     check('challenges_definition_version_positive', sql`${table.definitionVersion} > 0`),
+  ],
+);
+
+export const challengeHints = pgTable(
+  'challenge_hints',
+  {
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => challenges.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    bodyMd: text('body_md').notNull(),
+    cost: integer('cost').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.challengeId, table.position] }),
+    check('challenge_hints_position_positive', sql`${table.position} > 0`),
+    check('challenge_hints_cost_nonnegative', sql`${table.cost} >= 0`),
+  ],
+);
+
+// Separate from `challenges` so a catalog query cannot select it by accident.
+export const challengeWalkthroughs = pgTable('challenge_walkthroughs', {
+  challengeId: uuid('challenge_id')
+    .primaryKey()
+    .references(() => challenges.id, { onDelete: 'cascade' }),
+  bodyMd: text('body_md').notNull(),
+});
+
+export const challengeUnlocks = pgTable(
+  'challenge_unlocks',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => challenges.id, { onDelete: 'restrict' }),
+    // `hint:<position>` or `walkthrough`.
+    item: varchar('item', { length: 32 }).notNull(),
+    costApplied: integer('cost_applied').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.challengeId, table.item] }),
+    check('challenge_unlocks_cost_nonnegative', sql`${table.costApplied} >= 0`),
   ],
 );
 
@@ -134,6 +184,8 @@ export const instances = pgTable(
     nodeId: uuid('node_id').references(() => labNodes.id, { onDelete: 'set null' }),
     status: instanceStatus('status').default('pending').notNull(),
     routeKey: varchar('route_key', { length: 64 }),
+    // Capacity cost from the runtime manifest, recorded by the worker at admission.
+    slotWeight: integer('slot_weight').default(1).notNull(),
     containerId: varchar('container_id', { length: 128 }),
     networkId: varchar('network_id', { length: 128 }),
     failureCode: varchar('failure_code', { length: 64 }),
@@ -264,7 +316,8 @@ export const submissions = pgTable(
     challengeId: uuid('challenge_id')
       .notNull()
       .references(() => challenges.id, { onDelete: 'restrict' }),
-    instanceId: uuid('instance_id').notNull(),
+    // Null only for artifact challenges, which have no instance. `SubmissionService` enforces this.
+    instanceId: uuid('instance_id'),
     correct: boolean('correct').notNull(),
     pointsAwarded: integer('points_awarded').default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -305,7 +358,8 @@ export const solves = pgTable(
     uniqueIndex('solves_first_submission_unique').on(table.firstSubmissionId),
     index('solves_user_solved_at_idx').on(table.userId, table.solvedAt),
     index('solves_leaderboard_idx').on(table.points, table.solvedAt),
-    check('solves_points_positive', sql`${table.points} > 0`),
+    // Zero records a solve whose points were forfeited by opening the walkthrough first.
+    check('solves_points_nonnegative', sql`${table.points} >= 0`),
   ],
 );
 

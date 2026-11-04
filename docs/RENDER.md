@@ -81,7 +81,7 @@ reach the isolated target Engine over verified mTLS. Do not start a second
 worker; concurrent workers are unsupported. The current VirtualBox private
 addresses and loopback target URLs are not reachable by cloud services or
 remote players. Provision reviewed worker networking and public HTTPS ingress;
-configure `LAB_PUBLIC_BASE_URL` only after it works. Keep Docker credentials on
+configure `LAB_PUBLIC_HOST` only after it works. Keep Docker credentials on
 the worker and retain the existing isolation restrictions. Do not publicly
 expose an unauthenticated Engine, Redis or database to solve reachability.
 

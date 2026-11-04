@@ -27,7 +27,7 @@ verification changes. Extend and delete accept no body; supplied JSON including
 The frontend polls `GET /v1/instances/:id`. Foreign and missing instances both
 return `404`. Responses never contain Docker/node IDs. `url` is omitted until
 the instance is `running`, has a worker-generated route key, and
-`LAB_PUBLIC_BASE_URL` is configured. Submissions accept only an owned, running,
+`LAB_PUBLIC_HOST` is configured (`https://<routeKey>.<host>/`). Submissions accept only an owned, running,
 unexpired instance whose challenge matches the request.
 
 ## Delivery and recovery
@@ -42,12 +42,54 @@ scheduling or a replacement for per-container resource restrictions.
 
 Before spawn, a complete read-only Engine and route inventory is combined with
 durable `instances.node_id` reservations under a PostgreSQL node-row lock.
-One container/network/route group for an instance consumes one slot; orphan or
-partial allocations also count. Duplicate containers/networks for an identity,
+An instance consumes its manifest's `slotWeight` (default 1), recorded in
+`instances.slot_weight` at admission; orphan or partial allocations count as one
+slot each until cleanup removes them. Duplicate containers/networks for an identity,
 malformed or mismatched ownership labels, and failed inventory reads refuse
 admission. Complete Engine ID lists catch persisted resources with stripped
 labels. Missing route directories fail closed; local startup initializes the
 configured directory before inventory.
+
+### Multi-container instances
+
+A manifest may list up to three internal `services` beside the entry. Each runs
+as `cr-<id>-<service>` with the same fixed security defaults, the
+`cyber-range.service` label and its name as a network alias on the instance
+network. It has no route and no published port. Spawn starts services first,
+then the entry, delivers the flag to the one named service, writes the route, and
+waits for every container to be healthy; any failure removes them all. The entry
+lists its expected services in `cyber-range.services`, so status reports
+`missing` if one disappears, and the instance fails and is cleaned up like any
+other runtime failure. Destroy and orphan cleanup remove every container.
+
+A manifest with `sandbox: "gvisor"` runs every container of the lab on the
+`runsc` runtime (shell labs, where a learner has a terminal). Preflight fails if
+the host does not advertise `runsc`. Because gVisor's netstack can't reach
+Docker's embedded DNS, the entry container is given an `/etc/hosts` entry for
+each service from the address it gets at start. Such a lab may declare one
+`workspace` tmpfs that allows execution; every other mount, `/tmp` included,
+stays `noexec`.
+
+A gVisor manifest may also set `privilege: "escalation"`, for reviewed
+privilege-escalation labs only: the challenge id must be in `ESCALATION_LABS`
+(`src/orchestrator/runtime-manifests.ts`), and the registry, package loader,
+container builder and preflight each refuse anything else. Only the entry
+container changes: it runs on the `runsc-suid` runtime and without
+`no-new-privileges`, so set-uid works inside the sandbox. Capabilities stay
+dropped and every other default is unchanged; internal services stay standard.
+`runsc` ignores set-uid bits unless started with `--allow-suid`, so a lab host
+that runs these labs registers a second runtime in `/etc/docker/daemon.json`
+and reloads Docker:
+
+```json
+"runtimes": {
+  "runsc": { "path": "/usr/local/bin/runsc" },
+  "runsc-suid": { "path": "/usr/local/bin/runsc", "runtimeArgs": ["--allow-suid"] }
+}
+```
+
+Preflight fails if an escalation lab is configured and the host does not
+advertise `runsc-suid`.
 
 Retries reuse their reservation and route key. Cleanup or inventory failures
 retain the slot. Terminal reservations are released only after a complete
@@ -92,6 +134,13 @@ after enqueue succeeds, so a crash between database commit and Redis delivery
 is recoverable. Jobs use five attempts with exponential backoff and remain in
 the failed set for inspection.
 
+A stop or expiry records `instance.stopped` or `instance.expired` once, in the
+same transaction as the terminal state, so retries add no duplicates. A `destroy`
+or `reap` operation that exhausts its attempts records `instance.stop_failed`;
+the instance stays `stopping`, keeps its slot, and the next reconcile retries.
+Reconcile failures are not audited individually because a stuck stop would
+append one every minute.
+
 The maintenance sweep creates idempotent reaper intent for expired instances
 and minute-bucketed reconciliation intent for active instances. Stale running
 operations return to pending delivery. Docker resources carry backend-owned
@@ -102,6 +151,11 @@ This prevents startup maintenance from racing a pending spawn. Multiple worker
 processes require a distributed per-instance lock before scale-out.
 
 ## Trusted runtime manifests
+
+Real labs set `flagDelivery: { mode: "exec", command, user }`: after start and
+before the route is written, the worker runs that fixed command with the flag in
+that one exec's environment. Only Welcome uses the default `env` mode. Generate
+lab entries with `scripts/lab-manifests.mjs` from observed image IDs.
 
 The worker reads a reviewed JSON array from `RUNTIME_MANIFEST_PATH`. Runtime
 fields never come from an API request. Each published runnable HTTP challenge

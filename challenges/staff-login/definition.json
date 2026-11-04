@@ -1,0 +1,23 @@
+{
+  "id": "a1000000-0000-4000-8000-000000000002",
+  "slug": "staff-login",
+  "title": "Staff Login",
+  "summary": "A clinic's staff portal has no self-service signup. Get into the administrator's account anyway.",
+  "category": "web",
+  "difficulty": "easy",
+  "points": 100,
+  "kind": "web",
+  "tags": ["sqli", "authentication", "beginner"],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": ["Find out how the login form behaves with unexpected input", "Sign in as an administrator without a password", "Recover the payroll export key from the admin note"],
+  "learningOutcomes": ["Identify SQL injection from error messages", "Bypass a login by changing query logic", "Fix the flaw with parameterized queries"],
+  "references": [
+    { "label": "CWE-89: SQL Injection", "url": "https://cwe.mitre.org/data/definitions/89.html" },
+    { "label": "OWASP Top 10: Injection", "url": "https://owasp.org/Top10/A03_2021-Injection/" }
+  ],
+  "hints": [
+    { "cost": 10, "bodyMd": "Try a single quote in the username field and read what comes back." },
+    { "cost": 25, "bodyMd": "If you can end the string early, you can also comment out the password check. SQLite comments start with two dashes." }
+  ]
+}

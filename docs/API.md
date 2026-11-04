@@ -184,7 +184,7 @@ and unpublishes the six samples so they are not advertised as playable labs.
 Do not reseed hosted or personal databases. Disabling the policy and explicitly
 reseeding unpublishes Welcome; this changes no existing solve history.
 
-The target uses relative navigation behind `/labs/<route-key>/` prefix stripping
+The target is served on its own origin, `https://<route-key>.<LAB_PUBLIC_HOST>/`,
 and needs no cookies. Inject the flag through the existing runtime environment
 boundary; do not bake it into an image or persist submitted flag values. Keep
 the runtime fixture configuration outside version control. Completion checks
@@ -273,7 +273,19 @@ with `{ status: "unready", checks }`. It does not use the API error envelope.
   and current role permissions in PostgreSQL.
 - Catalog reads are public, include published database rows only, preserve the
   original public fields, and return `source: "database"` on the list.
-- Submissions require `submissions:write`, an `instanceId`, and an owned running
+- `GET /v1/challenges/:slug/content` is public and never includes hint bodies or
+  walkthroughs. `GET /v1/challenges/:slug/state` requires `profile:read` and
+  returns only what this player has unlocked. `POST
+  /v1/challenges/:slug/hints/:position/unlock` and `POST
+  /v1/challenges/:slug/walkthrough/unlock` require `submissions:write`, share
+  the submission rate limit, and are safe to retry. `solves[].points` on the
+  profile can now be 0.
+- `GET /v1/challenges/:slug/content` also lists `artifacts` (filename, size,
+  SHA-256). `GET /v1/challenges/:slug/artifacts/:filename` requires `profile:read`,
+  shares the submission rate limit, and returns a forced attachment. Files are
+  served from `ARTIFACT_STORE_DIRECTORY` only if they match their manifest checksum.
+- Artifact challenges omit `instanceId` on submission; see the scoring contract.
+- Other submissions require `submissions:write`, an `instanceId`, and an owned running
   challenge instance. They persist the attempt and return
   `{ correct, points, recorded: true, source: "database" }`; only the first
   correct solve awards points. The server-wired resolver accepts only an owned,

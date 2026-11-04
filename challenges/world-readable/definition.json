@@ -1,0 +1,23 @@
+{
+  "id": "a4000000-0000-4000-8000-000000000003",
+  "slug": "world-readable",
+  "title": "World Readable",
+  "summary": "A staging box left a deploy token in a world-readable backup. The internal vault trusts whoever holds it.",
+  "category": "linux",
+  "difficulty": "easy",
+  "points": 100,
+  "kind": "shell",
+  "tags": ["linux", "enumeration", "unsecured-credentials"],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": ["Enumerate the box for readable configuration and backups", "Find the leaked deploy token", "Use it to read the internal vault"],
+  "learningOutcomes": ["Enumerate a host for unsecured credentials", "Explain why secrets in world-readable files are dangerous even without privilege escalation", "Recommend least-privilege file permissions and secret management"],
+  "references": [
+    { "label": "CWE-552: Files or Directories Accessible to External Parties", "url": "https://cwe.mitre.org/data/definitions/552.html" },
+    { "label": "MITRE ATT&CK T1552.001: Credentials In Files", "url": "https://attack.mitre.org/techniques/T1552/001/" }
+  ],
+  "hints": [
+    { "cost": 10, "bodyMd": "Look for files everyone can read that shouldn't hold secrets. Try `grep -R VAULT /etc /var /opt /srv 2>/dev/null`, and look in `/var/backups`." },
+    { "cost": 20, "bodyMd": "`/var/backups/deploy.env` holds `VAULT_TOKEN`. Send it to the vault as the `X-Vault-Token` header: `python3 -c \"import urllib.request as u;print(u.urlopen(u.Request('http://vault:8080/',headers={'X-Vault-Token':'<token>'})).read().decode())\"`." }
+  ]
+}

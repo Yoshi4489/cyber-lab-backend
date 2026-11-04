@@ -88,7 +88,7 @@ describeDatabase('Welcome two-user isolation', () => {
     handler = new DockerLifecycleHandler(state, manifests, createRuntimeFlagDeriver(secret, welcome), orchestrator, nodeId);
 
     const lifecycle = new InstanceLifecycleService(
-      new DrizzleInstanceLifecycleRepository(database.db), 'https://labs.example.test',
+      new DrizzleInstanceLifecycleRepository(database.db), 'labs.example.test',
     );
     app = await buildApp({ ...testConfig, ...welcome }, {
       instances: lifecycle,

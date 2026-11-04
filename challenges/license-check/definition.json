@@ -1,0 +1,47 @@
+{
+  "id": "a2000000-0000-4000-8000-000000000005",
+  "slug": "license-check",
+  "title": "License Check",
+  "summary": "A trial tool wants a serial you were never given. It carries everything needed to check one.",
+  "category": "reversing",
+  "difficulty": "easy",
+  "points": 100,
+  "kind": "artifact",
+  "tags": [
+    "static-analysis",
+    "xor",
+    "beginner"
+  ],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": [
+    "Read how the tool checks a serial",
+    "Write the check in reverse",
+    "Confirm your serial activates the tool"
+  ],
+  "learningOutcomes": [
+    "Trace a check through its data tables",
+    "Invert a simple byte transformation",
+    "Explain why client-side checks cannot keep secrets"
+  ],
+  "references": [
+    {
+      "label": "CWE-656: Reliance on Security Through Obscurity",
+      "url": "https://cwe.mitre.org/data/definitions/656.html"
+    },
+    {
+      "label": "MITRE ATT&CK T1027: Obfuscated Files or Information",
+      "url": "https://attack.mitre.org/techniques/T1027/"
+    }
+  ],
+  "hints": [
+    {
+      "cost": 10,
+      "bodyMd": "The comparison needs the right answer in some form, so the answer ships with the tool. Each byte of a serial goes through two steps."
+    },
+    {
+      "cost": 25,
+      "bodyMd": "Forwards it is `(byte XOR key) + position`, keeping 8 bits. Undo the steps in the opposite order for each entry in `TABLE`."
+    }
+  ]
+}

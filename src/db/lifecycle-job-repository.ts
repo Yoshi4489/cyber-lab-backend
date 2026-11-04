@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, eq, inArray, lt, lte, notExists, sql } from 'drizzle-orm';
 import type { Database } from './client.js';
-import { instanceOperations, instances } from './schema.js';
+import { auditEvents, instanceOperations, instances } from './schema.js';
 import type {
   ClaimedLifecycleOperation,
   LifecycleJobRepository,
@@ -128,7 +128,20 @@ export class DrizzleLifecycleJobRepository implements LifecycleJobRepository {
         .where(
           and(eq(instanceOperations.id, operationId), eq(instanceOperations.status, 'running')),
         )
-        .returning({ instanceId: instanceOperations.instanceId, type: instanceOperations.type });
+        .returning({
+          instanceId: instanceOperations.instanceId,
+          userId: instanceOperations.userId,
+          type: instanceOperations.type,
+        });
+      // Reconcile retries a stuck stop every minute, so only the stop itself is audited.
+      if (operation?.type === 'destroy' || operation?.type === 'reap') {
+        await transaction.insert(auditEvents).values({
+          targetUserId: operation.userId,
+          eventType: 'instance.stop_failed',
+          details: { instanceId: operation.instanceId, operationType: operation.type, failureCode },
+          createdAt: now,
+        });
+      }
       if (operation?.type === 'spawn') {
         await transaction
           .update(instances)

@@ -1,0 +1,8 @@
+{
+  "name": "cyber-range-lab-bot",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "24.43.1"
+  }
+}

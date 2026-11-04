@@ -1,0 +1,47 @@
+{
+  "id": "a2000000-0000-4000-8000-000000000004",
+  "slug": "lost-photo",
+  "title": "Lost Photo",
+  "summary": "A scanned evidence photo is bigger than a picture of that size should be. Find out why.",
+  "category": "forensics",
+  "difficulty": "easy",
+  "points": 100,
+  "kind": "artifact",
+  "tags": [
+    "file-carving",
+    "metadata",
+    "beginner"
+  ],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": [
+    "Inspect the metadata of the image",
+    "Find where the image data really ends",
+    "Carve out and read what follows it"
+  ],
+  "learningOutcomes": [
+    "Read PNG metadata",
+    "Explain how a file can hide data after its logical end",
+    "Identify an embedded file from its signature"
+  ],
+  "references": [
+    {
+      "label": "NIST SP 800-86: Guide to Integrating Forensic Techniques into Incident Response",
+      "url": "https://csrc.nist.gov/pubs/sp/800/86/final"
+    },
+    {
+      "label": "MITRE ATT&CK T1027: Obfuscated Files or Information",
+      "url": "https://attack.mitre.org/techniques/T1027/"
+    }
+  ],
+  "hints": [
+    {
+      "cost": 10,
+      "bodyMd": "Tools like `exiftool` show the embedded comment. It says a note was stored with the scan, but where?"
+    },
+    {
+      "cost": 25,
+      "bodyMd": "Every PNG ends with an `IEND` chunk. Look at the bytes after it. `binwalk`, or a hex editor searching for the bytes `1f 8b`, will help."
+    }
+  ]
+}

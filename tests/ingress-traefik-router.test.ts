@@ -5,7 +5,7 @@ import { IngressTraefikRouter } from '../src/orchestrator/ingress-traefik-router
 import type { TraefikRoute } from '../src/orchestrator/traefik-router.js';
 
 const instanceId = '77777777-7777-4777-8777-777777777777';
-const routeKey = 'abcdefghijklmnopqrstuvwx12345678';
+const routeKey = '0123456789abcdef0123456789abcdef01234567';
 const directory = '/etc/traefik/dynamic';
 const routePath = `${directory}/lab-77777777777747778777777777777777.yml`;
 
@@ -55,8 +55,7 @@ describe('Traefik routes delivered into ingress', () => {
     expect(ingress.docker.getContainer).toHaveBeenCalledWith('traefik');
     expect(ingress.putArchive.mock.calls[0]?.[1]).toEqual({ path: directory });
     const delivered = ingress.files.get(routePath);
-    expect(delivered).toContain(`rule: "PathPrefix(\`/labs/${routeKey}/\`)"`);
-    expect(delivered).toContain(`prefixes: ["/labs/${routeKey}"]`);
+    expect(delivered).toContain(`rule: "HostRegexp(\`^${routeKey}[.]\`)"`);
     expect(delivered).toContain('servers: [{url: "http://cr-target:8080"}]');
   });
 

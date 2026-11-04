@@ -1,0 +1,1 @@
+ALTER TABLE "instances" ADD COLUMN "slot_weight" integer DEFAULT 1 NOT NULL;

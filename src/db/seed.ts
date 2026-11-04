@@ -19,6 +19,11 @@ const seedConfigSchema = z.object({
 
 const welcome = loadWelcomeLabConfig();
 const config = seedConfigSchema.parse(process.env);
+const publishLabs = process.env.CATALOG_PUBLISH_LABS === 'true';
+// Real vulnerable labs stay off hosted catalogs until the production gate passes.
+if (publishLabs && process.env.NODE_ENV === 'production') {
+  throw new Error('CATALOG_PUBLISH_LABS is disabled in production');
+}
 const database = createDatabase(config.DATABASE_URL);
 const repository = new DrizzleAuthRepository(database.db);
 const passwordHasher = createPasswordHasher();
@@ -46,7 +51,7 @@ async function seedAccount(input: {
 }
 
 try {
-  await seedCatalog(database.db, welcome);
+  await seedCatalog(database.db, welcome, { publishLabs });
   await seedAccount({
     email: config.SEED_ADMIN_EMAIL,
     password: config.SEED_ADMIN_PASSWORD,

@@ -1,0 +1,43 @@
+{
+  "id": "a2000000-0000-4000-8000-000000000001",
+  "slug": "caesars-memo",
+  "title": "Caesar's Memo",
+  "summary": "A warehouse memo was scrambled before it was left on a desk. Read it, then read what it hides.",
+  "category": "crypto",
+  "difficulty": "easy",
+  "points": 100,
+  "kind": "artifact",
+  "tags": [
+    "classical-crypto",
+    "encoding",
+    "beginner"
+  ],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": [
+    "Work out how the memo was scrambled",
+    "Recover the plain text",
+    "Decode the release code inside it"
+  ],
+  "learningOutcomes": [
+    "Break a shift cipher by frequency or brute force",
+    "Tell encoding apart from encryption",
+    "Explain why secrecy of the method is not security"
+  ],
+  "references": [
+    {
+      "label": "CWE-327: Use of a Broken or Risky Cryptographic Algorithm",
+      "url": "https://cwe.mitre.org/data/definitions/327.html"
+    }
+  ],
+  "hints": [
+    {
+      "cost": 10,
+      "bodyMd": "Spaces and line breaks survived. Only the letters changed, and each one seems to have moved the same distance."
+    },
+    {
+      "cost": 25,
+      "bodyMd": "There are only 25 possible shifts. Once the memo reads as English, look at the character set of the release code."
+    }
+  ]
+}

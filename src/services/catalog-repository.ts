@@ -1,5 +1,5 @@
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type ChallengeKind = 'web' | 'shell';
+export type ChallengeKind = 'web' | 'shell' | 'artifact';
 
 export type CatalogChallenge = {
   id: string;

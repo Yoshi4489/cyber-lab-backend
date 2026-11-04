@@ -12,7 +12,7 @@ const solveSchema = z.object({
   challengeId: z.uuid(),
   slug: z.string(),
   title: z.string(),
-  points: z.number().int().positive(),
+  points: z.number().int().nonnegative(),
   solvedAt: z.iso.datetime(),
 });
 

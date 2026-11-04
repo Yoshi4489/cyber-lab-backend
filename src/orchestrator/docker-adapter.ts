@@ -1,11 +1,18 @@
 import type Docker from 'dockerode';
-import type { RuntimeManifest } from './runtime-manifests.js';
+import { escalationProblem, type RuntimeManifest, type RuntimeService } from './runtime-manifests.js';
 import type { TraefikRouter } from './traefik-router.js';
 import type { ManagedRuntimeAllocation, ManagedRuntimeInventory } from '../services/runtime-inventory.js';
 
 const MANAGED_LABEL = 'cyber-range.managed';
 const INSTANCE_LABEL = 'cyber-range.instance-id';
 const CHALLENGE_LABEL = 'cyber-range.challenge-id';
+// On internal service containers only; the entry container has none.
+const SERVICE_LABEL = 'cyber-range.service';
+// On the entry: the services it needs, so status can notice one that disappeared.
+const SERVICES_LABEL = 'cyber-range.services';
+const FLAG_DELIVERY_TIMEOUT_MS = 15_000;
+/** gVisor with `--allow-suid`; runsc ignores set-uid bits otherwise. See docs/LIFECYCLE.md. */
+const SUID_RUNTIME = 'runsc-suid';
 const ISOLATED_GATEWAY_OPTIONS = {
   'com.docker.network.bridge.gateway_mode_ipv4': 'isolated',
   'com.docker.network.bridge.gateway_mode_ipv6': 'isolated',
@@ -39,6 +46,8 @@ export class DockerOrchestrator {
     private readonly docker: Docker,
     private readonly router: TraefikRouter,
     private readonly ingressContainer?: string,
+    // Only the publication check sets this false, on disposable CI runners that lack userns remap.
+    private readonly options: { verifyHost?: boolean } = {},
   ) {}
 
   /** Read-only inventory includes partial and orphan resources; it never deletes them. */
@@ -68,7 +77,7 @@ export class DockerOrchestrator {
         }
         if (labels?.[MANAGED_LABEL] !== 'true') {
           const names = 'Names' in resource ? resource.Names : ['Name' in resource ? resource.Name : ''];
-          if (names?.some((name) => /^\/?crn?-[0-9a-f]{32}$/u.test(name ?? ''))) {
+          if (names?.some((name) => RESERVED_NAME.test(name ?? ''))) {
             throw new Error('Reserved lab resource names have missing ownership labels');
           }
           continue;
@@ -79,21 +88,25 @@ export class DockerOrchestrator {
           throw new Error('Managed resource inventory has invalid ownership labels');
         }
         const names = resourceNames(instanceId);
+        const service = kind === 'containerId' ? labels[SERVICE_LABEL] : undefined;
+        if (service !== undefined && !SERVICE_NAME.test(service)) throw new Error('Managed resource has an invalid service label');
         const canonicalName = kind === 'containerId'
-          ? 'Names' in resource && resource.Names?.includes(`/${names.container}`)
+          ? 'Names' in resource && resource.Names?.includes(`/${containerName(instanceId, service)}`)
           : 'Name' in resource && resource.Name === names.network;
         if (!canonicalName) throw new Error('Managed resource name does not match its ownership labels');
-        if (seen.has(instanceId)) {
+        const slot = `${instanceId}/${service ?? ''}`;
+        if (seen.has(slot)) {
           throw new Error('Managed resource inventory has duplicate allocations');
         }
-        seen.add(instanceId);
+        seen.add(slot);
         const allocation = allocationFor(instanceId);
         if (allocation.challengeId && allocation.challengeId !== challengeId) {
           throw new Error('Managed runtime resources have inconsistent challenge labels');
         }
         if (!resource.Id) throw new Error('Managed resource inventory is missing an identifier');
         allocation.challengeId = challengeId;
-        allocation[kind] = resource.Id;
+        if (service !== undefined) allocation.serviceContainerIds = [...allocation.serviceContainerIds ?? [], resource.Id];
+        else allocation[kind] = resource.Id;
       }
     }
     for (const instanceId of routes) {
@@ -121,6 +134,19 @@ export class DockerOrchestrator {
       const names = resourceNames(allocation.instanceId);
       const container = allocation.containerId ? this.docker.getContainer(allocation.containerId) : null;
       const network = allocation.networkId ? this.docker.getNetwork(allocation.networkId) : null;
+      const services = await Promise.all((allocation.serviceContainerIds ?? []).map(async (id) => {
+        const service = this.docker.getContainer(id);
+        const info = await service.inspect().catch((error: unknown) => { if (isDockerNotFound(error)) return null; throw error; });
+        if (!info) return null;
+        const name = info.Config?.Labels?.[SERVICE_LABEL];
+        if (info.Id !== id || !name || info.Name !== `/${containerName(allocation.instanceId, name)}` ||
+          (ingress && info.Id === ingress.Id)) {
+          throw new Error('Refusing cleanup of a noncanonical service container');
+        }
+        assertManagedLabels(info.Config?.Labels, allocation.instanceId);
+        if (info.Config?.Labels?.[CHALLENGE_LABEL] !== allocation.challengeId) throw new Error('Cleanup service challenge ownership changed');
+        return service;
+      }));
       const [containerInfo, networkInfo] = await Promise.all([
         container?.inspect().catch((error: unknown) => { if (isDockerNotFound(error)) return null; throw error; }),
         network?.inspect().catch((error: unknown) => { if (isDockerNotFound(error)) return null; throw error; }),
@@ -142,6 +168,7 @@ export class DockerOrchestrator {
       return async () => {
         if (allocation.routePresent) await this.router.remove(allocation.instanceId);
         if (container && containerInfo) await removeContainer(container);
+        for (const service of services) if (service) await removeContainer(service);
         if (network && networkInfo) {
           // Detach only the actual trusted ingress ID. Other endpoints remain untouched.
           if (ingress && networkInfo.Containers?.[ingress.Id]) {
@@ -157,53 +184,58 @@ export class DockerOrchestrator {
     validateSpawnInput(input);
     await this.verifyHostSecurity();
     const names = resourceNames(input.instanceId);
-    const existing = await this.findContainer(input.instanceId);
-    if (existing) {
-      const network = await this.findNetwork(input.instanceId);
-      if (!network) throw new Error('Managed container is missing its isolated network');
-      await assertManagedNetwork(network.network, input.instanceId, input.challengeId);
-      try {
-        await this.ensureIngressConnected(network.network);
-        await startContainer(existing.container);
-        await this.router.upsert({
-          instanceId: input.instanceId,
-          routeKey: input.routeKey,
-          targetHost: names.container,
-          targetPort: input.manifest.containerPort,
-        });
-        await this.waitUntilHealthy(existing, input.manifest.healthcheck.startupSeconds);
-        return { containerId: existing.id, networkId: network.id };
-      } catch (error) {
-        await this.router.remove(input.instanceId).catch(() => undefined);
-        await removeContainer(existing.container).catch(() => undefined);
-        await this.removeNetwork(network.network).catch(() => undefined);
-        throw error;
-      }
-    }
-
+    const existing = await this.findContainers(input.instanceId);
     let network: Docker.Network | undefined;
-    let container: Docker.Container | undefined;
+    const containers = new Map<string, Docker.Container>();
     try {
-      network = await this.ensureNetwork(input, names.network);
+      if (existing.size > 0) {
+        // A retry resumes a partial start, which must still have its isolated network.
+        const found = await this.findNetwork(input.instanceId);
+        if (!found) throw new Error('Managed container is missing its isolated network');
+        await assertManagedNetwork(found.network, input.instanceId, input.challengeId);
+        network = found.network;
+      } else {
+        network = await this.ensureNetwork(input, names.network);
+      }
       await this.ensureIngressConnected(network);
-      container = await this.docker.createContainer(
-        buildContainerOptions(input, names.container, names.network),
-      );
-      await startContainer(container);
+      // Internal services first, so the entry can reach them as soon as it starts.
+      const serviceHosts: string[] = [];
+      for (const service of [...input.manifest.services, null]) {
+        const key = service?.name ?? '';
+        // gVisor's netstack can't reach Docker's embedded DNS, so the entry resolves
+        // its services through /etc/hosts entries built from their assigned addresses.
+        const extraHosts = service || input.manifest.sandbox !== 'gvisor' ? [] : serviceHosts;
+        const container = existing.get(key)?.container ??
+          await this.docker.createContainer(buildContainerOptions(input, service, names.network, extraHosts));
+        containers.set(key, container);
+        await startContainer(container);
+        if (service && input.manifest.sandbox === 'gvisor') {
+          const address = (await container.inspect()).NetworkSettings?.Networks?.[names.network]?.IPAddress;
+          if (!address) throw new Error(`Service ${service.name} has no address on the instance network`);
+          serviceHosts.push(`${service.name}:${address}`);
+        }
+      }
+      const delivery = input.manifest.flagDelivery;
+      const target = containers.get(delivery.mode === 'exec' ? delivery.service ?? '' : '');
+      if (!target) throw new Error('Flag delivery target is missing');
+      await deliverFlag(target, input);
       await this.router.upsert({
         instanceId: input.instanceId,
         routeKey: input.routeKey,
         targetHost: names.container,
         targetPort: input.manifest.containerPort,
       });
-      await this.waitUntilHealthy(
-        { id: container.id, container },
-        input.manifest.healthcheck.startupSeconds,
-      );
-      return { containerId: container.id, networkId: network.id };
+      for (const [key, container] of containers) {
+        const startup = input.manifest.services.find(({ name }) => name === key)?.healthcheck.startupSeconds;
+        await this.waitUntilHealthy({ id: container.id, container }, startup ?? input.manifest.healthcheck.startupSeconds);
+      }
+      const entry = containers.get('');
+      if (!entry) throw new Error('Entry container is missing');
+      return { containerId: entry.id, networkId: network.id };
     } catch (error) {
       await this.router.remove(input.instanceId).catch(() => undefined);
-      await removeContainer(container).catch(() => undefined);
+      for (const { container } of existing.values()) await removeContainer(container).catch(() => undefined);
+      for (const container of containers.values()) await removeContainer(container).catch(() => undefined);
       if (network) await this.removeNetwork(network).catch(() => undefined);
       throw error;
     }
@@ -211,10 +243,9 @@ export class DockerOrchestrator {
 
   async destroy(input: DestroyTargetInput): Promise<void> {
     await this.router.remove(input.instanceId);
-    const container = input.containerId
-      ? await this.getManagedContainer(input.containerId, input.instanceId)
-      : (await this.findContainer(input.instanceId))?.container;
-    if (container) await removeContainer(container);
+    const entry = input.containerId ? await this.getManagedContainer(input.containerId, input.instanceId) : undefined;
+    if (entry) await removeContainer(entry);
+    for (const { container } of (await this.findContainers(input.instanceId)).values()) await removeContainer(container);
     const network = input.networkId
       ? await this.getManagedNetwork(input.networkId, input.instanceId)
       : (await this.findNetwork(input.instanceId))?.network;
@@ -222,17 +253,25 @@ export class DockerOrchestrator {
   }
 
   async runtimeStatus(instanceId: string): Promise<RuntimeStatus> {
-    const existing = await this.findContainer(instanceId);
-    if (!existing) return 'missing';
-    const details = await existing.container.inspect().catch((error: unknown) => {
-      if (isDockerNotFound(error)) return null;
-      throw error;
-    });
-    if (!details) return 'missing';
-    assertManagedLabels(details.Config?.Labels, instanceId);
-    if (details.State.OOMKilled) return 'oom';
-    if (!details.State.Running) return 'stopped';
-    if (details.State.Health?.Status === 'unhealthy') return 'unhealthy';
+    const containers = await this.findContainers(instanceId);
+    const entry = containers.get('');
+    if (!entry) return 'missing';
+    const entryDetails = await inspectOrNull(entry.container);
+    if (!entryDetails) return 'missing';
+    assertManagedLabels(entryDetails.Config?.Labels, instanceId);
+    const expected = (entryDetails.Config?.Labels?.[SERVICES_LABEL] ?? '').split(',').filter(Boolean);
+    // A lost internal service breaks the lab as surely as a lost entry.
+    if (expected.some((name) => !containers.has(name)) || containers.size !== expected.length + 1) return 'missing';
+    const states: Docker.ContainerInspectInfo[] = [];
+    for (const { container } of containers.values()) {
+      const details = container === entry.container ? entryDetails : await inspectOrNull(container);
+      if (!details) return 'missing';
+      assertManagedLabels(details.Config?.Labels, instanceId);
+      if (details.State.OOMKilled) return 'oom';
+      if (!details.State.Running) return 'stopped';
+      if (details.State.Health?.Status === 'unhealthy') return 'unhealthy';
+      states.push(details);
+    }
     const network = await this.findNetwork(instanceId);
     if (!network) return 'unsafe_network';
     const networkDetails = await network.network.inspect().catch((error: unknown) => {
@@ -241,12 +280,14 @@ export class DockerOrchestrator {
     });
     if (!networkDetails) return 'unsafe_network';
     assertManagedLabels(networkDetails.Labels, instanceId);
-    const attachedNetworks = Object.keys(details.NetworkSettings?.Networks ?? {});
-    if (!meetsNetworkIsolation(networkDetails) ||
-        !details.Config?.Labels?.[CHALLENGE_LABEL] ||
-        details.Config.Labels[CHALLENGE_LABEL] !== networkDetails.Labels?.[CHALLENGE_LABEL] ||
-        attachedNetworks.length !== 1 || attachedNetworks[0] !== networkDetails.Name) {
-      return 'unsafe_network';
+    if (!meetsNetworkIsolation(networkDetails)) return 'unsafe_network';
+    for (const details of states) {
+      const attachedNetworks = Object.keys(details.NetworkSettings?.Networks ?? {});
+      if (!details.Config?.Labels?.[CHALLENGE_LABEL] ||
+          details.Config.Labels[CHALLENGE_LABEL] !== networkDetails.Labels?.[CHALLENGE_LABEL] ||
+          attachedNetworks.length !== 1 || attachedNetworks[0] !== networkDetails.Name) {
+        return 'unsafe_network';
+      }
     }
     return 'healthy';
   }
@@ -259,8 +300,22 @@ export class DockerOrchestrator {
     const ingress = await this.docker.getContainer(this.ingressContainer).inspect();
     if (!ingress.State.Running) throw new Error('Docker ingress container is not running');
 
-    await Promise.all(manifests.map(async (manifest) => {
-      await this.docker.getImage(manifest.image).inspect().catch((error: unknown) => {
+    if (manifests.some((manifest) => manifest.sandbox === 'gvisor')) {
+      const info = await this.docker.info();
+      const runtimes = (info.Runtimes ?? {}) as Record<string, unknown>;
+      if (!('runsc' in runtimes)) throw new Error('A lab requires the gVisor (runsc) runtime, which the Docker host does not advertise');
+      if (manifests.some((manifest) => manifest.privilege === 'escalation') && !(SUID_RUNTIME in runtimes)) {
+        throw new Error(`An escalation lab requires the ${SUID_RUNTIME} runtime, which the Docker host does not advertise`);
+      }
+    }
+    for (const manifest of manifests) {
+      const problem = escalationProblem(manifest.challengeId, manifest);
+      if (problem) throw new Error(problem);
+    }
+
+    const images = manifests.flatMap((manifest) => [manifest.image, ...manifest.services.map(({ image }) => image)]);
+    await Promise.all(images.map(async (image) => {
+      await this.docker.getImage(image).inspect().catch((error: unknown) => {
         if (isDockerNotFound(error)) {
           throw new Error('A trusted runtime image is unavailable on the Docker host');
         }
@@ -270,7 +325,7 @@ export class DockerOrchestrator {
   }
 
   private async verifyHostSecurity(): Promise<void> {
-    if (this.hostVerified) return;
+    if (this.hostVerified || this.options.verifyHost === false) return;
     const info = await this.docker.info();
     const rawOptions: unknown = info.SecurityOptions;
     const options = Array.isArray(rawOptions)
@@ -359,14 +414,19 @@ export class DockerOrchestrator {
     await removeDockerNetwork(network);
   }
 
-  private async findContainer(instanceId: string) {
+  /** Every container of an instance, keyed by service name ('' for the entry). */
+  private async findContainers(instanceId: string) {
     const containers = await this.docker.listContainers({
       all: true,
       filters: JSON.stringify({ label: [`${MANAGED_LABEL}=true`, `${INSTANCE_LABEL}=${instanceId}`] }),
     });
-    const match = containers[0];
-    if (!match) return null;
-    return { id: match.Id, container: this.docker.getContainer(match.Id) };
+    const found = new Map<string, { id: string; container: Docker.Container }>();
+    for (const match of containers) {
+      const service = match.Labels?.[SERVICE_LABEL] ?? '';
+      if (found.has(service)) throw new Error('Managed instance has duplicate service containers');
+      found.set(service, { id: match.Id, container: this.docker.getContainer(match.Id) });
+    }
+    return found;
   }
 
   private async findNetwork(instanceId: string) {
@@ -418,53 +478,108 @@ export class DockerOrchestrator {
   }
 }
 
+/** `service` null is the entry. Every container gets the same fixed security defaults. */
 function buildContainerOptions(
   input: SpawnTargetInput,
-  containerName: string,
+  service: RuntimeService | null,
   networkName: string,
+  extraHosts: string[] = [],
 ): Docker.ContainerCreateOptions {
-  const port = `${input.manifest.containerPort}/tcp`;
+  const spec = service ?? input.manifest;
+  const name = containerName(input.instanceId, service?.name);
+  // Reviewed escalation labs only, entry only: set-uid works, capabilities stay dropped.
+  const escalation = !service && input.manifest.privilege === 'escalation';
+  if (escalation && escalationProblem(input.challengeId, input.manifest)) {
+    throw new Error('Refusing an unreviewed privilege profile');
+  }
+  const labels = managedLabels(input.instanceId, input.challengeId);
+  if (service) labels[SERVICE_LABEL] = service.name;
+  else if (input.manifest.services.length > 0) labels[SERVICES_LABEL] = input.manifest.services.map(({ name: next }) => next).join(',');
   return {
-    name: containerName,
-    Image: input.manifest.image,
-    User: input.manifest.user,
-    Cmd: input.manifest.command,
-    Env: [`CYBER_RANGE_FLAG=${input.flag}`],
-    Labels: managedLabels(input.instanceId, input.challengeId),
-    ExposedPorts: { [port]: {} },
+    name,
+    Image: spec.image,
+    User: spec.user,
+    Cmd: spec.command,
+    Env: !service && input.manifest.flagDelivery.mode === 'env' ? [`CYBER_RANGE_FLAG=${input.flag}`] : [],
+    Labels: labels,
+    ...(service ? {} : { ExposedPorts: { [`${input.manifest.containerPort}/tcp`]: {} } }),
     StopTimeout: 10,
     Healthcheck: {
-      Test: input.manifest.healthcheck.test,
-      Interval: input.manifest.healthcheck.intervalSeconds * 1_000_000_000,
-      Timeout: input.manifest.healthcheck.timeoutSeconds * 1_000_000_000,
-      Retries: input.manifest.healthcheck.retries,
+      Test: spec.healthcheck.test,
+      Interval: spec.healthcheck.intervalSeconds * 1_000_000_000,
+      Timeout: spec.healthcheck.timeoutSeconds * 1_000_000_000,
+      Retries: spec.healthcheck.retries,
       StartPeriod: 2 * 1_000_000_000,
     },
     HostConfig: {
       AutoRemove: false,
+      // Shell labs run on the gVisor kernel, isolating learner code from the host kernel.
+      ...(input.manifest.sandbox === 'gvisor' ? { Runtime: escalation ? SUID_RUNTIME : 'runsc' } : {}),
+      ...(extraHosts.length > 0 ? { ExtraHosts: extraHosts } : {}),
       CapDrop: ['ALL'],
       Init: true,
-      Memory: input.manifest.resources.memoryMb * 1_024 * 1_024,
-      MemorySwap: input.manifest.resources.memoryMb * 1_024 * 1_024,
-      NanoCpus: Math.round(input.manifest.resources.cpuCores * 1_000_000_000),
+      Memory: spec.resources.memoryMb * 1_024 * 1_024,
+      MemorySwap: spec.resources.memoryMb * 1_024 * 1_024,
+      NanoCpus: Math.round(spec.resources.cpuCores * 1_000_000_000),
       NetworkMode: networkName,
       IpcMode: 'none',
-      PidsLimit: input.manifest.resources.pids,
+      PidsLimit: spec.resources.pids,
       Privileged: false,
       ReadonlyRootfs: true,
       // The verified host's built-in seccomp profile applies when no override is set.
-      SecurityOpt: ['no-new-privileges:true', 'apparmor=docker-default'],
+      SecurityOpt: escalation ? ['apparmor=docker-default'] : ['no-new-privileges:true', 'apparmor=docker-default'],
       Tmpfs: {
-        '/tmp': `rw,noexec,nosuid,nodev,size=${input.manifest.resources.tmpfsMb}m`,
+        '/tmp': `rw,noexec,nosuid,nodev,size=${spec.resources.tmpfsMb}m`,
+        // Shell labs get one exec-capable workspace; everything else stays noexec.
+        ...(spec.workspace ? { [spec.workspace.path]: `rw,nosuid,nodev,size=${spec.workspace.sizeMb}m` } : {}),
       },
       LogConfig: { Type: 'json-file', Config: { 'max-size': '10m', 'max-file': '2' } },
     },
     NetworkingConfig: {
       EndpointsConfig: {
-        [networkName]: { Aliases: [containerName] },
+        // Services find each other by name: `app` for the entry, the service name otherwise.
+        [networkName]: { Aliases: [name, service?.name ?? 'app'] },
       },
     },
   };
+}
+
+/**
+ * Runs before the route exists, so no learner can observe the short-lived
+ * process. The flag stays out of the container config and PID 1's environment.
+ */
+async function inspectOrNull(container: Docker.Container): Promise<Docker.ContainerInspectInfo | null> {
+  return container.inspect().catch((error: unknown) => {
+    if (isDockerNotFound(error)) return null;
+    throw error;
+  });
+}
+
+async function deliverFlag(container: Docker.Container, input: SpawnTargetInput): Promise<void> {
+  const delivery = input.manifest.flagDelivery;
+  if (delivery.mode !== 'exec') return;
+  try {
+    const exec = await container.exec({
+      Cmd: delivery.command,
+      User: delivery.user,
+      Env: [`CYBER_RANGE_FLAG=${input.flag}`],
+      AttachStdout: false,
+      AttachStderr: false,
+    });
+    await exec.start({ Detach: true });
+    const deadline = Date.now() + FLAG_DELIVERY_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const details = await exec.inspect();
+      if (!details.Running) {
+        if (details.ExitCode === 0) return;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  } catch {
+    // Engine errors can echo request data; keep the flag out of logs and job failures.
+  }
+  throw new Error('Runtime flag delivery failed');
 }
 
 function managedLabels(instanceId: string, challengeId: string): Record<string, string> {
@@ -475,9 +590,16 @@ function managedLabels(instanceId: string, challengeId: string): Record<string, 
   };
 }
 
+const SERVICE_NAME = /^[a-z][a-z0-9]{1,15}$/u;
+const RESERVED_NAME = /^\/?(?:cr-[0-9a-f]{32}(?:-[a-z][a-z0-9]{1,15})?|crn-[0-9a-f]{32})$/u;
+
 function resourceNames(instanceId: string) {
   const suffix = instanceId.replaceAll('-', '');
   return { container: `cr-${suffix}`, network: `crn-${suffix}` };
+}
+
+function containerName(instanceId: string, service?: string): string {
+  return service ? `${resourceNames(instanceId).container}-${service}` : resourceNames(instanceId).container;
 }
 
 function isUuid(value: string | undefined): value is string {
@@ -488,7 +610,7 @@ function validateSpawnInput(input: SpawnTargetInput): void {
   if (input.manifest.challengeId !== input.challengeId) {
     throw new Error('Runtime manifest does not match the requested challenge');
   }
-  if (!/^[A-Za-z0-9_-]{24,64}$/u.test(input.routeKey)) throw new Error('Invalid route key');
+  if (!/^[0-9a-f]{40}$/u.test(input.routeKey)) throw new Error('Invalid route key');
   if (!input.flag || input.flag.length > 256) throw new Error('Invalid runtime flag');
 }
 

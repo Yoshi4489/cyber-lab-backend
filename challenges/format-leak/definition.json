@@ -1,0 +1,23 @@
+{
+  "id": "a4000000-0000-4000-8000-000000000002",
+  "slug": "format-leak",
+  "title": "Format Leak",
+  "summary": "A feedback terminal echoes your message with printf, using it as the format string. The secret is one pointer away.",
+  "category": "pwn",
+  "difficulty": "medium",
+  "points": 250,
+  "kind": "shell",
+  "tags": ["pwn", "format-string", "memory-disclosure"],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": ["Confirm the input is used as a printf format string", "Read stack memory with positional specifiers", "Recover the secret the service loaded"],
+  "learningOutcomes": ["Explain how an attacker-controlled format string discloses memory", "Use %p and %N$s to walk the stack", "Fix it with a constant format string and least privilege"],
+  "references": [
+    { "label": "CWE-134: Use of Externally-Controlled Format String", "url": "https://cwe.mitre.org/data/definitions/134.html" },
+    { "label": "CWE-200: Exposure of Sensitive Information", "url": "https://cwe.mitre.org/data/definitions/200.html" }
+  ],
+  "hints": [
+    { "cost": 25, "bodyMd": "Send `%p %p %p %p`. Those aren't printed literally, so the program is using your text as a format string. Each `%p` prints a stack word." },
+    { "cost": 50, "bodyMd": "One of the stack words is a pointer to the secret. Use `%N$s` to dereference the N-th argument as a string; try each N from 1 upward until the flag appears. A wrong N may close the connection, so reconnect and continue." }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "a3000000-0000-4000-8000-000000000001",
+  "slug": "support-desk",
+  "title": "Support Desk",
+  "summary": "Every new ticket is read by a support agent straight away. The agent's browser trusts whatever the ticket says.",
+  "category": "web",
+  "difficulty": "medium",
+  "points": 250,
+  "kind": "web",
+  "tags": ["xss", "stored-xss", "admin-bot"],
+  "definitionVersion": 1,
+  "published": true,
+  "objectives": ["Find where ticket text is shown without encoding", "Run your own script in the agent's browser", "Bring the agent's integration key back to where you can read it"],
+  "learningOutcomes": ["Identify stored cross-site scripting", "Explain why HttpOnly cookies don't stop an attacker acting as the victim", "Fix output encoding and add a Content Security Policy"],
+  "references": [
+    { "label": "CWE-79: Cross-site Scripting", "url": "https://cwe.mitre.org/data/definitions/79.html" },
+    { "label": "OWASP Cross Site Scripting Prevention Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html" }
+  ],
+  "hints": [
+    { "cost": 25, "bodyMd": "Try some HTML, such as `<b>bold</b>`, in a ticket. Subjects and replies are encoded; is the description?" },
+    { "cost": 50, "bodyMd": "The agent's cookie is HttpOnly and the lab has no outbound network. You don't need the cookie: the agent's browser can fetch `/admin` itself and post what it finds as a reply on your ticket." }
+  ]
+}

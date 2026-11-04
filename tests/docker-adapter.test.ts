@@ -13,7 +13,7 @@ import type { TraefikRouter } from '../src/orchestrator/traefik-router.js';
 
 const INSTANCE_ID = '77777777-7777-4777-8777-777777777777';
 const CHALLENGE_ID = '11111111-1111-4111-8111-111111111111';
-const ROUTE_KEY = 'abcdefghijklmnopqrstuvwx12345678';
+const ROUTE_KEY = '0123456789abcdef0123456789abcdef01234567';
 const IMAGE = `registry.example.test/range/web@sha256:${'a'.repeat(64)}`;
 
 const manifest: RuntimeManifest = {
@@ -21,6 +21,7 @@ const manifest: RuntimeManifest = {
   image: IMAGE,
   containerPort: 8080,
   user: '65532:65532',
+  flagDelivery: { mode: 'env' },
   healthcheck: {
     test: ['CMD', '/app/healthcheck'],
     intervalSeconds: 5,
@@ -29,9 +30,40 @@ const manifest: RuntimeManifest = {
     startupSeconds: 5,
   },
   resources: { memoryMb: 128, cpuCores: 0.5, pids: 64, tmpfsMb: 16 },
+  services: [],
+  slotWeight: 1,
+  sandbox: 'runc',
+  privilege: 'standard',
 };
 
+const withService: RuntimeManifest = {
+  ...manifest,
+  flagDelivery: { mode: 'exec', command: ['node', '/lab/load-flag.mjs'], user: '10001:10001', service: 'metadata' },
+  services: [{ name: 'metadata', image: IMAGE, user: '10001:10001', healthcheck: manifest.healthcheck, resources: manifest.resources }],
+  slotWeight: 2,
+};
+
+// SUID Surprise's reviewed id; a single-container lab plus one service to prove the service stays standard.
+const ESCALATION_ID = 'a5000000-0000-4000-8000-000000000001';
+const escalationLab: RuntimeManifest = { ...withService, challengeId: ESCALATION_ID, sandbox: 'gvisor', privilege: 'escalation' };
+
 describe('trusted runtime manifests', () => {
+  it('validates internal services and where the flag goes', () => {
+    expect(new RuntimeManifestRegistry([withService]).get(CHALLENGE_ID)?.services).toHaveLength(1);
+    const service = withService.services[0]!;
+    expect(() => new RuntimeManifestRegistry([{ ...withService, services: [service, service] }])).toThrow('unique');
+    expect(() => new RuntimeManifestRegistry([{ ...withService, services: [{ ...service, name: 'app' }] }])).toThrow();
+    expect(() => new RuntimeManifestRegistry([{ ...withService, services: [] }])).toThrow('unknown service');
+    expect(() => new RuntimeManifestRegistry([{ ...withService, slotWeight: 9 }])).toThrow();
+  });
+
+  it('limits the escalation profile to reviewed gVisor labs', () => {
+    const reviewed = { ...escalationLab, challengeId: ESCALATION_ID };
+    expect(new RuntimeManifestRegistry([reviewed]).get(ESCALATION_ID)?.privilege).toBe('escalation');
+    expect(() => new RuntimeManifestRegistry([{ ...reviewed, sandbox: 'runc' }])).toThrow('requires the gVisor sandbox');
+    expect(() => new RuntimeManifestRegistry([{ ...reviewed, challengeId: CHALLENGE_ID }])).toThrow('reviewed labs');
+  });
+
   it('accepts pinned images and rejects mutable tags or duplicate challenges', () => {
     expect(new RuntimeManifestRegistry([manifest]).get(CHALLENGE_ID)).toEqual(manifest);
     expect(() => new RuntimeManifestRegistry([{ ...manifest, image: 'nginx:latest' }])).toThrow(
@@ -101,6 +133,78 @@ describe('Docker orchestrator', () => {
     expect(options?.HostConfig).not.toHaveProperty('Binds');
     expect(options?.HostConfig).not.toHaveProperty('Devices');
     expect(router.upsert).toHaveBeenCalledOnce();
+  });
+
+  it('starts internal services before the entry, with the same restrictions and named aliases', async () => {
+    const fixture = dockerFixture();
+    const router = routerFixture();
+    await new DockerOrchestrator(fixture.docker, router).spawn(spawnInput(withService));
+    const [service, entry] = fixture.createContainer.mock.calls.map(([options]) => options);
+    const suffix = INSTANCE_ID.replaceAll('-', '');
+    expect(service).toMatchObject({
+      name: `cr-${suffix}-metadata`, Env: [],
+      Labels: { 'cyber-range.service': 'metadata' },
+      HostConfig: { CapDrop: ['ALL'], ReadonlyRootfs: true, NetworkMode: `crn-${suffix}`, Privileged: false },
+      NetworkingConfig: { EndpointsConfig: { [`crn-${suffix}`]: { Aliases: [`cr-${suffix}-metadata`, 'metadata'] } } },
+    });
+    expect(service).not.toHaveProperty('ExposedPorts');
+    expect(entry).toMatchObject({ name: `cr-${suffix}`, Labels: { 'cyber-range.services': 'metadata' } });
+    expect(entry?.NetworkingConfig?.EndpointsConfig?.[`crn-${suffix}`]?.Aliases).toEqual([`cr-${suffix}`, 'app']);
+    expect(router.upsert).toHaveBeenCalledWith(expect.objectContaining({ targetHost: `cr-${suffix}` }));
+  });
+
+  it('runs a shell lab on gVisor and gives the entry a hosts entry for each service', async () => {
+    const fixture = dockerFixture();
+    const gvisor: RuntimeManifest = { ...withService, sandbox: 'gvisor' };
+    await new DockerOrchestrator(fixture.docker, routerFixture()).spawn(spawnInput(gvisor));
+    const [service, entry] = fixture.createContainer.mock.calls.map(([options]) => options);
+    expect(service?.HostConfig?.Runtime).toBe('runsc');
+    expect(entry?.HostConfig?.Runtime).toBe('runsc');
+    // gVisor can't use Docker's embedded DNS, so the service resolves through /etc/hosts.
+    expect(entry?.HostConfig?.ExtraHosts).toEqual(['metadata:172.18.0.5']);
+    expect(service?.HostConfig).not.toHaveProperty('ExtraHosts');
+  });
+
+  it('relaxes only no-new-privileges, only on the entry, for a reviewed escalation lab', async () => {
+    const fixture = dockerFixture({ managedChallengeId: ESCALATION_ID });
+    await new DockerOrchestrator(fixture.docker, routerFixture()).spawn(spawnInput(escalationLab));
+    const [service, entry] = fixture.createContainer.mock.calls.map(([options]) => options);
+    expect(entry?.HostConfig?.Runtime).toBe('runsc-suid');
+    expect(entry?.HostConfig?.SecurityOpt).toEqual(['apparmor=docker-default']);
+    // Everything else stays fixed: no capability comes back.
+    expect(entry?.HostConfig).toMatchObject({ CapDrop: ['ALL'], Privileged: false, ReadonlyRootfs: true, IpcMode: 'none' });
+    expect(entry?.HostConfig).not.toHaveProperty('CapAdd');
+    expect(service?.HostConfig?.Runtime).toBe('runsc');
+    expect(service?.HostConfig?.SecurityOpt).toEqual(['no-new-privileges:true', 'apparmor=docker-default']);
+  });
+
+  it('refuses to build an escalation container for an unreviewed lab', async () => {
+    const fixture = dockerFixture();
+    const input = { ...spawnInput(escalationLab), challengeId: CHALLENGE_ID };
+    await expect(new DockerOrchestrator(fixture.docker, routerFixture()).spawn(input)).rejects.toThrow();
+    expect(fixture.createContainer).not.toHaveBeenCalled();
+  });
+
+  it('keeps no-new-privileges on every standard lab', async () => {
+    const fixture = dockerFixture();
+    await new DockerOrchestrator(fixture.docker, routerFixture()).spawn(spawnInput({ ...withService, sandbox: 'gvisor' }));
+    for (const [options] of fixture.createContainer.mock.calls) {
+      expect(options.HostConfig?.SecurityOpt).toContain('no-new-privileges:true');
+    }
+  });
+
+  it('leaves runc labs with no gVisor runtime or hosts entries', async () => {
+    const fixture = dockerFixture();
+    await new DockerOrchestrator(fixture.docker, routerFixture()).spawn(spawnInput(withService));
+    for (const [options] of fixture.createContainer.mock.calls) {
+      expect(options.HostConfig).not.toHaveProperty('Runtime');
+      expect(options.HostConfig).not.toHaveProperty('ExtraHosts');
+    }
+  });
+
+  it('reports a lab whose internal service disappeared as missing', async () => {
+    const fixture = dockerFixture({ existingContainer: true, entryServices: 'metadata', existingNetwork: true });
+    expect(await new DockerOrchestrator(fixture.docker, routerFixture()).runtimeStatus(INSTANCE_ID)).toBe('missing');
   });
 
   it('cleans the container and network after a partial start failure', async () => {
@@ -196,6 +300,13 @@ describe('Docker orchestrator', () => {
     expect(fixture.createContainer).not.toHaveBeenCalled();
   });
 
+  it('skips host verification only when the publication check asks', async () => {
+    const fixture = dockerFixture({ securityOptions: ['name=seccomp', 'name=apparmor'] });
+    await new DockerOrchestrator(fixture.docker, routerFixture(), undefined, { verifyHost: false })
+      .spawn(spawnInput());
+    expect(fixture.createContainer).toHaveBeenCalled();
+  });
+
   it('rejects a Docker host with seccomp disabled', async () => {
     const fixture = dockerFixture({ securityOptions: [
       'name=userns', 'name=apparmor', 'name=seccomp,profile=unconfined',
@@ -232,6 +343,30 @@ describe('Docker orchestrator', () => {
     expect(fixture.createContainer).not.toHaveBeenCalled();
   });
 
+  it('refuses a gVisor lab when the host does not advertise the runsc runtime', async () => {
+    const fixture = dockerFixture({ runtimes: { runc: { path: 'runc' } } });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.preflight([{ ...manifest, sandbox: 'gvisor' }])).rejects.toThrow('gVisor (runsc) runtime');
+  });
+
+  it('accepts a gVisor lab when the host advertises runsc', async () => {
+    const fixture = dockerFixture({ runtimes: { runc: { path: 'runc' }, runsc: { path: '/usr/local/bin/runsc' } } });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.preflight([{ ...manifest, sandbox: 'gvisor' }])).resolves.toBeUndefined();
+  });
+
+  it('refuses an escalation lab when the host does not advertise runsc-suid', async () => {
+    const fixture = dockerFixture({ runtimes: { runc: { path: 'runc' }, runsc: { path: '/usr/local/bin/runsc' } } });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.preflight([escalationLab])).rejects.toThrow('runsc-suid runtime');
+  });
+
+  it('accepts an escalation lab when the host advertises runsc-suid', async () => {
+    const fixture = dockerFixture({ runtimes: { runsc: { path: '/usr/local/bin/runsc' }, 'runsc-suid': { path: '/usr/local/bin/runsc' } } });
+    const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
+    await expect(orchestrator.preflight([escalationLab])).resolves.toBeUndefined();
+  });
+
   it('rejects a manifest image that is unavailable on the Docker host', async () => {
     const fixture = dockerFixture({ availableImages: [] });
     const orchestrator = new DockerOrchestrator(fixture.docker, routerFixture(), 'traefik');
@@ -256,13 +391,58 @@ describe('Docker orchestrator', () => {
   });
 });
 
-function spawnInput() {
+describe('exec flag delivery', () => {
+  const delivery = { mode: 'exec' as const, command: ['node', '/app/load-flag.mjs'], user: '65532:65532' };
+  const execInput = () => ({ ...spawnInput(), manifest: { ...manifest, flagDelivery: delivery } });
+  function withExec(exitCode: number) {
+    const fixture = dockerFixture();
+    const inspect = vi.fn(async () => ({ Running: false, ExitCode: exitCode }));
+    const exec = vi.fn(async (_options: Docker.ExecCreateOptions) => ({
+      start: vi.fn(async () => undefined),
+      inspect,
+    }));
+    const created = fixture.createContainer.getMockImplementation();
+    fixture.createContainer.mockImplementation(async (options) => {
+      const container = await created!(options);
+      return Object.assign(container, { exec });
+    });
+    return { fixture, exec };
+  }
+
+  it('keeps the flag out of the container config and passes it only to the exec', async () => {
+    const { fixture, exec } = withExec(0);
+    const router = routerFixture();
+    await new DockerOrchestrator(fixture.docker, router).spawn(execInput());
+
+    expect(fixture.createContainer.mock.calls[0]?.[0].Env).toEqual([]);
+    expect(JSON.stringify(fixture.createContainer.mock.calls[0]?.[0])).not.toContain('test-only');
+    expect(exec).toHaveBeenCalledWith(expect.objectContaining({
+      Cmd: delivery.command,
+      User: delivery.user,
+      Env: ['CYBER_RANGE_FLAG=CTF{test-only}'],
+    }));
+    expect(exec.mock.invocationCallOrder[0]).toBeLessThan(router.upsert.mock.invocationCallOrder[0]!);
+  });
+
+  it('fails closed without a route or the flag in the error when delivery fails', async () => {
+    const { fixture } = withExec(1);
+    const router = routerFixture();
+    const failure = new DockerOrchestrator(fixture.docker, router).spawn(execInput());
+
+    await expect(failure).rejects.toThrow('Runtime flag delivery failed');
+    await expect(failure).rejects.not.toThrow('test-only');
+    expect(router.upsert).not.toHaveBeenCalled();
+    expect(fixture.containerRemove).toHaveBeenCalled();
+  });
+});
+
+function spawnInput(runtime: RuntimeManifest = manifest) {
   return {
     instanceId: INSTANCE_ID,
-    challengeId: CHALLENGE_ID,
+    challengeId: runtime.challengeId,
     routeKey: ROUTE_KEY,
     flag: 'CTF{test-only}',
-    manifest,
+    manifest: runtime,
   };
 }
 
@@ -294,6 +474,8 @@ function dockerFixture(options: {
   networkDriver?: string;
   enableIPv6?: boolean;
   extraNetwork?: boolean;
+  entryServices?: string;
+  runtimes?: Record<string, unknown>;
 } = {}) {
   const containerRemove = vi.fn(async () => undefined);
   const networkRemove = vi.fn(async () => undefined);
@@ -304,6 +486,7 @@ function dockerFixture(options: {
     }),
     stop: vi.fn(async () => undefined),
     remove: containerRemove,
+    exec: vi.fn(async () => ({ start: vi.fn(async () => undefined), inspect: vi.fn(async () => ({ Running: false, ExitCode: 0 })) })),
     inspect: vi.fn(async () => ({
       State: {
         Running: options.ingressRunning ?? true,
@@ -315,11 +498,12 @@ function dockerFixture(options: {
           'cyber-range.managed': 'true',
           'cyber-range.instance-id': options.managedInstanceId ?? INSTANCE_ID,
           'cyber-range.challenge-id': options.managedChallengeId ?? CHALLENGE_ID,
+          ...(options.entryServices ? { 'cyber-range.services': options.entryServices } : {}),
         },
       },
       NetworkSettings: {
         Networks: {
-          [`crn-${INSTANCE_ID.replaceAll('-', '')}`]: {},
+          [`crn-${INSTANCE_ID.replaceAll('-', '')}`]: { IPAddress: '172.18.0.5' },
           ...(options.extraNetwork ? { bridge: {} } : {}),
         },
       },
@@ -370,6 +554,7 @@ function dockerFixture(options: {
         'name=seccomp,profile=default',
         'name=apparmor',
       ],
+      Runtimes: options.runtimes ?? { runc: { path: 'runc' } },
     })),
     listContainers: vi.fn(async () => options.existingContainer ? [{ Id: 'container-id' }] : []),
     listNetworks: vi.fn(async () => options.existingNetwork ? [{ Id: 'network-id' }] : []),

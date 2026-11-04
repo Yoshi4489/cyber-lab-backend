@@ -77,9 +77,29 @@ HTTPS/browser validation and verified-domain live delivery remain incomplete. Se
   socket mounts, and unapproved capabilities.
 - Enforce user namespaces, dropped capabilities, no-new-privileges, seccomp,
   AppArmor, read-only roots, bounded tmpfs, CPU, memory, PID and storage limits.
+- Run labs that give a learner a shell (and arbitrary code execution) on the
+  gVisor (`runsc`) kernel, off the host kernel. Preflight fails closed if the host
+  does not advertise the runtime. Such a lab gets one exec-capable workspace tmpfs;
+  `/tmp` and every other mount stay `noexec`, and `no-new-privileges` stays set.
+- One exception, approved on 2026-11-04: a lab may set `privilege: "escalation"`
+  only if it runs on gVisor and its id is in the reviewed `ESCALATION_LABS`
+  allowlist in code. Its entry container alone drops `no-new-privileges` and
+  runs on `runsc-suid` (gVisor honouring set-uid), so learners can practise
+  escalation inside their own sandbox. Capabilities stay dropped (never
+  `CapAdd`), and user namespaces, seccomp, read-only root, resource limits and
+  network isolation are unchanged. Adding a lab to the allowlist is a
+  security-reviewed code change.
 - Use pinned images and backend-controlled resource labels. Bound health
   checks, retries and startup times; failed starts must clean up resources.
-- Require an explicit positive per-node lab-slot budget. Serialize admission,
+- Serve each instance on its own origin (`<route-key>.<lab domain>`), so one
+  learner's script can't read another's pages or cookies. In production the lab
+  domain must be separate from the frontend's registrable domain.
+- Give internal lab services the same defaults as the entry, no route and no
+  published port. A lab's admin bot runs Chromium with `--no-sandbox` inside its
+  no-egress container and holds no real credentials; this is an accepted risk
+  until the Phase 4 sandbox decision.
+- Require an explicit positive per-node lab-slot budget, counted by manifest
+  slot weight. Serialize admission,
   count durable reservations and orphan/partial managed allocations, and retain
   capacity until all resources are confirmed absent. Failed inventory, stripped
   or mismatched labels, and duplicate allocations must refuse new admission.
@@ -139,6 +159,14 @@ displays it. API verification remains dynamic until the separate Phase 3
 checkpoint. The test settings are rejected in production, and no control-plane
 API returns an expected flag. All other lab identities retain dynamic flags.
 
+- Real labs receive their flag by a one-shot exec after start (`flagDelivery:
+  exec`), never through the container environment. The package loader refuses a
+  lab with env delivery or a flag value in its published text, and
+  `scripts/lab-check.mjs` proves the solver and the absence of known shortcuts.
+- Artifact files contain flags, so the store stays outside Git and every image.
+  The build needs `INSTANCE_FLAG_SECRET`, so run it only on a trusted operator host.
+  Artifacts must be synthetic, with no real personal data or live malware.
+  `scripts/artifact-check.mjs` proves each is solvable.
 - Derive per-instance flags from a dedicated backend secret and runtime identity;
   persist neither expected flags nor submitted values. Verify only after an
   ownership resolver binds user, challenge, and instance.
